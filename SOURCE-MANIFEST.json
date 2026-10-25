@@ -1,14 +1,12 @@
 {
-  "sourceCommit": "a70497d602ad1e56b8685606a5afe62f777c1045",
+  "sourceCommit": "6ca5b567b9b35043ed844657475507a41b794ee6",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
     "apps/android/app/build.gradle.kts",
-    "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/IntensiveReading.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReadingScreen.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/home/HomeCards.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/map/CampusMapScreen.kt",
-    "apps/android/app/src/test/java/cn/tonglu/app/data/english/intensive/IntensiveReadingTest.kt",
     "apps/android/gradle/wrapper/gradle-wrapper.properties",
     "apps/android/gradlew",
     "scripts/intensive_reading.py",
@@ -41,7 +39,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 17990,
-      "sha256": "24af977cb4504b6b0661c69f6940686b0fd28458826d9ca9537b2d3823461402"
+      "sha256": "0f70e488bd316311469725fc56c757ddce3a2dc80d79ff8362bcd7cd3d6b872e"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -150,8 +148,8 @@
     },
     {
       "path": "apps/android/app/src/main/assets/intensive/catalog.json",
-      "bytes": 45,
-      "sha256": "af886e0720774b32c4d7babb715b64d487cc0b6bdec46aa82ba9adbb91d51b51"
+      "bytes": 82,
+      "sha256": "516a15094def0df8ca692abc0e04bdea5497d581f53a65ba209d5ae81a0e40ee"
     },
     {
       "path": "apps/android/app/src/main/assets/learning/life-decision-guide-LICENSE",
@@ -1060,8 +1058,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReadingScreen.kt",
-      "bytes": 8705,
-      "sha256": "d59124c5e31dcfc03c6c6778571f9ba2c7640023eb7db006f0f466a35bc4ba05"
+      "bytes": 9172,
+      "sha256": "6dbde43fde0aa231b25e28d9932f66692fe2f5325c7dcf600c1cc09e801b08d1"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveWordLookup.kt",
@@ -2040,8 +2038,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/intensive/IntensiveReadingTest.kt",
-      "bytes": 4259,
-      "sha256": "a20d55f92b74b6f6e7f671f1d58151cb3935474a5eddd5c7d94c5a74bbea4b75"
+      "bytes": 4277,
+      "sha256": "06773254fcad8515698b4f55994322514f17c89287d9e58b177c2ef2ccd480db"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/materials/ExamMaterialsModelsTest.kt",
@@ -2934,6 +2932,11 @@
       "sha256": "3dcb10399ff7db278abeda856daff8dfdefeaf2deb6f26b9c793daf96dde2160"
     },
     {
+      "path": "content/intensive/provenance.json",
+      "bytes": 121,
+      "sha256": "2fe6bfaa825ecbe62ca2e52a55247bb853e5644cd20f8cfc4378fe1182f7ab7e"
+    },
+    {
       "path": "content/learning/catalog.json",
       "bytes": 98,
       "sha256": "2a206f3998dd363db78be9fc69ddb3a2771d5da862d9fd465b468e583a7520cf"
@@ -3055,8 +3058,8 @@
     },
     {
       "path": "scripts/audit_resource_provenance.py",
-      "bytes": 30292,
-      "sha256": "a58600340265a705ceb030ad493a6879aacd2b3ed26af7e8bc260ebadc7fcb8f"
+      "bytes": 30735,
+      "sha256": "e10328850729d2f701997bc741bd794d61de5e218fcd8651e977779a24965301"
     },
     {
       "path": "scripts/build_localsend.py",
@@ -3080,8 +3083,8 @@
     },
     {
       "path": "scripts/tests/test_intensive_reading.py",
-      "bytes": 7920,
-      "sha256": "1de4895d0ba12a3096695f5a34616935ede9bf6710df5d72f5ded9f613ebf22c"
+      "bytes": 9045,
+      "sha256": "6c94f895afdcafd1658f02c3a7d917fd12f7d479411ebfeade892c68db18f8b9"
     },
     {
       "path": "scripts/tts_prepare_assets.py",

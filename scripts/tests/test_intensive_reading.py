@@ -16,6 +16,19 @@ import audit_resource_provenance as audit
 
 
 class IntensiveReadingTests(unittest.TestCase):
+    def test_empty_distribution_requires_policy_and_rejects_leftover_text(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            directory = root/'apps/android/app/src/main/assets/intensive'
+            module.write(directory/'catalog.json',dict(schemaVersion=1,contentPolicy='no-exam-texts',articles=[]))
+            proof = dict(distribution='no-exam-texts',reason='No redistribution grant',articles=[])
+            module.write(root/'content/intensive/provenance.json',proof)
+            with patch.object(audit,'ROOT',folder):
+                self.assertEqual([],audit.check_intensive())
+                leftover=directory/'articles/hidden.json';leftover.parent.mkdir();leftover.write_text('text')
+                self.assertTrue(any('残留' in x for x in audit.check_intensive()))
+                leftover.unlink();proof.pop('distribution');module.write(root/'content/intensive/provenance.json',proof)
+                self.assertTrue(any('明确登记' in x for x in audit.check_intensive()))
     def test_identity_does_not_mix_suite_or_year(self):
         result = module.paper_identity('四级真题/2026.06/真题PDF/cet4_2026_06_2.pdf')
         self.assertEqual('cet4-2026-06-2', result['id'])
@@ -90,6 +103,7 @@ class IntensiveReadingTests(unittest.TestCase):
         self.assertTrue((directory / 'catalog.json').is_file(), 'real GPU packs must be bundled')
         catalog = json.loads((directory / 'catalog.json').read_text('utf8'))
         if not catalog['articles']:
+            self.assertEqual('no-exam-texts', catalog.get('contentPolicy'))
             self.skipTest('Public source excludes unlicensed exam text packs; GPU pack coverage not asserted')
         count = 0
         for row in catalog['articles']:

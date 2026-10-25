@@ -544,6 +544,12 @@ def check_intensive():
         proof = json.loads((root / 'content/intensive/provenance.json').read_text('utf8'))
         if proof['articles'] != catalog['articles']:
             bad.append('精读索引与逐篇出处登记不一致')
+        if not catalog['articles']:
+            if catalog.get('contentPolicy') != 'no-exam-texts' or proof.get('distribution') != 'no-exam-texts' or not proof.get('reason'):
+                bad.append('精读空目录必须明确登记不分发真题及原因')
+            if any(path.is_file() for path in (directory / 'articles').rglob('*')):
+                bad.append('精读空目录仍残留文章文件')
+            return bad
         for field in ('grammarSource', 'grammarLicense', 'translationSource', 'translationLicense', 'modelFingerprint', 'modelFiles'):
             if not proof.get(field): bad.append('精读模型缺 ' + field)
         seen = set()

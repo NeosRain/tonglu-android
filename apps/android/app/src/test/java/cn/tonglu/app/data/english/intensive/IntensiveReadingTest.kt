@@ -5,7 +5,7 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class IntensiveReadingTest {
-    @Test fun emptyPublicCatalogIsValid() {
+    @Test fun emptyCatalogIsValidAndDoesNotInventArticles() {
         assertTrue(IntensiveCodec.catalog("""{"schemaVersion":1,"articles":[]}""").isEmpty())
     }
     private fun fixture(): Pair<IntensiveEntry, JSONObject> {

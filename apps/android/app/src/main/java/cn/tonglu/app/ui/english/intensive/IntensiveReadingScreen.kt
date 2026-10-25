@@ -59,6 +59,7 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
         article = null; articleError = null
         val id = openId ?: return@LaunchedEffect
         val entries = catalog ?: return@LaunchedEffect
+        if (entries.none { it.id == id }) { openId = null; return@LaunchedEffect }
         try {
             article = repository.article(entries.first { it.id == id })
             lastId = id; preferences.edit().putString("lastArticle", id).apply()
@@ -69,9 +70,13 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
     IntensiveWindow("考试精读", onClose) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
-                Text("选一篇，就开始", fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text(if (catalog?.isEmpty() == true) "继续读自己的文章" else "选一篇，就开始", fontSize = 28.sp, fontWeight = FontWeight.Bold)
                 Text("开源版不附带未获再分发授权的真题材料；可从英语首页导入自己的文章。", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (catalog?.isEmpty() == true) item {
+                Text("本版本不附带尚未确认再分发授权的真题正文。个人文章精读、翻译、查词和朗读入口保留在英语首页。")
+                TextButton(onClick = onClose) { Text("返回英语") }
+            } else {
             catalog?.firstOrNull { it.id == lastId }?.let { last -> item {
                 OutlinedCard(onClick = { openId = last.id }, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp)) {
@@ -105,6 +110,7 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
             }
             item { Text("翻译和语法由 GPU 预先分析，打开即用。机器结果需结合原文核对；缺失或校验未通过的材料不会显示为可读。",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+            }
         }
     }
     if (openId != null) IntensiveWindow(article?.entry?.title ?: "正在打开文章", { openId = null }) {
