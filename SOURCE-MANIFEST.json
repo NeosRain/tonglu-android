@@ -2943,8 +2943,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 209,
-      "sha256": "21e738616278215e5f21337e15b5e9bf035e6a1c8049be11ef41260560f2753e"
+      "bytes": 2290,
+      "sha256": "56ee5322407fcc33255c0c3f882dc25b4d0f53b5c0607f27eeb5858b3c618923"
     },
     {
       "path": "content/intensive/provenance.json",
