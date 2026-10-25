@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "e3696f702a5d2361caa8c3ea85d9a0499efa40f4",
+  "sourceCommit": "a70497d602ad1e56b8685606a5afe62f777c1045",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -23,6 +23,11 @@
     "model weights, voice experiments, caches and local binaries"
   ],
   "files": [
+    {
+      "path": ".gitattributes",
+      "bytes": 33,
+      "sha256": "74176728ccc46b829b47e6afe4168d76e07d1aa01c6dc2091ad42baa7f17bc98"
+    },
     {
       "path": ".gitignore",
       "bytes": 257,
@@ -2925,8 +2930,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 314,
-      "sha256": "326cd2763e904780b9f1ce6b2980dff8e0f010a332791991458acee6cc6011ba"
+      "bytes": 2761,
+      "sha256": "3dcb10399ff7db278abeda856daff8dfdefeaf2deb6f26b9c793daf96dde2160"
     },
     {
       "path": "content/learning/catalog.json",
@@ -3097,11 +3102,6 @@
       "path": "THIRD_PARTY.md",
       "bytes": 4052,
       "sha256": "fcb4364ccb5ff2d882129004250ab7dbd62d9f1fbb1225dd12598c5d08b42aa9"
-    },
-    {
-      "path": ".gitattributes",
-      "bytes": 33,
-      "sha256": "74176728ccc46b829b47e6afe4168d76e07d1aa01c6dc2091ad42baa7f17bc98"
     }
   ]
 }
