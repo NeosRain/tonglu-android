@@ -1,0 +1,179 @@
+{
+  "id": "builtin-cet4-vocabulary",
+  "title": "四级方向 · 词汇搭配（自编）",
+  "subject": "english",
+  "level": "core",
+  "sourceNote": "同路自编练习，参考大学英语学习方向组织，非官方四级或六级真题，不承诺对应考试难度或分数。听力为合成朗读，非考试原音。答案与解析可离线查看。",
+  "license": "同路原创练习内容，未转载第三方试题",
+  "version": 1,
+  "questions": [
+    {
+      "id": "v01",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Please ___ your student card before entering the library.",
+      "options": [
+        "grow",
+        "show",
+        "lose",
+        "borrow"
+      ],
+      "answer": 1,
+      "explanation": "进入图书馆前出示学生证，show 表示出示。grow 生长，lose 丢失，borrow 借入，与语境不符。"
+    },
+    {
+      "id": "v02",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The bus was late, so we had to ___ for twenty minutes.",
+      "options": [
+        "wait",
+        "waste",
+        "wake",
+        "walk"
+      ],
+      "answer": 0,
+      "explanation": "公交车晚点，因此等待二十分钟。wait for 后接等待的时长或对象；waste 是浪费，不与 for 这样搭配。"
+    },
+    {
+      "id": "v03",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "You can ___ this book for two weeks before returning it.",
+      "options": [
+        "turn down",
+        "take off",
+        "bring up",
+        "keep"
+      ],
+      "answer": 3,
+      "explanation": "借书后可保留两周，用 keep。take off 脱下或起飞，bring up 提起或养育，turn down 拒绝。"
+    },
+    {
+      "id": "v04",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The room is too dark. Could you turn ___ the light?",
+      "options": [
+        "off",
+        "over",
+        "on",
+        "away"
+      ],
+      "answer": 2,
+      "explanation": "房间太暗，需开灯，用 turn on。turn off 是关灯，方向与语境相反。"
+    },
+    {
+      "id": "v05",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Mia is interested ___ learning a new language.",
+      "options": [
+        "at",
+        "in",
+        "of",
+        "to"
+      ],
+      "answer": 1,
+      "explanation": "固定搭配 be interested in 表示对某事感兴趣，in 后可接动名词 learning。"
+    },
+    {
+      "id": "v06",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The train will ___ at the station at nine.",
+      "options": [
+        "arrive",
+        "reach",
+        "visit",
+        "get"
+      ],
+      "answer": 0,
+      "explanation": "arrive at 接小地点，如车站。reach 是及物动词，后不接 at；get 要搭配 to。"
+    },
+    {
+      "id": "v07",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "We need to ___ a decision before Friday.",
+      "options": [
+        "do",
+        "have on",
+        "take away",
+        "make"
+      ],
+      "answer": 3,
+      "explanation": "make a decision 表示作出决定，属于动词与名词的固定搭配。do 不与 decision 搭配。"
+    },
+    {
+      "id": "v08",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "This exercise looks difficult, but the teacher will ___ it clearly.",
+      "options": [
+        "contain",
+        "complain",
+        "explain",
+        "remain"
+      ],
+      "answer": 2,
+      "explanation": "老师会清楚解释练习，用 explain。complain 抱怨，contain 包含，remain 保持。"
+    },
+    {
+      "id": "v09",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The two bags are similar, but mine is ___ heavier.",
+      "options": [
+        "hardly",
+        "slightly",
+        "never",
+        "already"
+      ],
+      "answer": 1,
+      "explanation": "slightly heavier 表示稍微重一点；slightly 可修饰比较级。其他选项不表达这里的程度关系。"
+    },
+    {
+      "id": "v10",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Students are encouraged to ___ in the discussion.",
+      "options": [
+        "take part",
+        "take place",
+        "take care",
+        "take time"
+      ],
+      "answer": 0,
+      "explanation": "take part in 表示参加活动或讨论。take place 是发生，take care 是小心。"
+    },
+    {
+      "id": "v11",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Please read the instructions ___ before using the machine.",
+      "options": [
+        "careful",
+        "caring",
+        "care",
+        "carefully"
+      ],
+      "answer": 3,
+      "explanation": "修饰动词 read 需要副词 carefully，意为仔细地。careful 是形容词。"
+    },
+    {
+      "id": "v12",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The new timetable is ___ on the notice board.",
+      "options": [
+        "valuable to",
+        "comfortable",
+        "available",
+        "afraid"
+      ],
+      "answer": 2,
+      "explanation": "课表可在公告栏上查到，用 available（可获取的）。comfortable 舒适的，afraid 害怕的。"
+    }
+  ]
+}

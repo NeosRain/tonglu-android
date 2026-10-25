@@ -1,0 +1,26 @@
+本目录（assets/web）下的前端资源随 APK 分发，用于在 App 内离线渲染 Markdown 与数学公式。
+三份都是原样使用的未修改构建产物。
+
+------------------------------------------------------------------------
+KaTeX 0.16.11  ——  katex.min.js
+https://katex.org/  ·  https://github.com/KaTeX/KaTeX
+License: MIT
+Copyright (c) 2013-2020 Khan Academy and other contributors
+
+------------------------------------------------------------------------
+marked 12.0.2  ——  marked.min.js
+https://github.com/markedjs/marked
+License: MIT
+Copyright (c) 2011-2024, Christopher Jeffrey
+
+------------------------------------------------------------------------
+DOMPurify 3.1.6  ——  purify.min.js
+https://github.com/cure53/DOMPurify
+License: Apache License 2.0  OR  Mozilla Public License 2.0
+Copyright (c) Cure53 and other contributors
+
+------------------------------------------------------------------------
+preview.html 是本项目自己写的渲染管线（原创），负责把 Markdown 交给 marked、
+把 $...$ / $$...$$ 交给 KaTeX（output: 'mathml'）、并在中间过一遍 DOMPurify。
+
+完整许可证文本见各上游仓库的 LICENSE 文件。

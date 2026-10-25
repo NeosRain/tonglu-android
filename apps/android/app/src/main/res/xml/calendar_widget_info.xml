@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「日历」小部件的元数据。
+
+  与 today_widget_info.xml 同一套约定（updatePeriodMillis=0 的原因见那份的注释）：
+  刷新全部交给 TodayWidgetUpdater 的 AlarmManager，三个部件共用一颗闹钟。
+
+  🔴 minHeight=62dp 不是拍的：CalendarWidgetLayout.needed(1) = 20(vPad) + 18(日期行)
+     + 6(间距) + 18(一条倒计时) = 62dp —— 最小档要保证「日期 + 一条倒计时」完整可见。
+  resizeMode 两向都可拉；拉高到 80dp 能放下第二条（WIDE 档）。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_calendar_desc"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="62dp"
+    android:minResizeHeight="57dp"
+    android:minResizeWidth="110dp"
+    android:minWidth="180dp"
+    android:previewImage="@drawable/ic_calendar_widget_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="3"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

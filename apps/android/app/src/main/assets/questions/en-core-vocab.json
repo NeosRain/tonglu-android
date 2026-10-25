@@ -1,0 +1,101 @@
+{
+  "id": "builtin-en-vocab",
+  "title": "英语核心词汇辨析（平台自建）",
+  "subject": "english",
+  "level": "core",
+  "sourceNote": "由同路平台自行编写的词汇辨析练习，考查近义词在具体语境中的选择。不是任何考试的真题，也不对应任何考试的具体分数。",
+  "license": "平台自建内容（同路）",
+  "version": 1,
+  "questions": [
+    {
+      "id": "v01",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The scientists ___ a new method to reduce energy consumption.",
+      "options": ["invented", "discovered", "developed", "found"],
+      "answer": 2,
+      "explanation": "develop 强调「经过研究逐步改进/形成」，与 method（方法）搭配最自然；invent 指发明从未有过的东西（如电话），discover 指发现已存在但未知的事物。"
+    },
+    {
+      "id": "v02",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Please ___ me of the meeting tomorrow morning.",
+      "options": ["remember", "remind", "recall", "memorize"],
+      "answer": 1,
+      "explanation": "remind sb of sth = 提醒某人某事，是及物动词带双宾；remember 是「自己记得」，不能说 remember me of。recall 是回忆起，memorize 是背诵。"
+    },
+    {
+      "id": "v03",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The company refused to ___ the details of the contract.",
+      "options": ["reveal", "revelation", "revealing", "revealed"],
+      "answer": 0,
+      "explanation": "refuse to do sth 后接**动词原形**，所以只能是 reveal。revelation 是名词，revealing/revealed 是分词形式，都不能直接跟在 to 后面。"
+    },
+    {
+      "id": "v04",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "His explanation was so ___ that everyone understood it immediately.",
+      "options": ["clear", "clean", "clever", "close"],
+      "answer": 0,
+      "explanation": "clear 形容表达清楚易懂，与 explanation 搭配最贴切：a clear explanation。clean 是干净的，clever 是聪明的（形容人），close 是近的 —— 都不修饰「讲解是否易懂」。"
+    },
+    {
+      "id": "v05",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "She has a strong ___ to succeed in her career.",
+      "options": ["desire", "desert", "design", "destiny"],
+      "answer": 0,
+      "explanation": "desire（渴望）与介词 to do 搭配：a desire to succeed。desert 是沙漠/抛弃，design 是设计，destiny 是命运，都不能表达「有强烈意愿做某事」。"
+    },
+    {
+      "id": "v06",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The two theories are ___ incompatible with each other.",
+      "options": ["mutually", "mutual", "mutualism", "mutuality"],
+      "answer": 0,
+      "explanation": "修饰形容词 incompatible 要用副词 mutually（相互地）。mutual 是形容词，不能修饰形容词；后两个是名词。mutually incompatible 是固定搭配。"
+    },
+    {
+      "id": "v07",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "We should ___ the problem from a different angle.",
+      "options": ["approach", "approve", "appeal", "appear"],
+      "answer": 0,
+      "explanation": "approach 作动词是「着手处理、接近」，approach the problem 是常见搭配。approve 是批准，appeal 是呼吁/吸引，appear 是出现。"
+    },
+    {
+      "id": "v08",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The medicine had an immediate ___ on the patient.",
+      "options": ["affect", "effect", "effort", "afford"],
+      "answer": 1,
+      "explanation": "have an effect on = 对……产生影响，effect 是名词。affect 是动词，不能跟在 an 后面；effort 是努力，afford 是负担得起。这是最经典的 affect/effect 之辨。"
+    },
+    {
+      "id": "v09",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "He was ___ for the accident because he ignored the warning.",
+      "options": ["responsible", "responsive", "respectful", "resourceful"],
+      "answer": 0,
+      "explanation": "be responsible for = 对……负责。responsive 是反应灵敏的，respectful 是恭敬的，resourceful 是足智多谋的，都与「为事故负责」无关。"
+    },
+    {
+      "id": "v10",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "The evidence is not ___ to prove his guilt.",
+      "options": ["sufficient", "efficient", "effective", "proficient"],
+      "answer": 0,
+      "explanation": "sufficient = 足够的，be sufficient to do 表示「足以做某事」。efficient 是效率高，effective 是有效果（指达到预期效果），proficient 是熟练。"
+    }
+  ]
+}

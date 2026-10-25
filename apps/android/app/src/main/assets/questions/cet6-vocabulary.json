@@ -1,0 +1,179 @@
+{
+  "id": "builtin-cet6-vocabulary",
+  "title": "六级方向 · 词汇辨析（自编）",
+  "subject": "english",
+  "level": "advanced",
+  "sourceNote": "同路自编练习，参考大学英语学习方向组织，非官方四级或六级真题，不承诺对应考试难度或分数。听力为合成朗读，非考试原音。答案与解析可离线查看。",
+  "license": "同路原创练习内容，未转载第三方试题",
+  "version": 1,
+  "questions": [
+    {
+      "id": "v01",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The new evidence may ___ the assumption that the method always works.",
+      "options": [
+        "undertake",
+        "undermine",
+        "undergo",
+        "underline with"
+      ],
+      "answer": 1,
+      "explanation": "undermine 表示削弱，新的证据削弱原有假设。undertake 承担，undergo 经历。"
+    },
+    {
+      "id": "v02",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The study found a ___ between sleep duration and attention, but did not prove causation.",
+      "options": [
+        "correlation",
+        "correction",
+        "collection",
+        "collision"
+      ],
+      "answer": 0,
+      "explanation": "correlation 是相关性，与后面的 causation（因果关系）形成区别。研究发现相关不等于证明因果。"
+    },
+    {
+      "id": "v03",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The committee will ___ the proposal on Monday and announce its decision later.",
+      "options": [
+        "evaporate",
+        "evacuate",
+        "evolve",
+        "evaluate"
+      ],
+      "answer": 3,
+      "explanation": "evaluate 表示评估提案。evacuate 撤离，evolve 演变，evaporate 蒸发。"
+    },
+    {
+      "id": "v04",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The policy aims to ___ the harmful effects of air pollution.",
+      "options": [
+        "migrate",
+        "imitate",
+        "mitigate",
+        "motivate"
+      ],
+      "answer": 2,
+      "explanation": "mitigate 表示缓解负面影响。imitate 模仿，migrate 迁移，motivate 激励。"
+    },
+    {
+      "id": "v05",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The speaker gave a ___ account, covering only the most important points.",
+      "options": [
+        "conscious",
+        "concise",
+        "consistent with",
+        "considerable"
+      ],
+      "answer": 1,
+      "explanation": "只涵盖最重要要点的说明是 concise（简洁的）。conscious 有意识的，considerable 相当大的。"
+    },
+    {
+      "id": "v06",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A single successful experiment does not ___ a general conclusion.",
+      "options": [
+        "justify",
+        "notify",
+        "identify with",
+        "modify into"
+      ],
+      "answer": 0,
+      "explanation": "justify 在此表示为一般结论提供充分依据。notify 通知，identify with 认同。"
+    },
+    {
+      "id": "v07",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The team chose a ___ approach, adapting the plan as new evidence appeared.",
+      "options": [
+        "rigid",
+        "fragile",
+        "hostile",
+        "flexible"
+      ],
+      "answer": 3,
+      "explanation": "根据新证据调整计划体现 flexible（灵活的）。rigid 是僵化的，恰与语境相反。"
+    },
+    {
+      "id": "v08",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The report distinguishes ___ short-term costs and long-term benefits.",
+      "options": [
+        "against",
+        "among of",
+        "between",
+        "within to"
+      ],
+      "answer": 2,
+      "explanation": "distinguish between A and B 是区分两者的搭配。这里 A 为短期成本，B 为长期收益。"
+    },
+    {
+      "id": "v09",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The findings are ___ with earlier studies, which reported similar results.",
+      "options": [
+        "competitive",
+        "consistent",
+        "compulsory",
+        "contrary"
+      ],
+      "answer": 1,
+      "explanation": "similar results 说明结果一致，用 consistent with。contrary to 表示与之相反。"
+    },
+    {
+      "id": "v10",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "Participants were selected at random to reduce selection ___.",
+      "options": [
+        "bias",
+        "basis",
+        "balance",
+        "boundary"
+      ],
+      "answer": 0,
+      "explanation": "selection bias 是选择偏差，随机选择参与者可以降低这一偏差。basis 是基础。"
+    },
+    {
+      "id": "v11",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The proposal is promising; ___, its cost has not yet been calculated.",
+      "options": [
+        "consequently",
+        "therefore",
+        "likewise",
+        "nevertheless"
+      ],
+      "answer": 3,
+      "explanation": "前半句肯定方案，后半句指出成本尚未计算，是转折让步，用 nevertheless（然而）。"
+    },
+    {
+      "id": "v12",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The university will ___ more resources to student research next year.",
+      "options": [
+        "relocate",
+        "locate",
+        "allocate",
+        "associate"
+      ],
+      "answer": 2,
+      "explanation": "allocate resources to 表示向某用途分配资源。locate 定位，relocate 搬迁，associate 联系。"
+    }
+  ]
+}

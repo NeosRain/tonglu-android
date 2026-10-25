@@ -1,0 +1,180 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
+    <!-- 上课提醒：课前 N 分钟发通知 -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- 定时提醒用精确闹钟；Android 14+ 需用户在系统设置里允许，未允许时自动退化为大致准点 -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <!-- 重启后重排提醒 -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <!-- 扫码登录：只用于取景解码二维码，不做任何拍摄/存储 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 保存登录二维码到相册（Android 10 起走 MediaStore 不再需要该权限） -->
+    <uses-permission
+        android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="28" />
+    <!-- 精听跟读：只在用户按下「录一遍」时才申请，录音留在本机私有目录，不上传 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
+    <!-- Android 11+ 包可见性：检测/拉起企业微信做扫码登录 -->
+    <queries>
+        <package android:name="com.android.bankabc" />
+        <package android:name="com.tencent.wework" />
+        <package android:name="com.tencent.weworklite" />
+        <package android:name="com.tencent.wework.android" />
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="wxwork" />
+        </intent>
+        <!-- Android 11+ 包可见性：问设备上有哪些朗读引擎也要显式声明，
+             否则 `TextToSpeech.engines` 可能拿不全，表现为「明明装了引擎却说没有」。
+             只声明 TTS 这一个 intent，不申请 QUERY_ALL_PACKAGES。 -->
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:label="同路"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.Tonglu"
+        android:usesCleartextTraffic="${usesCleartextTraffic}"
+        android:enableOnBackInvokedCallback="true">
+        <provider android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.updates" android:exported="false" android:grantUriPermissions="true">
+            <meta-data android:name="android.support.FILE_PROVIDER_PATHS" android:resource="@xml/update_paths" />
+        </provider>
+        <receiver android:name=".data.update.UpdateReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+        <!-- 预测性返回：不开这个，系统只在「已经返回完了」时通知一声，界面只能瞬间消失。
+             开了之后系统会把手势**进度**（拖到哪儿了、从哪条边起手）持续送进来，
+             PredictiveBackHandler 才能做出跟手动画。见 ui/OverlayMotion.kt。
+             显式写 true 而不是依赖 targetSdk 的默认值：默认值随平台演进而变化，
+             写在明处，以后出问题一眼能看到。 -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:screenOrientation="portrait">
+            <!-- 锁竖屏（2026-10-05 用户报告「变成横屏了」）：校园课表/首页卡都是按竖屏设计的，
+                 跟随系统旋转会拿到横屏配置，整页布局被拉宽、右侧内容挤出屏幕。
+                 tools:ignore 不需要——锁定方向对 targetSdk 没有额外要求。 -->
+            <meta-data android:name="android.app.shortcuts" android:resource="@xml/launcher_shortcuts" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity android:name=".widget.WidgetPickerActivity"
+            android:exported="true" android:excludeFromRecents="true" />
+        <receiver android:name=".widget.WidgetPinReceiver" android:exported="false" />
+        <receiver android:name=".notify.PomodoroReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Legacy explicit shortcuts remain resolvable, without desktop entries or theme switching. -->
+        <activity-alias android:name=".LauncherDay" android:targetActivity=".MainActivity"
+            android:exported="true" android:icon="@mipmap/ic_launcher" android:enabled="true" />
+        <activity-alias android:name=".LauncherNight" android:targetActivity=".MainActivity"
+            android:exported="true" android:icon="@mipmap/ic_launcher" android:enabled="true" />
+
+        <!-- 闹钟到点 → 弹课前提醒 -->
+        <receiver
+            android:name=".notify.ReminderReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cn.tonglu.app.ACTION_CLASS_REMIND" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 闹钟到点 → 弹竞赛截止提醒（notify/DeadlineReminder.kt） -->
+        <receiver
+            android:name=".notify.DeadlineReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cn.tonglu.app.ACTION_DEADLINE_REMIND" />
+            </intent-filter>
+        </receiver>
+
+        <!-- 开机重排 -->
+        <receiver
+            android:name=".notify.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- ===== 桌面小部件：今日课表 ===== -->
+
+        <!-- 系统桌面通过这个 receiver 认识小部件。exported=true 是**必须的** ——
+             外面是系统桌面进程，不是我们自己的进程。
+             🔴 meta-data 里的 android.appwidget.provider 必须指向 our 那份 XML，
+             漏了或名字写错，表现是「桌面添加小部件列表里根本找不到它」，编译却完全正常。 -->
+        <receiver
+            android:name=".widget.TodayWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_today_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/today_widget_info" />
+        </receiver>
+
+        <!-- ===== 桌面小部件：日历（2026-10-16 拆分小组件）===== -->
+
+        <receiver
+            android:name=".widget.CalendarWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_calendar_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/calendar_widget_info" />
+        </receiver>
+
+        <!-- ===== 桌面小部件：完整课表（整周网格）===== -->
+
+        <receiver
+            android:name=".widget.WeekWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_week_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/week_widget_info" />
+        </receiver>
+
+        <!-- 小部件自己的刷新闹钟（到点重画 + 排下一次）。exported=false：
+             这个 PendingIntent 只由我们自己发，不接外部广播。 -->
+        <receiver
+            android:name=".widget.TodayWidgetRefreshReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="cn.tonglu.app.ACTION_TODAY_WIDGET_REFRESH" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>

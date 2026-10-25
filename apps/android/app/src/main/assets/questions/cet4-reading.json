@@ -1,0 +1,123 @@
+{
+  "id": "builtin-cet4-reading",
+  "title": "四级方向 · 短篇阅读（自编）",
+  "subject": "english",
+  "level": "core",
+  "sourceNote": "同路自编练习，参考大学英语学习方向组织，非官方四级或六级真题，不承诺对应考试难度或分数。听力为合成朗读，非考试原音。答案与解析可离线查看。",
+  "license": "同路原创练习内容，未转载第三方试题",
+  "version": 1,
+  "questions": [
+    {
+      "id": "p1-q1",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Last term, a student team opened a repair corner in the library every Friday afternoon. Students could bring broken lamps and small electronic devices. The team charged nothing, but visitors were asked to watch the repair and learn one useful skill. Not every device could be repaired. Even so, the team recorded common problems and published a short guide. This term, two other departments plan to start similar activities.\n\nWhere did the team run the repair corner?",
+      "options": [
+        "In a shop.",
+        "In the library.",
+        "In a dormitory.",
+        "In the sports hall."
+      ],
+      "answer": 1,
+      "explanation": "首句明确说明 opened a repair corner in the library；其余地点未出现。"
+    },
+    {
+      "id": "p1-q2",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Last term, a student team opened a repair corner in the library every Friday afternoon. Students could bring broken lamps and small electronic devices. The team charged nothing, but visitors were asked to watch the repair and learn one useful skill. Not every device could be repaired. Even so, the team recorded common problems and published a short guide. This term, two other departments plan to start similar activities.\n\nWhat were visitors asked to do?",
+      "options": [
+        "Learn a repair skill.",
+        "Pay for a new device.",
+        "Join the team.",
+        "Write a long report."
+      ],
+      "answer": 0,
+      "explanation": "第二处要求是 watch the repair and learn one useful skill，并未要求付费或加入团队。"
+    },
+    {
+      "id": "p1-q3",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Last term, a student team opened a repair corner in the library every Friday afternoon. Students could bring broken lamps and small electronic devices. The team charged nothing, but visitors were asked to watch the repair and learn one useful skill. Not every device could be repaired. Even so, the team recorded common problems and published a short guide. This term, two other departments plan to start similar activities.\n\nHow did the team use the problems it recorded?",
+      "options": [
+        "It cancelled the activity.",
+        "It sold the records.",
+        "It replaced all devices.",
+        "It published a guide."
+      ],
+      "answer": 3,
+      "explanation": "文中 recorded common problems and published a short guide，记录被整理成指南。"
+    },
+    {
+      "id": "p1-q4",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Last term, a student team opened a repair corner in the library every Friday afternoon. Students could bring broken lamps and small electronic devices. The team charged nothing, but visitors were asked to watch the repair and learn one useful skill. Not every device could be repaired. Even so, the team recorded common problems and published a short guide. This term, two other departments plan to start similar activities.\n\nWhich statement is supported by the passage?",
+      "options": [
+        "Every device was repaired.",
+        "Visitors paid a small fee.",
+        "Other departments may copy the activity.",
+        "Only lamps were accepted."
+      ],
+      "answer": 2,
+      "explanation": "末句说两个其他部门计划开展类似活动，支持最后一项。not every、charged nothing 和 small electronic devices 排除前三项。"
+    },
+    {
+      "id": "p2-q1",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Lena used to read messages whenever she studied. She often felt busy but remembered little. For one week, she put her phone in a bag and studied for twenty-five minutes at a time. After each session, she took a five-minute break. She did not study longer than before, yet she finished more tasks. Lena thinks the important change was fewer interruptions, not a longer working day.\n\nWhat problem did Lena have before the experiment?",
+      "options": [
+        "She had no phone.",
+        "She remembered little after studying.",
+        "She never took breaks.",
+        "She studied only at night."
+      ],
+      "answer": 1,
+      "explanation": "前两句描述频繁看消息且记住的内容很少，答案直接来自 remembered little。"
+    },
+    {
+      "id": "p2-q2",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Lena used to read messages whenever she studied. She often felt busy but remembered little. For one week, she put her phone in a bag and studied for twenty-five minutes at a time. After each session, she took a five-minute break. She did not study longer than before, yet she finished more tasks. Lena thinks the important change was fewer interruptions, not a longer working day.\n\nHow long was each study session?",
+      "options": [
+        "Twenty-five minutes.",
+        "Fifteen minutes.",
+        "Five minutes.",
+        "One hour."
+      ],
+      "answer": 0,
+      "explanation": "文中明确 studied for twenty-five minutes at a time，五分钟是休息时间。"
+    },
+    {
+      "id": "p2-q3",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Lena used to read messages whenever she studied. She often felt busy but remembered little. For one week, she put her phone in a bag and studied for twenty-five minutes at a time. After each session, she took a five-minute break. She did not study longer than before, yet she finished more tasks. Lena thinks the important change was fewer interruptions, not a longer working day.\n\nWhat happened during the week?",
+      "options": [
+        "She bought a new phone.",
+        "She studied for more hours.",
+        "She stopped all communication.",
+        "She finished more tasks."
+      ],
+      "answer": 3,
+      "explanation": "她没有比以前学得更久，但完成更多任务；不要把减少中断理解为完全停止交流。"
+    },
+    {
+      "id": "p2-q4",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Lena used to read messages whenever she studied. She often felt busy but remembered little. For one week, she put her phone in a bag and studied for twenty-five minutes at a time. After each session, she took a five-minute break. She did not study longer than before, yet she finished more tasks. Lena thinks the important change was fewer interruptions, not a longer working day.\n\nWhat is the main idea?",
+      "options": [
+        "Longer work always improves memory.",
+        "Phones should be banned everywhere.",
+        "Reducing interruptions can improve study.",
+        "Breaks are a waste of time."
+      ],
+      "answer": 2,
+      "explanation": "全文对比有中断与减少中断的学习，结尾明确重点是 fewer interruptions 而不是更长时间。"
+    }
+  ]
+}

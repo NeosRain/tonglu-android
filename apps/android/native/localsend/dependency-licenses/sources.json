@@ -1,0 +1,94 @@
+[
+  {
+    "package": "asn1-rs-impl-0.2.0",
+    "url": "https://raw.githubusercontent.com/rusticata/asn1-rs/a20e5f7319c896737ad0f2557037817b91ad854f/LICENSE-APACHE"
+  },
+  {
+    "package": "asn1-rs-impl-0.2.0",
+    "url": "https://raw.githubusercontent.com/rusticata/asn1-rs/a20e5f7319c896737ad0f2557037817b91ad854f/LICENSE-MIT"
+  },
+  {
+    "package": "crc-catalog-2.5.0",
+    "url": "https://raw.githubusercontent.com/akhilles/crc-catalog/ed4ad631f22b05055c21a3a4127eb7cf6d75bb62/LICENSES/Apache-2.0.txt"
+  },
+  {
+    "package": "crc-catalog-2.5.0",
+    "url": "https://raw.githubusercontent.com/akhilles/crc-catalog/ed4ad631f22b05055c21a3a4127eb7cf6d75bb62/LICENSES/MIT.txt"
+  },
+  {
+    "package": "jni-0.22.4",
+    "url": "https://raw.githubusercontent.com/jni-rs/jni-rs/5ae9458a4ec44c5318f37ddc7569c1d4ae8a69e7/LICENSE-APACHE"
+  },
+  {
+    "package": "jni-0.22.4",
+    "url": "https://raw.githubusercontent.com/jni-rs/jni-rs/5ae9458a4ec44c5318f37ddc7569c1d4ae8a69e7/LICENSE-MIT"
+  },
+  {
+    "package": "jni-macros-0.22.4",
+    "url": "https://raw.githubusercontent.com/jni-rs/jni-rs/33045a124105c939d1e2cbdcb5a39e5d868ffa03/LICENSE-APACHE"
+  },
+  {
+    "package": "jni-macros-0.22.4",
+    "url": "https://raw.githubusercontent.com/jni-rs/jni-rs/33045a124105c939d1e2cbdcb5a39e5d868ffa03/LICENSE-MIT"
+  },
+  {
+    "package": "jni-sys-macros-0.4.1",
+    "url": "https://raw.githubusercontent.com/jni-rs/jni-sys/64d77b7a5f119d7b55b4e2c169a4668067ff59e6/LICENSE-APACHE"
+  },
+  {
+    "package": "jni-sys-macros-0.4.1",
+    "url": "https://raw.githubusercontent.com/jni-rs/jni-sys/64d77b7a5f119d7b55b4e2c169a4668067ff59e6/LICENSE-MIT"
+  },
+  {
+    "package": "r-efi-5.3.0",
+    "url": "https://raw.githubusercontent.com/r-efi/r-efi/97b55bed1c2c91dcbf787674849f05337ff80b33/AUTHORS"
+  },
+  {
+    "package": "r-efi-5.3.0",
+    "url": "https://raw.githubusercontent.com/r-efi/r-efi/97b55bed1c2c91dcbf787674849f05337ff80b33/README.md"
+  },
+  {
+    "package": "r-efi-6.0.0",
+    "url": "https://raw.githubusercontent.com/r-efi/r-efi/7e1b0322d31d625f81a5656096330934f9cd835d/AUTHORS"
+  },
+  {
+    "package": "r-efi-6.0.0",
+    "url": "https://raw.githubusercontent.com/r-efi/r-efi/7e1b0322d31d625f81a5656096330934f9cd835d/README.md"
+  },
+  {
+    "package": "rustls-platform-verifier-android-0.2.0",
+    "url": "https://raw.githubusercontent.com/rustls/rustls-platform-verifier/252e25161a91af476cbea620e29d277592d27ec7/LICENSE-APACHE"
+  },
+  {
+    "package": "rustls-platform-verifier-android-0.2.0",
+    "url": "https://raw.githubusercontent.com/rustls/rustls-platform-verifier/252e25161a91af476cbea620e29d277592d27ec7/LICENSE-MIT"
+  },
+  {
+    "package": "valuable-0.1.1",
+    "url": "https://raw.githubusercontent.com/tokio-rs/valuable/9efc29b6e58cef28f6566a47aa7e142a55fead77/LICENSE"
+  },
+  {
+    "package": "webrtc-0.14.0",
+    "url": "https://raw.githubusercontent.com/webrtc-rs/webrtc/a1f8f1919235d8452835852e018efd654f2f8366/LICENSE-APACHE"
+  },
+  {
+    "package": "webrtc-0.14.0",
+    "url": "https://raw.githubusercontent.com/webrtc-rs/webrtc/a1f8f1919235d8452835852e018efd654f2f8366/LICENSE-MIT"
+  },
+  {
+    "package": "yasna-0.5.2",
+    "url": "https://raw.githubusercontent.com/qnighy/yasna.rs/b7e65f9a4c317494cce2d18ea02b3d6eaaea7985/LICENSE-APACHE"
+  },
+  {
+    "package": "yasna-0.5.2",
+    "url": "https://raw.githubusercontent.com/qnighy/yasna.rs/b7e65f9a4c317494cce2d18ea02b3d6eaaea7985/LICENSE-MIT"
+  },
+  {
+    "package": "winapi-i686-pc-windows-gnu-0.4.0",
+    "source": "winapi 0.3.9 Cargo registry LICENSE-MIT / LICENSE-APACHE (same upstream project; Windows-only dependency, not linked in Android)"
+  },
+  {
+    "package": "winapi-x86_64-pc-windows-gnu-0.4.0",
+    "source": "winapi 0.3.9 Cargo registry LICENSE-MIT / LICENSE-APACHE (same upstream project; Windows-only dependency, not linked in Android)"
+  }
+]

@@ -1,0 +1,35 @@
+English learning module (2026-10-03)
+
+Native learning workflow and adapted Word entity:
+JustByHeart, https://github.com/cdz-hy/JustByHeart
+Revision: 910c38322d37efa0dc52e688a89e2520b90c6fcc
+Copyright (c) 2025 cdz-hy. MIT License.
+Full license: ../licenses/JustByHeart.txt
+Changes: Compose/Miuix UI instead of Fragment/ViewBinding; stable word IDs,
+owner-isolated learning records and event IDs; independent Room database;
+fixed-interval review queue; dictionary inputs normalized for shared clients.
+
+Dictionary data:
+https://github.com/KyleBing/english-vocabulary
+Revision: c4c6c80879ff17d7025c28fb853a4991c8e6be6a
+Copyright (c) 2022-2026, KyleBing. BSD 3-Clause License.
+Full license: ../licenses/EnglishVocabulary.txt
+Source: full_line_jsonl/sentence/正序
+Origin chain described by upstream: kajweb/dict -> KyleBing/dict -> this dataset.
+Conversion: scripts/build-english-books.cjs; stable IDs, normalized translations,
+phonetics, examples and phrases; gzip compression. Counts reflect actual entries,
+including repeat spellings where upstream has distinct records.
+The bundled corpus is NOT the exact Qwerty Learner corpus. No affiliation with
+JustByHeart, Qwerty Learner, dictionary publishers or exam organizations is implied.
+System Android text-to-speech is used for audio; no third-party audio is bundled.
+
+Derived bundled books (2026-10-18, EF03):
+Two compact books are shipped inside the APK at assets/english/bundled/ and are registered
+separately (provenance / license / SHA-256 / selection rule) in assets/english/bundled/catalog.json,
+bundleVersion 1. Both are set-difference selections of the same upstream dataset above
+(KyleBing/english-vocabulary, BSD-3-Clause, revision c4c6c80879ff17d7025c28fb853a4991c8e6be6a).
+They are NOT frequency-based exam predictions, and the full word lists remain available from
+the server; existing books and learning progress are unchanged.
+  - 四级精简（去初中基础词）: CET-4 list minus the junior-high list, exact same-form words,
+    case-insensitive, source order kept. 3,105 entries.
+  - 六级精简（去四级基础词）: CET-6 list minus the CET-4 list, same rule. 2,118 entries.

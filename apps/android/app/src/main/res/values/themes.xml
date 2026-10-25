@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      全 Compose 应用，不需要系统自带的那条 ActionBar（它会在最上面画一条写着 App 名的横条，
+      edge-to-edge 下还会顶到状态栏里，看起来像多了一撮刘海）。这里换成 NoActionBar 主题，
+      顶部留白由 Compose 侧 statusBarsPadding() 处理。
+    -->
+    <style name="Theme.Tonglu" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/tonglu_canvas</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:colorAccent">@color/tonglu_accent</item>
+    </style>
+</resources>

@@ -1,0 +1,101 @@
+{
+  "id": "builtin-cet6-listening",
+  "title": "六级方向 · 听力理解（自编）",
+  "subject": "english",
+  "level": "advanced",
+  "sourceNote": "同路自编练习，参考大学英语学习方向组织，非官方四级或六级真题，不承诺对应考试难度或分数。听力为合成朗读，非考试原音。答案与解析可离线查看。",
+  "license": "同路原创练习内容，未转载第三方试题",
+  "version": 1,
+  "questions": [
+    {
+      "id": "p1-q1",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "What did most respondents think of longer opening hours?",
+      "options": [
+        "They opposed them.",
+        "They welcomed them.",
+        "They had never considered them.",
+        "They wanted shorter hours."
+      ],
+      "answer": 1,
+      "explanation": "Most respondents welcomed the idea，明确支持延长开放。",
+      "audioText": "Presenter: Our survey asked students whether longer library opening hours would help them study. Most respondents welcomed the idea. Yet the survey was completed mainly by students already using the library at night. We therefore cannot assume the result represents the entire student body. Before changing the schedule, we plan to collect responses from students who rarely visit the library as well."
+    },
+    {
+      "id": "p1-q2",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "Why might the survey be unrepresentative?",
+      "options": [
+        "Most answers came from current night-time library users.",
+        "It was conducted outside the university.",
+        "Only teachers answered.",
+        "It contained no questions."
+      ],
+      "answer": 0,
+      "explanation": "样本主要是本来就夜间使用图书馆的人，可能偏向支持延长，不代表全体学生。",
+      "audioText": "Presenter: Our survey asked students whether longer library opening hours would help them study. Most respondents welcomed the idea. Yet the survey was completed mainly by students already using the library at night. We therefore cannot assume the result represents the entire student body. Before changing the schedule, we plan to collect responses from students who rarely visit the library as well."
+    },
+    {
+      "id": "p1-q3",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "What is the next step?",
+      "options": [
+        "Repeat only the same sample.",
+        "Change the hours immediately.",
+        "Close the library.",
+        "Collect responses from infrequent library users."
+      ],
+      "answer": 3,
+      "explanation": "最后一句计划询问很少使用图书馆的学生，以扩大样本代表性。",
+      "audioText": "Presenter: Our survey asked students whether longer library opening hours would help them study. Most respondents welcomed the idea. Yet the survey was completed mainly by students already using the library at night. We therefore cannot assume the result represents the entire student body. Before changing the schedule, we plan to collect responses from students who rarely visit the library as well."
+    },
+    {
+      "id": "p2-q1",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "What happened during the pilot?",
+      "options": [
+        "Waste doubled.",
+        "Two dining halls closed.",
+        "Food waste fell by about a quarter.",
+        "Staffing was reduced."
+      ],
+      "answer": 2,
+      "explanation": "reduced ... by about a quarter 表示减少约四分之一，不是减少到四分之一。",
+      "audioText": "Woman: The pilot programme reduced food waste in two dining halls by about a quarter. Man: Then should we introduce it across campus next month? Woman: Not yet. Both halls received extra staff during the pilot, so we need to know whether the reduction can be maintained without that support. Man: I see. A second trial under normal staffing conditions would make the decision more reliable."
+    },
+    {
+      "id": "p2-q2",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "Why does the woman oppose immediate expansion?",
+      "options": [
+        "The result was never measured.",
+        "Extra staff may have contributed to the result.",
+        "There are no other dining halls.",
+        "Students rejected the programme."
+      ],
+      "answer": 1,
+      "explanation": "试点期间有额外员工，需确认没有额外支持时效果能否持续。",
+      "audioText": "Woman: The pilot programme reduced food waste in two dining halls by about a quarter. Man: Then should we introduce it across campus next month? Woman: Not yet. Both halls received extra staff during the pilot, so we need to know whether the reduction can be maintained without that support. Man: I see. A second trial under normal staffing conditions would make the decision more reliable."
+    },
+    {
+      "id": "p2-q3",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "What would make the decision more reliable?",
+      "options": [
+        "Another trial with normal staffing.",
+        "Adding more staff forever.",
+        "Cancelling all trials.",
+        "Ignoring the first result."
+      ],
+      "answer": 0,
+      "explanation": "男士提出 under normal staffing conditions 的第二次试点，可以检验正常条件下是否仍有效。",
+      "audioText": "Woman: The pilot programme reduced food waste in two dining halls by about a quarter. Man: Then should we introduce it across campus next month? Woman: Not yet. Both halls received extra staff during the pilot, so we need to know whether the reduction can be maintained without that support. Man: I see. A second trial under normal staffing conditions would make the decision more reliable."
+    }
+  ]
+}

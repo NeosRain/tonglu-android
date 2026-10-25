@@ -1,0 +1,83 @@
+{
+  "id": "builtin-en-usage",
+  "title": "英语进阶用法与句型（平台自建）",
+  "subject": "english",
+  "level": "advanced",
+  "sourceNote": "由同路平台自行编写的进阶用法练习，考查倒装、虚拟语气、非谓语等较复杂结构。不是任何考试的真题，也不对应任何考试的具体分数。",
+  "license": "平台自建内容（同路）",
+  "version": 1,
+  "questions": [
+    {
+      "id": "a01",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "Not until he got home ___ that he had left his keys in the office.",
+      "options": ["he realized", "did he realize", "he did realize", "realized he"],
+      "answer": 1,
+      "explanation": "Not until 放句首引起**部分倒装**：助动词提到主语前，实义动词还原原形，所以是 did he realize。这是最常考的倒装结构之一。"
+    },
+    {
+      "id": "a02",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "___ I known the truth, I would have acted differently.",
+      "options": ["If", "Had", "Should", "Were"],
+      "answer": 1,
+      "explanation": "虚拟语气中 if 省略后要**倒装**：Had I known = If I had known。这是与过去事实相反的假设，主句用 would have done。"
+    },
+    {
+      "id": "a03",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The report, ___ by a team of experts, was published last week.",
+      "options": ["writing", "written", "to write", "wrote"],
+      "answer": 1,
+      "explanation": "report 与 write 是被动关系，且动作已完成，用过去分词 written 作后置定语（= which was written）。writing 表主动，to write 表将来。"
+    },
+    {
+      "id": "a04",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "It is essential that every student ___ the safety rules.",
+      "options": ["follows", "follow", "followed", "will follow"],
+      "answer": 1,
+      "explanation": "It is essential/necessary/important that... 引导的主语从句要用**虚拟语气**：should + 动词原形，should 可省略，所以用 follow（原形），不加 -s。"
+    },
+    {
+      "id": "a05",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "Only when the rain stopped ___ the extent of the damage.",
+      "options": ["they could see", "could they see", "they can see", "can they see"],
+      "answer": 1,
+      "explanation": "Only + 状语从句放句首，主句要**部分倒装**。主句时态与从句 stopped 呼应，用过去时 could，倒装为 could they see。"
+    },
+    {
+      "id": "a06",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "He regretted ___ her the bad news so bluntly.",
+      "options": ["to tell", "telling", "tell", "told"],
+      "answer": 1,
+      "explanation": "regret doing = 后悔做过某事（动作已发生）；regret to do = 遗憾要去做某事（动作未发生）。已经说了坏消息，所以用 telling。"
+    },
+    {
+      "id": "a07",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "The more we practice, ___ we become.",
+      "options": ["the more confident", "more confident", "the most confident", "most confident"],
+      "answer": 0,
+      "explanation": "the more...the more... 是「越……越……」的固定结构，两边都要用 the + 比较级，所以是 the more confident we become。"
+    },
+    {
+      "id": "a08",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "It was in the library ___ he first met his future wife.",
+      "options": ["that", "where", "which", "when"],
+      "answer": 0,
+      "explanation": "这是**强调句** It was...that...，强调地点状语 in the library。强调句的判据：去掉 It was 和 that，剩下的 it 换成原句仍成立（In the library he first met...）。"
+    }
+  ]
+}

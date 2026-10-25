@@ -1,0 +1,123 @@
+{
+  "id": "builtin-cet6-reading",
+  "title": "六级方向 · 阅读推理（自编）",
+  "subject": "english",
+  "level": "advanced",
+  "sourceNote": "同路自编练习，参考大学英语学习方向组织，非官方四级或六级真题，不承诺对应考试难度或分数。听力为合成朗读，非考试原音。答案与解析可离线查看。",
+  "license": "同路原创练习内容，未转载第三方试题",
+  "version": 1,
+  "questions": [
+    {
+      "id": "p1-q1",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A city replaced several public parking spaces with small gardens. Supporters predicted cleaner air and more social contact. Six months later, researchers found that residents spent more time outdoors near the gardens. However, air-quality readings had not changed significantly. The researchers cautioned that the observation did not prove the gardens alone caused the increase in outdoor activity: a new cafe had opened nearby at the same time. They recommended comparing similar streets before expanding the policy.\n\nWhich outcome was observed after six months?",
+      "options": [
+        "A significant improvement in air quality.",
+        "More outdoor activity near the gardens.",
+        "Fewer visits to the cafe.",
+        "The removal of every parking space."
+      ],
+      "answer": 1,
+      "explanation": "实际观测是 spent more time outdoors；空气质量未显著变化，不能把预测当作结果。"
+    },
+    {
+      "id": "p1-q2",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A city replaced several public parking spaces with small gardens. Supporters predicted cleaner air and more social contact. Six months later, researchers found that residents spent more time outdoors near the gardens. However, air-quality readings had not changed significantly. The researchers cautioned that the observation did not prove the gardens alone caused the increase in outdoor activity: a new cafe had opened nearby at the same time. They recommended comparing similar streets before expanding the policy.\n\nWhy did the researchers mention the new cafe?",
+      "options": [
+        "It might also explain the observed activity.",
+        "It reduced the number of gardens.",
+        "It paid for the gardens.",
+        "It was closed during the study."
+      ],
+      "answer": 0,
+      "explanation": "咖啡馆同时开业是潜在的其他影响因素，因此不能把外出增加完全归因于花园。"
+    },
+    {
+      "id": "p1-q3",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A city replaced several public parking spaces with small gardens. Supporters predicted cleaner air and more social contact. Six months later, researchers found that residents spent more time outdoors near the gardens. However, air-quality readings had not changed significantly. The researchers cautioned that the observation did not prove the gardens alone caused the increase in outdoor activity: a new cafe had opened nearby at the same time. They recommended comparing similar streets before expanding the policy.\n\nWhat did the researchers recommend?",
+      "options": [
+        "Ignoring air-quality readings.",
+        "Removing all cafes.",
+        "Ending outdoor activities.",
+        "Comparing similar streets."
+      ],
+      "answer": 3,
+      "explanation": "末句明确 recommended comparing similar streets，以便更可靠地评价政策。"
+    },
+    {
+      "id": "p1-q4",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A city replaced several public parking spaces with small gardens. Supporters predicted cleaner air and more social contact. Six months later, researchers found that residents spent more time outdoors near the gardens. However, air-quality readings had not changed significantly. The researchers cautioned that the observation did not prove the gardens alone caused the increase in outdoor activity: a new cafe had opened nearby at the same time. They recommended comparing similar streets before expanding the policy.\n\nWhich claim would the researchers most likely reject?",
+      "options": [
+        "Residents spent more time outdoors.",
+        "The findings need further comparison.",
+        "The gardens alone certainly caused the change.",
+        "Air quality did not change significantly."
+      ],
+      "answer": 2,
+      "explanation": "研究者特别指出 observation did not prove the gardens alone caused the increase，反对确定的单一因果结论。"
+    },
+    {
+      "id": "p2-q1",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A company offered employees the option of working from home two days a week. After a year, managers reported that staff turnover had fallen. Productivity, measured by completed tasks, remained broadly stable. The report did not examine whether all tasks required the same effort, nor did it include employees who had left before the policy began. Although the results were encouraging, the authors argued that these limitations should be addressed before the findings were applied to other workplaces.\n\nWhat changed after the policy was introduced?",
+      "options": [
+        "Task completion doubled.",
+        "Staff turnover decreased.",
+        "All employees worked remotely every day.",
+        "Managers stopped measuring productivity."
+      ],
+      "answer": 1,
+      "explanation": "文中 staff turnover had fallen 意为员工流失率下降；生产率只是大体稳定。"
+    },
+    {
+      "id": "p2-q2",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A company offered employees the option of working from home two days a week. After a year, managers reported that staff turnover had fallen. Productivity, measured by completed tasks, remained broadly stable. The report did not examine whether all tasks required the same effort, nor did it include employees who had left before the policy began. Although the results were encouraging, the authors argued that these limitations should be addressed before the findings were applied to other workplaces.\n\nHow was productivity measured?",
+      "options": [
+        "By completed tasks.",
+        "By employee age.",
+        "By commuting time.",
+        "By office size."
+      ],
+      "answer": 0,
+      "explanation": "明确写明 measured by completed tasks；后文质疑任务工作量未必相同。"
+    },
+    {
+      "id": "p2-q3",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A company offered employees the option of working from home two days a week. After a year, managers reported that staff turnover had fallen. Productivity, measured by completed tasks, remained broadly stable. The report did not examine whether all tasks required the same effort, nor did it include employees who had left before the policy began. Although the results were encouraging, the authors argued that these limitations should be addressed before the findings were applied to other workplaces.\n\nWhat is one limitation of the report?",
+      "options": [
+        "It included every former employee.",
+        "No tasks were completed.",
+        "The policy lasted only one week.",
+        "Task effort was not examined."
+      ],
+      "answer": 3,
+      "explanation": "作者没有考察任务是否需要相同投入，这是计数指标的局限。"
+    },
+    {
+      "id": "p2-q4",
+      "type": "single-choice",
+      "difficulty": "advanced",
+      "prompt": "A company offered employees the option of working from home two days a week. After a year, managers reported that staff turnover had fallen. Productivity, measured by completed tasks, remained broadly stable. The report did not examine whether all tasks required the same effort, nor did it include employees who had left before the policy began. Although the results were encouraging, the authors argued that these limitations should be addressed before the findings were applied to other workplaces.\n\nWhat is the authors' attitude toward applying the findings elsewhere?",
+      "options": [
+        "Unconditionally confident.",
+        "Completely dismissive.",
+        "Cautious despite encouraging results.",
+        "Indifferent."
+      ],
+      "answer": 2,
+      "explanation": "although encouraging 与 limitations should be addressed 说明谨慎认可，既非完全否定也非无条件推广。"
+    }
+  ]
+}

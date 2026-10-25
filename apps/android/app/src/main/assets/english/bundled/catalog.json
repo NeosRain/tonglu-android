@@ -1,0 +1,46 @@
+{
+  "bundleVersion": 1,
+  "bundleId": "english-compact-2026-10-18",
+  "generatedAt": "2026-10-18",
+  "insertAfter": "kylebing-cet6",
+  "source": "KyleBing/english-vocabulary",
+  "sourceUrl": "https://github.com/KyleBing/english-vocabulary",
+  "sourceRevision": "c4c6c80879ff17d7025c28fb853a4991c8e6be6a",
+  "license": "BSD-3-Clause",
+  "licenseFile": "../licenses/EnglishVocabulary.txt",
+  "note": "随包精简词书为 KyleBing/english-vocabulary 的派生选集，规则见每本 selectionRule；不是高频词预测。完整词表仍在云端可下载，原有词书与学习进度不受影响。",
+  "books": [
+    {
+      "id": "kylebing-cet4-compact",
+      "name": "四级精简（去初中基础词）",
+      "category": "国内考试",
+      "count": 3105,
+      "revision": "cd1250e2ab4423755b7ebd76a6dd42f58857e2ef0b8f9b13feeacfbbe95c1762",
+      "asset": "kylebing-cet4-compact.book",
+      "bytes": 978651,
+      "sha256": "32e6289e2f0c075bfdad2145a1b4c32c38d0b15d6926c4d1bfd8992f82242ebd",
+      "source": "KyleBing/english-vocabulary",
+      "license": "BSD-3-Clause",
+      "sourceUrl": "https://github.com/KyleBing/english-vocabulary",
+      "selectionRule": "四级词表去除初中词表中同形词，小写精确匹配并按源顺序去重；不是高频词预测",
+      "inputSha256": "e70511755f8da283ce25d37dd0662b0db35180aad0735c0767eedb37b8508e98",
+      "exclusionSha256": "85e9465686372bed1a322b40211dcc021433ac4f0669bd9b14a8d2e5d7d52b92"
+    },
+    {
+      "id": "kylebing-cet6-compact",
+      "name": "六级精简（去四级基础词）",
+      "category": "国内考试",
+      "count": 2118,
+      "revision": "1f1b7f597bdfe83ce52032027afea1ff1149eb3f79694b6a0636810c8acce150",
+      "asset": "kylebing-cet6-compact.book",
+      "bytes": 516514,
+      "sha256": "ee7890b68de935462db7f831fed4391806bb350a68ecf381e74043d00ec1dc4c",
+      "source": "KyleBing/english-vocabulary",
+      "license": "BSD-3-Clause",
+      "sourceUrl": "https://github.com/KyleBing/english-vocabulary",
+      "selectionRule": "六级词表去除四级词表中同形词，小写精确匹配并按源顺序去重；不是高频词预测",
+      "inputSha256": "2c2f65773b7d272334efeb5ad302382b18f791c58bb238a6feb777a7c4b81f8b",
+      "exclusionSha256": "e70511755f8da283ce25d37dd0662b0db35180aad0735c0767eedb37b8508e98"
+    }
+  ]
+}

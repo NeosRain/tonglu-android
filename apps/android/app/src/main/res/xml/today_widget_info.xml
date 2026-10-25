@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「今日课表」小部件的元数据。
+
+  🔴 updatePeriodMillis = 0 是**故意**的，不是漏写：
+  - 这个字段最小粒度就是 30 分钟，而且**系统不保证准时**（省电模式会被推迟到几小时）。
+  - 课表要的是「第 2 节上课时标题变成『正在上课』」这种分钟级准度，
+    靠 updatePeriodMillis 做不到。所以刷新全部交给
+    TodayWidgetUpdater 的 AlarmManager（见 widget/TodayWidgetUpdater.kt）。
+  - 更要紧的是：updatePeriodMillis 非 0 时，系统会在每次刷新时唤醒设备，
+    而我们的数据全在本机（SharedPreferences），根本不需要联网，
+    WorkManager 定期任务在这里是纯浪费电。
+
+  resizeMode: horizontal|vertical —— 由用户在桌面自己拉；四种尺寸都能画（见 TodayWidget 的 sizeMode 分支）。
+  widgetCategory: home_screen（不挂锁屏，Android 5+ 锁屏小部件已废弃）。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_today_desc"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="110dp"
+    android:minResizeHeight="110dp"
+    android:minResizeWidth="180dp"
+    android:minWidth="180dp"
+    android:previewImage="@drawable/ic_widget_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="3"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

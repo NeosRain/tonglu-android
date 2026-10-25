@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  夜间（系统深色）下的主题覆盖。
+
+  ## 为什么这里必须单独有一份
+  `values/themes.xml` 里写死了 `windowLightStatusBar=true` / `windowLightNavigationBar=true`
+  —— 那是「浅色底 → 状态栏图标画成深色」的意思。夜间底变成 `#15171C` 之后如果不改，
+  状态栏和导航栏的图标会变成**深色压在深色上**，直接看不见。
+  这个错只在夜间模式下出现，白天走查永远发现不了。
+
+  ## 只改必要项，不动 parent
+  parent 仍是 `Theme.Material.Light.NoActionBar`：App 的界面全部由 Compose 自己画，
+  这个主题实际只负责「Activity 起来之前那层 windowBackground（也就是系统启动画面）」。
+  把 parent 换成深色版会顺带改掉系统对话框等组件的外观，收益不明而风险在外，
+  所以这里只覆盖底色与两个 light-bar 标志。
+-->
+<resources>
+    <style name="Theme.Tonglu" parent="@android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/tonglu_canvas</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:colorAccent">@color/tonglu_accent</item>
+    </style>
+</resources>

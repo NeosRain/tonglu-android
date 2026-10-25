@@ -1,0 +1,101 @@
+{
+  "repository": "https://github.com/KyleBing/english-vocabulary",
+  "revision": "c4c6c80879ff17d7025c28fb853a4991c8e6be6a",
+  "format": "full_line_jsonl/sentence/正序",
+  "license": "BSD-3-Clause",
+  "idAlgorithm": "sha256(bookId + NUL + NFC(word) + NUL + zeroBasedDuplicateOrdinal)",
+  "books": [
+    {
+      "id": "kylebing-cet4",
+      "file": "四级.jsonl"
+    },
+    {
+      "id": "kylebing-cet6",
+      "file": "六级.jsonl"
+    },
+    {
+      "id": "kylebing-postgraduate",
+      "file": "考研.jsonl"
+    },
+    {
+      "id": "kylebing-highschool",
+      "file": "高中.jsonl"
+    },
+    {
+      "id": "kylebing-middleschool",
+      "file": "初中.jsonl"
+    },
+    {
+      "id": "kylebing-tem4",
+      "file": "专四.jsonl"
+    },
+    {
+      "id": "kylebing-tem8",
+      "file": "专八.jsonl"
+    },
+    {
+      "id": "kylebing-ielts",
+      "file": "雅思.jsonl"
+    },
+    {
+      "id": "kylebing-toefl",
+      "file": "托福.jsonl"
+    },
+    {
+      "id": "kylebing-gre",
+      "file": "GRE.jsonl"
+    },
+    {
+      "id": "kylebing-sat",
+      "file": "SAT.jsonl"
+    },
+    {
+      "id": "kylebing-gmat",
+      "file": "GMAT.jsonl"
+    },
+    {
+      "id": "kylebing-business",
+      "file": "商务英语.jsonl"
+    },
+    {
+      "id": "kylebing-pep-primary-3",
+      "file": "人教小学三年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-primary-4",
+      "file": "人教小学四年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-primary-5",
+      "file": "人教小学五年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-primary-6",
+      "file": "人教小学六年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-junior-7",
+      "file": "人教初中七年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-junior-8",
+      "file": "人教初中八年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-junior-9",
+      "file": "人教初中九年级.jsonl"
+    },
+    {
+      "id": "kylebing-pep-senior",
+      "file": "人教高中.jsonl"
+    },
+    {
+      "id": "kylebing-bs-senior",
+      "file": "北师高中.jsonl"
+    },
+    {
+      "id": "kylebing-fltrp-junior",
+      "file": "外研社初中.jsonl"
+    }
+  ]
+}

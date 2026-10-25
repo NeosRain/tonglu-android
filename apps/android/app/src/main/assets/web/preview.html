@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>markdown-preview</title>
+<style>
+  :root {
+    --fg: #1B1B1F;
+    --muted: #6B6B73;
+    --accent: #7C3AED;
+    --line: rgba(0, 0, 0, 0.10);
+    --code-bg: rgba(124, 58, 237, 0.07);
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.78;
+    color: var(--fg);
+    background: transparent;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    -webkit-text-size-adjust: 100%;
+    padding: 0 0 4px 0;
+  }
+  #root > :first-child { margin-top: 0; }
+  #root > :last-child { margin-bottom: 0; }
+  p { margin: 0 0 12px; }
+  h1, h2, h3, h4, h5, h6 { margin: 20px 0 10px; line-height: 1.4; font-weight: 600; }
+  h1 { font-size: 1.5em; }
+  h2 { font-size: 1.28em; }
+  h3 { font-size: 1.14em; }
+  h4, h5, h6 { font-size: 1em; }
+  a { color: var(--accent); text-decoration: none; }
+  blockquote {
+    margin: 12px 0;
+    padding: 2px 0 2px 12px;
+    border-left: 3px solid var(--accent);
+    color: var(--muted);
+  }
+  ul, ol { margin: 0 0 12px; padding-left: 22px; }
+  li { margin: 3px 0; }
+  li > p { margin: 0 0 4px; }
+  code {
+    font-family: ui-monospace, Menlo, Consolas, monospace;
+    font-size: 0.9em;
+    background: var(--code-bg);
+    padding: 1px 5px;
+    border-radius: 5px;
+  }
+  pre {
+    background: var(--code-bg);
+    padding: 11px 13px;
+    border-radius: 10px;
+    overflow-x: auto;
+    margin: 0 0 12px;
+  }
+  pre code { background: none; padding: 0; font-size: 0.86em; line-height: 1.62; }
+  hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+  img { max-width: 100%; height: auto; border-radius: 8px; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin: 0 0 12px;
+    font-size: 0.93em;
+    display: block;
+    overflow-x: auto;
+  }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; }
+  th { background: rgba(124, 58, 237, 0.06); font-weight: 600; }
+  input[type=checkbox] { margin-right: 6px; }
+  /* 公式：mathml 输出由 WebView 原生渲染，不需要 katex.css / 字体文件 */
+  .katex-block {
+    display: block;
+    text-align: center;
+    margin: 14px 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 2px 0;
+  }
+  .katex-inline { display: inline; }
+  .katex-err { color: #D93025; }
+  math { font-size: 1.06em; }
+  .empty { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="purify.min.js"></script>
+<script src="marked.min.js"></script>
+<script src="katex.min.js"></script>
+<script>
+(function () {
+  var PLACE = '@@TLMATH';
+
+  /* 丢弃 Markdown 里的原始 HTML：正文可能来自陌生人，不能让它直接落进 DOM。
+     DOMPurify 还会再过一道，两层都留着。 */
+  var renderer = new marked.Renderer();
+  renderer.html = function () { return ''; };
+  marked.use({ renderer: renderer, gfm: true, breaks: true });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* 先把公式抠出来换成占位符，再交给 marked。
+     否则 LaTeX 里的 `_` `*` `\` 会被当成 Markdown 语法拆散。 */
+  function extractMath(src) {
+    var store = [];
+    var text = String(src == null ? '' : src);
+    text = text.replace(/\$\$([\s\S]+?)\$\$/g, function (m, tex) {
+      store.push({ tex: tex.trim(), display: true });
+      return PLACE + (store.length - 1) + '@@';
+    });
+    text = text.replace(/(^|[^\\$])\$([^\s$][^$\n]*?)\$/g, function (m, pre, tex) {
+      store.push({ tex: tex.trim(), display: false });
+      return pre + PLACE + (store.length - 1) + '@@';
+    });
+    return { text: text, store: store };
+  }
+
+  /* 消毒之后再插公式：KaTeX 的输出是我们自己生成的，不进 DOMPurify 白名单博弈。 */
+  function injectMath(html, store) {
+    return html.replace(/@@TLMATH(\d+)@@/g, function (m, i) {
+      var item = store[+i];
+      if (!item) return m;
+      try {
+        var out = katex.renderToString(item.tex, {
+          displayMode: item.display,
+          output: 'mathml',
+          throwOnError: false,
+          strict: 'ignore',
+          trust: false
+        });
+        return item.display
+          ? '<span class="katex-block">' + out + '</span>'
+          : '<span class="katex-inline">' + out + '</span>';
+      } catch (e) {
+        return '<code class="katex-err">' + escapeHtml(item.tex) + '</code>';
+      }
+    });
+  }
+
+  function report() {
+    var root = document.getElementById('root');
+    if (!root) return;
+    var h = Math.ceil(root.getBoundingClientRect().height);
+    if (window.TL && window.TL.onHeight) window.TL.onHeight(h);
+  }
+
+  window.renderMarkdown = function (src, opts) {
+    opts = opts || {};
+    var s = document.body.style;
+    if (opts.fg) s.setProperty('--fg', opts.fg);
+    if (opts.muted) s.setProperty('--muted', opts.muted);
+    if (opts.accent) s.setProperty('--accent', opts.accent);
+    if (opts.code) s.setProperty('--code-bg', opts.code);
+    if (opts.line) s.setProperty('--line', opts.line);
+    if (opts.size) s.fontSize = opts.size + 'px';
+    s.background = opts.bg || 'transparent';
+
+    var ex = extractMath(src);
+    var html;
+    try {
+      html = marked.parse(ex.text);
+    } catch (e) {
+      html = '<p>' + escapeHtml(ex.text) + '</p>';
+    }
+    var clean = DOMPurify.sanitize(html, {
+      USE_PROFILES: { html: true },
+      FORBID_ATTR: ['style'],
+      FORBID_TAGS: ['style', 'script', 'iframe', 'object', 'embed', 'form']
+    });
+    document.getElementById('root').innerHTML = injectMath(clean, ex.store);
+
+    var imgs = document.getElementsByTagName('img');
+    for (var i = 0; i < imgs.length; i++) imgs[i].addEventListener('load', report);
+    report();
+    setTimeout(report, 60);
+    setTimeout(report, 320);
+    return true;
+  };
+
+  window.addEventListener('load', report);
+})();
+</script>
+</body>
+</html>

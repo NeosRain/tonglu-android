@@ -1,0 +1,101 @@
+{
+  "id": "builtin-cet4-listening",
+  "title": "四级方向 · 听力理解（自编）",
+  "subject": "english",
+  "level": "core",
+  "sourceNote": "同路自编练习，参考大学英语学习方向组织，非官方四级或六级真题，不承诺对应考试难度或分数。听力为合成朗读，非考试原音。答案与解析可离线查看。",
+  "license": "同路原创练习内容，未转载第三方试题",
+  "version": 1,
+  "questions": [
+    {
+      "id": "p1-q1",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Where will the meeting take place?",
+      "options": [
+        "Room 204.",
+        "Room 306.",
+        "The library.",
+        "The repair shop."
+      ],
+      "answer": 1,
+      "explanation": "原计划 204，改到 306；注意 instead 表示地点发生变化。",
+      "audioText": "Woman: Are we meeting in Room 204 this afternoon? Man: The room is being repaired. The meeting will be in Room 306 instead. Woman: What time does it start? Man: At two thirty. Please bring your project notes."
+    },
+    {
+      "id": "p1-q2",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "When will the meeting start?",
+      "options": [
+        "At two thirty.",
+        "At three.",
+        "At two.",
+        "At three thirty."
+      ],
+      "answer": 0,
+      "explanation": "男士明确回答 At two thirty，不要被房间号干扰。",
+      "audioText": "Woman: Are we meeting in Room 204 this afternoon? Man: The room is being repaired. The meeting will be in Room 306 instead. Woman: What time does it start? Man: At two thirty. Please bring your project notes."
+    },
+    {
+      "id": "p1-q3",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "What should the woman bring?",
+      "options": [
+        "A new timetable.",
+        "Repair tools.",
+        "A library card.",
+        "Project notes."
+      ],
+      "answer": 3,
+      "explanation": "最后一句 Please bring your project notes 给出所需物品。",
+      "audioText": "Woman: Are we meeting in Room 204 this afternoon? Man: The room is being repaired. The meeting will be in Room 306 instead. Woman: What time does it start? Man: At two thirty. Please bring your project notes."
+    },
+    {
+      "id": "p2-q1",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "By when should the bicycle be returned?",
+      "options": [
+        "Saturday morning.",
+        "Monday afternoon.",
+        "Sunday before six in the evening.",
+        "Sunday after midnight."
+      ],
+      "answer": 2,
+      "explanation": "until Sunday 后补充 before six in the evening，二者合起来才是完整期限。",
+      "audioText": "Man: I would like to borrow this bicycle until Sunday. Woman: That is fine, but please return it before six in the evening. Man: Can I leave it outside your building? Woman: No. Call me when you arrive, and I will meet you at the entrance."
+    },
+    {
+      "id": "p2-q2",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "What should the man do when he arrives?",
+      "options": [
+        "Leave the bicycle outside.",
+        "Call the woman.",
+        "Send an email.",
+        "Wait until Monday."
+      ],
+      "answer": 1,
+      "explanation": "女士否定直接放在楼外，要求到达时打电话。",
+      "audioText": "Man: I would like to borrow this bicycle until Sunday. Woman: That is fine, but please return it before six in the evening. Man: Can I leave it outside your building? Woman: No. Call me when you arrive, and I will meet you at the entrance."
+    },
+    {
+      "id": "p2-q3",
+      "type": "single-choice",
+      "difficulty": "core",
+      "prompt": "Where will the woman meet the man?",
+      "options": [
+        "At the entrance.",
+        "In the classroom.",
+        "At the station.",
+        "In the bicycle shop."
+      ],
+      "answer": 0,
+      "explanation": "女士说明 meet you at the entrance，指入口处。",
+      "audioText": "Man: I would like to borrow this bicycle until Sunday. Woman: That is fine, but please return it before six in the evening. Man: Can I leave it outside your building? Woman: No. Call me when you arrive, and I will meet you at the entrance."
+    }
+  ]
+}

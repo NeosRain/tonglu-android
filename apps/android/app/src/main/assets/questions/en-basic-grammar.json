@@ -1,0 +1,83 @@
+{
+  "id": "builtin-en-grammar",
+  "title": "英语基础语法（平台自建）",
+  "subject": "english",
+  "level": "basic",
+  "sourceNote": "由同路平台自行编写的语法练习，用于检验时态、主谓一致、冠词等基础点。不是任何考试的真题，也不对应任何考试的具体分数。",
+  "license": "平台自建内容（同路）",
+  "version": 1,
+  "questions": [
+    {
+      "id": "g01",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "She ___ to work by bus every morning.",
+      "options": ["go", "goes", "going", "gone"],
+      "answer": 1,
+      "explanation": "主语 She 是第三人称单数，一般现在时动词加 -s，所以是 goes。every morning 是判断「一般现在时」的标志。"
+    },
+    {
+      "id": "g02",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "There ___ a book and two pens on the desk.",
+      "options": ["is", "are", "be", "have"],
+      "answer": 0,
+      "explanation": "There be 句型就近一致：离 be 最近的是 a book（单数），所以用 is，而不是看后面的 two pens。"
+    },
+    {
+      "id": "g03",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "I have lived here ___ 2019.",
+      "options": ["for", "since", "from", "in"],
+      "answer": 1,
+      "explanation": "since 接时间点（2019），for 接时间段（如 three years）。现在完成时里两者最容易混。"
+    },
+    {
+      "id": "g04",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "This is ___ interesting book I have ever read.",
+      "options": ["a most", "the most", "most", "more"],
+      "answer": 1,
+      "explanation": "「我读过的最有趣的书」是最高级，且后面有定语从句限定，要加 the，所以是 the most interesting。"
+    },
+    {
+      "id": "g05",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "If it ___ tomorrow, we will stay at home.",
+      "options": ["will rain", "rains", "rained", "is raining"],
+      "answer": 1,
+      "explanation": "if 引导的条件状语从句**主将从现**：主句用将来时（will stay），从句用一般现在时（rains），不用 will rain。"
+    },
+    {
+      "id": "g06",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "He is good at ___ the piano.",
+      "options": ["play", "plays", "playing", "played"],
+      "answer": 2,
+      "explanation": "be good at 后面接名词或动名词，所以用 playing。类似还有 be interested in、look forward to。"
+    },
+    {
+      "id": "g07",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "The homework ___ by the students yesterday.",
+      "options": ["finished", "was finished", "has finished", "is finished"],
+      "answer": 1,
+      "explanation": "作业是被完成的（被动），时间是 yesterday（过去），所以用一般过去时的被动语态 was finished。"
+    },
+    {
+      "id": "g08",
+      "type": "single-choice",
+      "difficulty": "basic",
+      "prompt": "Neither Tom nor his friends ___ coming to the party.",
+      "options": ["is", "are", "was", "be"],
+      "answer": 1,
+      "explanation": "neither...nor 连接主语时谓语**就近一致**：离动词最近的是 his friends（复数），所以用 are。"
+    }
+  ]
+}

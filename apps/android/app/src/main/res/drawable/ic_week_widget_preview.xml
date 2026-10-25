@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「完整课表」小部件在选择器里的预览图（250×190 ≈ targetCell 4×3 的比例）。
+
+  🔴 必须跟 WeekWidget.kt 的真实排版对上：表头一行 7 列 + 下面整周网格，
+  每格一块圆角课程色块。这是**静态示意**，画通用示例，不画具体用户的课表。
+
+  取色与 App 内课表同一套 ScheduleViews.coursePalette（白字对比度 ≥4.5 的压暗色）：
+  blue-8 #1971C2 / teal #08805C / 深紫 #5F3DC4 / 玫红 #A61E4D / 棕 #B35C00；
+  表头正文 #2C3138、今天那列（周三）表头强调色 #2563EB（与三个部件共用一份强调色）。
+  圆角是真路径（这一层不经过 RemoteViews，不受 Glance API 31 限制）。
+
+  网格几何：7 列（列宽 30、缝 3：x=9/42/75/108/141/174/207 起）×
+  5 行（行高 28、缝 2：y=32/62/92/122/152 起），与 WeekWidgetLayout 的比例一致。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="190dp"
+    android:viewportWidth="250"
+    android:viewportHeight="190">
+
+    <!-- 卡片底：圆角 18 -->
+    <path
+        android:fillColor="#F5F6F8"
+        android:pathData="M18,0 L232,0 A18,18 0 0 1 250,18 L250,172 A18,18 0 0 1 232,190 L18,190 A18,18 0 0 1 0,172 L0,18 A18,18 0 0 1 18,0 Z" />
+
+    <!-- 表头：一 二 三 四 五 六 日（今天=周三，用强调色） -->
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M26,18 L36,18 L36,26 L26,26 Z" />
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M59,18 L69,18 L69,26 L59,26 Z" />
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M92,18 L102,18 L102,26 L92,26 Z" />
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M125,18 L135,18 L135,26 L125,26 Z" />
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M158,18 L168,18 L168,26 L158,26 Z" />
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M191,18 L201,18 L201,26 L191,26 Z" />
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M224,18 L234,18 L234,26 L224,26 Z" />
+
+    <!-- 周一：1-2 节 blue-8（y 32-60）、5-6 节 teal（y 122-150） -->
+    <path
+        android:fillColor="#1971C2"
+        android:pathData="M15,32 L33,32 A6,6 0 0 1 39,38 L39,54 A6,6 0 0 1 33,60 L15,60 A6,6 0 0 1 9,54 L9,38 A6,6 0 0 1 15,32 Z" />
+    <path
+        android:fillColor="#08805C"
+        android:pathData="M15,122 L33,122 A6,6 0 0 1 39,128 L39,144 A6,6 0 0 1 33,150 L15,150 A6,6 0 0 1 9,144 L9,128 A6,6 0 0 1 15,122 Z" />
+
+    <!-- 周二：3-4 节 深紫（y 62-90） -->
+    <path
+        android:fillColor="#5F3DC4"
+        android:pathData="M48,62 L66,62 A6,6 0 0 1 72,68 L72,84 A6,6 0 0 1 66,90 L48,90 A6,6 0 0 1 42,84 L42,68 A6,6 0 0 1 48,62 Z" />
+
+    <!-- 周三（今天）：1-2 节 玫红、7-8 节 blue-8（y 152-180） -->
+    <path
+        android:fillColor="#A61E4D"
+        android:pathData="M81,32 L99,32 A6,6 0 0 1 105,38 L105,54 A6,6 0 0 1 99,60 L81,60 A6,6 0 0 1 75,54 L75,38 A6,6 0 0 1 81,32 Z" />
+    <path
+        android:fillColor="#1971C2"
+        android:pathData="M81,152 L99,152 A6,6 0 0 1 105,158 L105,174 A6,6 0 0 1 99,180 L81,180 A6,6 0 0 1 75,174 L75,158 A6,6 0 0 1 81,152 Z" />
+
+    <!-- 周四：5-6 节 棕 -->
+    <path
+        android:fillColor="#B35C00"
+        android:pathData="M114,122 L132,122 A6,6 0 0 1 138,128 L138,144 A6,6 0 0 1 132,150 L114,150 A6,6 0 0 1 108,144 L108,128 A6,6 0 0 1 114,122 Z" />
+
+    <!-- 周五：1-2 节 teal、3-4 节 blue-8 -->
+    <path
+        android:fillColor="#08805C"
+        android:pathData="M147,32 L165,32 A6,6 0 0 1 171,38 L171,54 A6,6 0 0 1 165,60 L147,60 A6,6 0 0 1 141,54 L141,38 A6,6 0 0 1 147,32 Z" />
+    <path
+        android:fillColor="#1971C2"
+        android:pathData="M147,62 L165,62 A6,6 0 0 1 171,68 L171,84 A6,6 0 0 1 165,90 L147,90 A6,6 0 0 1 141,84 L141,68 A6,6 0 0 1 147,62 Z" />
+
+    <!-- 周日：3-4 节 深紫（周六留空，证明空列也要留位） -->
+    <path
+        android:fillColor="#5F3DC4"
+        android:pathData="M213,62 L231,62 A6,6 0 0 1 237,68 L237,84 A6,6 0 0 1 231,90 L213,90 A6,6 0 0 1 207,84 L207,68 A6,6 0 0 1 213,62 Z" />
+</vector>

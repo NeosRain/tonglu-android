@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「完整课表」小部件的元数据。
+
+  与 today_widget_info.xml 同一套约定（updatePeriodMillis=0 的原因见那份的注释）：
+  刷新全部交给 TodayWidgetUpdater 的 AlarmManager，三个部件共用一颗闹钟。
+
+  160dp 最小高度为切周栏、日期表头与可滚动的课表留出空间。
+  250dp 最小宽度保留节次时间列及七天列；不再缩成两字课名的缩略图。
+  纵向拉高扩大浏览窗口，全部节次始终留在同一个滚动列表中。
+-->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/widget_week_desc"
+    android:initialLayout="@layout/glance_default_loading_layout"
+    android:minHeight="160dp"
+    android:minResizeHeight="160dp"
+    android:minResizeWidth="250dp"
+    android:minWidth="250dp"
+    android:previewImage="@drawable/ic_week_widget_preview"
+    android:previewLayout="@layout/widget_week_preview"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="4"
+    android:targetCellHeight="3"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

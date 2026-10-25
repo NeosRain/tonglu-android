@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  「日历」小部件在选择器里的预览图（250×84 ≈ targetCell 3×1 的比例）。
+
+  🔴 必须跟 CalendarWidget.kt 的真实排版对上（第一行日期+周次、下面倒计时行），
+  画成别的样式等于误导。这是**静态示意**，内容画通用示例，不画具体用户的数据。
+
+  取色与三个部件同一套：卡片底 #F5F6F8（浅色 Canvas）、正文 #2C3138、
+  强调色 #2563EB（倒计时天数）、教学周角标 #8A94A0。
+  圆角是真路径（这一层不经过 RemoteViews，不受 Glance API 31 限制）。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="84dp"
+    android:viewportWidth="250"
+    android:viewportHeight="84">
+
+    <!-- 卡片底：圆角 18 -->
+    <path
+        android:fillColor="#F5F6F8"
+        android:pathData="M18,0 L232,0 A18,18 0 0 1 250,18 L250,66 A18,18 0 0 1 232,84 L18,84 A18,18 0 0 1 0,66 L0,18 A18,18 0 0 1 18,0 Z" />
+
+    <!-- 日期行：10月16日 · 周五（14sp ≈ 13px 高，y 基线 34） -->
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M20,24 L44,24 L44,29 L20,29 Z" />
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M48,24 L60,24 L60,29 L48,29 Z" />
+    <!-- 教学周角标：第7周（11sp ≈ 10px，靠右） -->
+    <path
+        android:fillColor="#8A94A0"
+        android:pathData="M210,25 L230,25 L230,33 L210,33 Z" />
+
+    <!-- 倒计时行 1：竞赛 · 蓝桥杯报名（左）… 还有 3 天（强调色，靠右） -->
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M20,45 L96,45 L96,52 L20,52 Z" />
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M196,45 L230,45 L230,52 L196,52 Z" />
+
+    <!-- 倒计时行 2：考试 · CET6（左）… 还有 36 天（强调色，靠右） -->
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M20,61 L74,61 L74,68 L20,68 Z" />
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M188,61 L230,61 L230,68 L188,68 Z" />
+</vector>

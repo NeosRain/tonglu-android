@@ -1,0 +1,10 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- 仅debug变体存在；内存示例，不接登录或网络。 -->
+        <activity android:name=".ui.CommentPreviewActivity" android:exported="true"
+            android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
+        <!-- 英语精读浮层走查入口；同样只在 debug 变体存在，内存夹具、不联网。 -->
+        <activity android:name=".ui.english.reading.ReadingDeepDivePreviewActivity" android:exported="true"
+            android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
+    </application>
+</manifest>

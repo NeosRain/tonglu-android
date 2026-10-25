@@ -1,0 +1,13 @@
+{
+  "banks": [
+    "cet4-vocabulary.json",
+    "cet4-reading.json",
+    "cet4-listening.json",
+    "cet6-vocabulary.json",
+    "cet6-reading.json",
+    "cet6-listening.json",
+    "en-basic-grammar.json",
+    "en-core-vocab.json",
+    "en-advanced-usage.json"
+  ]
+}

@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  桌面「添加小部件」选择器里的预览图。
+
+  为什么要自己画一张（而不是省略 previewImage）：
+  不设 previewImage 时，部分桌面（含 MIUI/澎湃）在选择器里显示的是**空白格子**或
+  应用图标，用户根本看不出这个小部件是干什么的。尺寸 250×160 与
+  targetCellWidth/Height=3×2 的比例一致。
+
+  🔴 这张图必须**跟 TodayWidget.kt 的真实排版对上**：用户在选择器里看到的，
+  要和拖到桌面上看到的是同一样式 —— 画成旧的「左侧竖线」版本等于误导，
+  比不画预览还糟。当前对的是 WakeUp 式：
+  外卡片圆角 20dp + 每节课一块圆角 12dp 课程色块 + 白字，
+  底部一条**倒计时**（2026-10-16 加：竞赛 / 考试）。
+
+  🔴 **圆角全部是真路径**：这一层是静态 drawable，不经过 RemoteViews，
+  所以不受 Glance `cornerRadius` 那条「要 API 31+」的限制 ——
+  预览图上画直角，会让人误以为成品也是直角。
+
+  🔴 这是**静态示意**，不会跟真实数据变 —— 所以内容画成通用示例，
+  不要画成某个具体用户的课表。
+
+  取色与 App 内课表同一套 ScheduleViews.coursePalette：
+  blue-8 #1971C2 / teal #08805C 是两个「白字对比度 ≥4.5」已压暗过的 Course 色。
+
+  倒计时那一行画的是 `竞赛 · 蓝桥杯报名`（正文色）+ `还有 3 天`（强调色），
+  对应 DeadlineRow 的两端对齐版式：**天数永远靠右**，标题长了只会裁标题。
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="250dp"
+    android:height="160dp"
+    android:viewportWidth="250"
+    android:viewportHeight="160">
+
+    <!-- 卡片底：圆角 18（≈ TodayWidget 的 CARD_RADIUS 20dp 在这个画布上的等比） -->
+    <path
+        android:fillColor="#F5F6F8"
+        android:pathData="M18,0 L232,0 A18,18 0 0 1 250,18 L250,142 A18,18 0 0 1 232,160 L18,160 A18,18 0 0 1 0,142 L0,18 A18,18 0 0 1 18,0 Z" />
+
+    <!--
+      标题行：左上「正在上课」+ 副标题「10月16日 · 周四 · 第7周」，右上「共 N 节」。
+
+      🔴 主标题画的是**强调色 #2563EB**，不是普通文字色 —— 这是有意的：
+      TodayWidget 里「正在上课」这个状态的主标题就是强调色（平时是「今天」，用普通色）。
+      预览取**信息量最大的那个状态**，它同时也是这个小部件会露出品牌蓝的地方。
+      顺带：`scripts/audit_brand_color.py` 把本文件列为品牌蓝复制点，
+      如果哪天把这里改成灰色，那把审计会立刻报红 —— 那是信号，不是噪音。
+    -->
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M17,17 L69,17 A2,2 0 0 1 71,19 L71,31 A2,2 0 0 1 69,33 L17,33 A2,2 0 0 1 15,31 L15,19 A2,2 0 0 1 17,17 Z" />
+    <path
+        android:fillColor="#A5AAB2"
+        android:pathData="M15,38 L109,38 L109,46 L15,46 Z" />
+    <path
+        android:fillColor="#C9CDD4"
+        android:pathData="M196,26 L236,26 L236,34 L196,34 Z" />
+
+    <!-- 第一节课：blue-8 圆角色块 + 白字（课名 / 节次·时间） -->
+    <path
+        android:fillColor="#1971C2"
+        android:pathData="M24,54 L226,54 A10,10 0 0 1 236,64 L236,80 A10,10 0 0 1 226,90 L24,90 A10,10 0 0 1 14,80 L14,64 A10,10 0 0 1 24,54 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,60 L122,60 L122,71 L26,71 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,76 L94,76 L94,83 L26,83 Z" />
+
+    <!-- 第二节课（正在上：右侧一枚「正在上」白胶囊） -->
+    <path
+        android:fillColor="#08805C"
+        android:pathData="M24,96 L226,96 A10,10 0 0 1 236,106 L236,122 A10,10 0 0 1 226,132 L24,132 A10,10 0 0 1 14,122 L14,106 A10,10 0 0 1 24,96 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,102 L104,102 L104,113 L26,113 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M26,118 L88,118 L88,125 L26,125 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M192,104 L228,104 A4,4 0 0 1 232,108 L232,114 A4,4 0 0 1 228,118 L192,118 A4,4 0 0 1 188,114 L188,108 A4,4 0 0 1 192,104 Z" />
+
+    <!--
+      倒计时行（2026-10-16 加）：`竞赛 · 蓝桥杯报名` 左 + `还有 3 天` 右。
+      左边用正文色（它是一行信息，不是按钮），右边用强调色 —— 天数是这条的重点。
+    -->
+    <path
+        android:fillColor="#2C3138"
+        android:pathData="M15,138 L146,138 L146,149 L15,149 Z" />
+    <path
+        android:fillColor="#2563EB"
+        android:pathData="M188,138 L236,138 L236,149 L188,149 Z" />
+</vector>

@@ -1,0 +1,56 @@
+[
+  {
+    "path": "LICENSE",
+    "sourceUrl": "https://www.gnu.org/licenses/gpl-3.0.txt",
+    "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986",
+    "bytes": 35149
+  },
+  {
+    "path": "licenses/KaTeX-MIT.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/KaTeX/KaTeX/v0.16.11/LICENSE",
+    "sha256": "766ccc1f306c885aa45542a9846bbd0a505b27a0374f146778171c2254ce18e3",
+    "bytes": 1107
+  },
+  {
+    "path": "licenses/marked-MIT.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/markedjs/marked/v12.0.2/LICENSE.md",
+    "sha256": "8e3a3f82f59a60958f56ca08f445647c32a4733dc7ca6c2c46f6eb898471ab9c",
+    "bytes": 2942
+  },
+  {
+    "path": "licenses/DOMPurify-APACHE.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/cure53/DOMPurify/3.1.6/LICENSE",
+    "sha256": "7de658e2401fe36e2a3965a5a11a560d2fffe768194849718a4b58c75bf84bda",
+    "bytes": 27729
+  },
+  {
+    "path": "licenses/sherpa-onnx-APACHE.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/k2-fsa/sherpa-onnx/v1.13.8/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "bytes": 11358
+  },
+  {
+    "path": "licenses/Gradle-APACHE.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/gradle/gradle/v9.7.1/LICENSE",
+    "sha256": "0d542e0c8804e39aa7f37eb00da5a762149dc682d7829451287e11b938e94594",
+    "bytes": 10174
+  },
+  {
+    "path": "licenses/Miuix-APACHE.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/compose-miuix-ui/miuix/v0.9.4/LICENSE",
+    "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+    "bytes": 11358
+  },
+  {
+    "path": "licenses/Backdrop-APACHE.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/Kyant0/AndroidLiquidGlass/2.0.1/LICENSE",
+    "sha256": "4b9f7e7c2821a5a1822a6cf1e4a34e877bba48a99b9bba1f03e5e2eccf6dec56",
+    "bytes": 10750
+  },
+  {
+    "path": "licenses/Shapes-APACHE.txt",
+    "sourceUrl": "https://raw.githubusercontent.com/Kyant0/Shapes/1.2.0/LICENSE",
+    "sha256": "16a47a85a8cb1e113fb45f7cde7cd9df4846d5f3dc5dd216f7109e9991fee7f7",
+    "bytes": 10750
+  }
+]

@@ -1,0 +1,17 @@
+**/build/
+**/.gradle/
+**/.kotlin/
+**/.idea/
+**/local.properties
+**/__pycache__/
+**/*.pyc
+**/*.keystore
+**/*.jks
+**/*.env
+**/.env
+**/*.apk
+/work/
+/.workbuddy/*
+!/.workbuddy/build.py
+apps/android/app/libs/sherpa-onnx.aar
+apps/android/app/src/main/assets/tts/

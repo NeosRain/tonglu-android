@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  夜间（系统深色）下的颜色覆盖。只覆盖**必须变**的那几个，其余继承 values/colors.xml。
+
+  ⚠️ 这里跟随的是**系统**深浅，不是 App 内那个「跟随系统/浅色/深色」三态开关：
+  系统启动画面（Android 12+ 的 splash）在 Activity 创建**之前**就画出来了，
+  它读不到我们的 SharedPreferences，所以只能用系统配置。
+  用户在 App 内手动选「浅色」而系统是深色时，冷启动那一瞬会闪深色底 —— 这是
+  这套机制的天生边界，不是可以修的 bug。
+
+  `tonglu_canvas` 的夜间值与 AppColors.DarkPalette.Canvas(#15171C) 保持一致：
+  否则冷启动那一下会先见一个颜色、App 起来后换成另一个颜色，看着像闪屏。
+-->
+<resources>
+    <color name="tonglu_canvas">#FF15171C</color>
+</resources>
