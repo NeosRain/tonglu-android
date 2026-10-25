@@ -73,7 +73,7 @@ class SquareFeedTextTest {
         val out = shareText("校园动态", "图书馆今晚延长到 23 点", "自习的同学注意啦")
         assertTrue(out.startsWith("【校园动态】图书馆今晚延长到 23 点"))
         assertTrue(out.contains("自习的同学注意啦"))
-        assertTrue(out.endsWith("—— 来自同路 App"))
+        assertTrue(out.endsWith("—— 来自苔米林 App"))
     }
 
     @Test
@@ -98,6 +98,7 @@ class SquareFeedTextTest {
         val out = shareText("校园动态", "t", "b", truncated = true)
         assertFalse(out.contains("http"))
         assertFalse(out.contains("同路.cn"))
+        assertFalse(out.contains("苔米林.cn"))
     }
 
     /**

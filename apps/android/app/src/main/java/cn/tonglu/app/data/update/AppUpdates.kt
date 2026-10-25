@@ -98,7 +98,7 @@ internal object AppUpdates {
             val c = context.applicationContext
             val file = updateFile(c, release.versionCode)
             if (file.exists()) check(file.delete()) { "无法移除旧的更新文件" }
-            val request = DownloadManager.Request(Uri.parse(release.url)).addRequestHeader("User-Agent", userAgent).setTitle("同路 ${release.versionName}")
+            val request = DownloadManager.Request(Uri.parse(release.url)).addRequestHeader("User-Agent", userAgent).setTitle("苔米林 ${release.versionName}")
                 .setDescription("下载应用更新").setMimeType("application/vnd.android.package-archive")
                 .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
                 .setDestinationUri(Uri.fromFile(file))
@@ -162,7 +162,7 @@ internal object AppUpdates {
         check(digest.digest().joinToString("") { "%02x".format(it) } == r.sha256) { "更新文件校验失败，请重新下载" }
         val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
         val archive = c.packageManager.getPackageArchiveInfo(file.path, flags) ?: error("无法识别更新安装包")
-        check(archive.packageName == c.packageName) { "更新包不是同路应用" }
+        check(archive.packageName == c.packageName) { "更新包不是苔米林应用" }
         val code = if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else archive.versionCode.toLong()
         check(code == r.versionCode && isNewerThanInstalled(r)) { "更新包版本不匹配" }
         val installed = c.packageManager.getPackageInfo(c.packageName, flags)
@@ -199,7 +199,7 @@ internal object AppUpdates {
         val launch = c.packageManager.getLaunchIntentForPackage(c.packageName) ?: error("无法找到应用更新入口")
         val pending = PendingIntent.getActivity(c, 702, launch, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(c, "app_updates") else Notification.Builder(c)
-        manager.notify(702, builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("同路 ${r.versionName} 可以更新")
+        manager.notify(702, builder.setSmallIcon(android.R.drawable.stat_sys_download_done).setContentTitle("苔米林 ${r.versionName} 可以更新")
             .setContentText(r.notes.take(100)).setContentIntent(pending).setAutoCancel(true).build())
         prefs(c).edit().putLong("notified.${channel(c).key}", r.versionCode).apply()
     }

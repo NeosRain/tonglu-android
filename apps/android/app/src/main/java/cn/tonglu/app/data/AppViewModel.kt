@@ -2498,7 +2498,7 @@ internal fun Throwable.toFriendlyMessage(): String = when (this) {
 }
 
 /** 块级翻译提示词：JSON 数组进、JSON 数组出，长度与顺序必须保持（docs/plan/37 B1）。 */
-private const val LEARNING_BLOCK_TRANSLATE_PROMPT = "你是「同路」的资料翻译助手。把用户消息 JSON 里 items 数组中的每一段 Markdown 文本完整翻译成简体中文：\n" +
+private const val LEARNING_BLOCK_TRANSLATE_PROMPT = "你是「苔米林」的资料翻译助手。把用户消息 JSON 里 items 数组中的每一段 Markdown 文本完整翻译成简体中文：\n" +
     "- 术语准确、句子通顺，技术名词首次出现可保留英文原文；\n" +
     "- 保留 Markdown 结构（标题层级、列表、表格、粗斜体），链接原样保留，代码不翻译（注释翻译）；\n" +
     "- 不添加解释、不总结、不合并或拆分段落，数组长度与顺序严格不变。\n" +

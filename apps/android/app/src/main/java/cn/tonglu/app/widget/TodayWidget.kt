@@ -79,7 +79,7 @@ private fun TodayContent(context: Context, snapshot: TodayWidgetSource.Snapshot,
         // 不用 defaultWeight：部分桌面（HyperOS）会把带 weight 的集合量成 0 高，内容全没。
         LazyColumn(GlanceModifier.fillMaxWidth().height(listHeight)) {
             if (snapshot.allRows.isEmpty()) item {
-                Text(if (!snapshot.hasData) "打开同路导入课表" else "这一天没有课",
+                Text(if (!snapshot.hasData) "打开苔米林导入课表" else "这一天没有课",
                     modifier = GlanceModifier.padding(vertical = 8.dp).clickable(actionStartActivity(widgetOpenAppIntent(context))),
                     style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 13.sp))
             }

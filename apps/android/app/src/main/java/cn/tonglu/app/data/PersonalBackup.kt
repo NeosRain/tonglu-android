@@ -134,7 +134,7 @@ object PersonalBackup {
                 plans = sections.optJSONObject("plans")?.optJSONArray("items"),
             )
         } catch (cause: Exception) {
-            warn("备份解析失败（文件可能不是同路导出的，或已被截断）", cause)
+            warn("备份解析失败（文件可能不是苔米林导出的，或已被截断）", cause)
             null
         }
     }

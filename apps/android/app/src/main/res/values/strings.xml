@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  本文件**只为小部件资源**而建。
+  产品名称和小部件资源。其他界面文案仍由既有 Compose 页面维护。
 
   为什么不全量搬迁：App 的界面文案都写在 Compose 里（项目现状，见 ui/ 下各 Screen），
   一次性搬进 strings.xml 是一次与本次需求无关的大改动，风险大于收益。
@@ -8,12 +8,13 @@
   只能引用资源，写不了 Compose 里的字面量 —— 所以这里必须有。
 -->
 <resources>
+    <string name="app_name">苔米林</string>
     <string name="shortcut_add_widgets">添加小组件</string>
     <!-- 桌面「添加小部件」列表里显示的名字 -->
     <string name="widget_today_label">今日课表</string>
-    <string name="widget_today_desc">显示今天的课程：节次、时间、科目、教室。点一下打开同路首页课表。</string>
+    <string name="widget_today_desc">显示今天的课程：节次、时间、科目、教室。点一下打开苔米林首页课表。</string>
     <string name="widget_calendar_label">日历</string>
-    <string name="widget_calendar_desc">显示日期、星期、教学周和竞赛/考试倒计时。点一下打开同路。</string>
+    <string name="widget_calendar_desc">显示日期、星期、教学周和竞赛/考试倒计时。点一下打开苔米林。</string>
     <string name="widget_week_label">完整课表</string>
-    <string name="widget_week_desc">显示本周整周课程网格：列是周几、行是节次。点一下打开同路课表。</string>
+    <string name="widget_week_desc">显示本周整周课程网格：列是周几、行是节次。点一下打开苔米林课表。</string>
 </resources>

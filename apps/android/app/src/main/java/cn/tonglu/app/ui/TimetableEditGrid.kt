@@ -105,7 +105,7 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                 Text(before.name, fontWeight = FontWeight.SemiBold)
                 Text("${ScheduleText.weekdayLabel(before.weekday)} ${before.startPeriod}–${before.endPeriod}节 → ${ScheduleText.weekdayLabel(after.weekday)} ${after.startPeriod}–${after.endPeriod}节")
                 Text("${PeriodTable.slot(after.startPeriod)?.start ?: "未设时间"}–${PeriodTable.slot(after.endPeriod)?.end ?: "未设时间"} · ${after.weekLabel()}")
-                Text("调整该课程的全部上课周次；只修改同路中的课表，不修改学校教务。")
+                Text("调整该课程的全部上课周次；只修改苔米林中的课表，不修改学校教务。")
                 val conflicts = ScheduleMoveRules.conflicts(after, allCourses)
                 if (conflicts > 0) Text("与 $conflicts 条课程时间重叠，保存后仍保留全部课程。", color = AppColors.Danger)
                 error?.let { Text(it, color = AppColors.Danger) }

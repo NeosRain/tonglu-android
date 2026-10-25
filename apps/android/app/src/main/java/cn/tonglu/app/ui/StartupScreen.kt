@@ -8,8 +8,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.*
 import androidx.compose.ui.graphics.drawscope.*
 import androidx.compose.ui.semantics.contentDescription
@@ -17,6 +15,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.data.StartupArtwork
+import cn.tonglu.app.data.AppBrand
 import cn.tonglu.app.ui.startup.StartupRefraction
 import cn.tonglu.app.ui.startup.startupTextReveal
 
@@ -52,13 +51,13 @@ internal fun StartupScreen(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().safeDrawingPadding().padding(horizontal = 28.dp, vertical = 62.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Canvas(Modifier.fillMaxWidth(.82f).height(40.dp).semantics { contentDescription = "同路 T O N G L U" }) {
+            Canvas(Modifier.fillMaxWidth(.82f).height(40.dp).semantics { contentDescription = AppBrand.CHINESE_NAME + " " + AppBrand.ENGLISH_NAME }) {
                 val reveal = startupTextReveal(progress())
                 drawWordmark(ink, reveal)
             }
             Spacer(Modifier.height(14.dp))
             Text(
-                "同路 —— 陪你把这一天过好", color = ink, fontSize = 15.sp,
+                "苔米林 —— 陪你把这一天过好", color = ink, fontSize = 15.sp,
                 modifier = Modifier.graphicsLayer { alpha = startupTextReveal(progress()) },
             )
             Spacer(Modifier.height(10.dp))
@@ -69,28 +68,22 @@ internal fun StartupScreen(
     }
 }
 
-/** 原创几何线性字标，宽字距、切角及微倾斜；没有使用SpaceX标志或版权不明字体。 */
+/** System-font wordmark fitted to its available width; preserves the existing reveal timing. */
 private fun DrawScope.drawWordmark(ink: Color, reveal: Float) {
-    val letters = listOf(
-        listOf(listOf(0f to 0f, 1f to 0f), listOf(.5f to 0f, .5f to 1f)),
-        listOf(listOf(.15f to 0f, .85f to 0f, 1f to .15f, 1f to .85f, .85f to 1f, .15f to 1f, 0f to .85f, 0f to .15f, .15f to 0f)),
-        listOf(listOf(0f to 1f, 0f to 0f, 1f to 1f, 1f to 0f)),
-        listOf(listOf(1f to .18f, .82f to 0f, .18f to 0f, 0f to .18f, 0f to .82f, .18f to 1f, 1f to 1f, 1f to .55f, .55f to .55f)),
-        listOf(listOf(0f to 0f, 0f to 1f, 1f to 1f)),
-        listOf(listOf(0f to 0f, 0f to .82f, .18f to 1f, .82f to 1f, 1f to .82f, 1f to 0f)),
-    )
-    val unit = size.width / 6.8f; val height = size.height * .72f
-    letters.forEachIndexed { index, strokes ->
-        val visibilityT = ((reveal * 6.8f - index * 1.14f) / .8f).coerceIn(0f, 1f)
-        val visibility = visibilityT * visibilityT * (3f - 2f * visibilityT)
-        strokes.forEach { points ->
-            val path = Path()
-            points.forEachIndexed { i, point ->
-                val x = index * unit * 1.14f + point.first * unit * .74f + (1f - point.second) * unit * .07f
-                val y = point.second * height + size.height * .10f
-                if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-            }
-            drawPath(path, ink.copy(alpha = ink.alpha * visibility), style = Stroke(1.7.dp.toPx(), cap = StrokeCap.Square, join = StrokeJoin.Bevel))
+    if (reveal <= 0f || size.width <= 0f || size.height <= 0f) return
+    val text = AppBrand.ENGLISH_NAME
+    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+        color = ink.toArgb()
+        textAlign = android.graphics.Paint.Align.CENTER
+        typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
+        textSize = size.height * .85f
+    }
+    paint.textSize *= minOf(1f, size.width * .98f / paint.measureText(text))
+    val metrics = paint.fontMetrics
+    val baseline = (size.height - metrics.ascent - metrics.descent) / 2f
+    clipRect(right = size.width * reveal.coerceIn(0f, 1f)) {
+        drawIntoCanvas {
+            it.nativeCanvas.drawText(text, size.width / 2f, baseline, paint)
         }
     }
 }

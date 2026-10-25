@@ -1,8 +1,10 @@
-# 同路 · Android
+# 苔米林 · Taimi Forest · Android
 
-<img src="apps/android/app/src/main/artwork/store-icon-512.png" width="96" alt="同路番茄酱图标" />
+<img src="apps/android/app/src/main/artwork/store-icon-512.png" width="96" alt="苔米林番茄酱图标" />
 
-让学习、工作和人与人的连接轻松一点。这是同路安卓客户端的完整源码，包含单词学习、阅读与精读、课表与桌面小组件、番茄钟、个人书库、校园工具和局域网传输。
+让学习、工作和人与人的连接轻松一点。这是苔米林（Taimi Forest）安卓客户端的完整源码，包含单词学习、阅读与精读、课表与桌面小组件、番茄钟、个人书库、校园工具和局域网传输。
+
+技术缩写 **TML**，内部代号 **taimilin**。名称与兼容约定见 [品牌说明](docs/BRAND.md)。
 
 **项目代码采用 GPL-3.0-only。** 第三方代码、词典和素材沿用各自许可，见 [THIRD_PARTY.md](THIRD_PARTY.md)。这是独立安卓源码仓库，后端、网页、管理台和运维暂不在公开范围内。
 

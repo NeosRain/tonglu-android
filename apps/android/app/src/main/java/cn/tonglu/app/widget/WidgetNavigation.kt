@@ -96,7 +96,7 @@ internal object WidgetNavigation {
             }
         }
         when {
-            failed -> Text("课表更新失败，打开同路重试", modifier = GlanceModifier.padding(12.dp)
+            failed -> Text("课表更新失败，打开苔米林重试", modifier = GlanceModifier.padding(12.dp)
                 .clickable(androidx.glance.appwidget.action.actionStartActivity(widgetOpenAppIntent(context))),
                 style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 12.sp))
             loaded.first.owner != requested.owner -> Text("正在读取课表…",

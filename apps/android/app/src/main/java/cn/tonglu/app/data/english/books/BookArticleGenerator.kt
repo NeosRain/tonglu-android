@@ -38,7 +38,7 @@ object BookArticleGenerator {
         require(words.isNotEmpty()) { "先选择要覆盖的词" }
         require(words.size <= MAX_WORDS_PER_ARTICLE) { "一次最多 $MAX_WORDS_PER_ARTICLE 个词，避免硬塞整本书" }
         val wordList = words.joinToString("\n") { "- ${it.surface.trim()}（${it.meaning.trim()}）" }
-        val system = "你是「同路」的英语文章生成器。只输出 JSON，不输出任何解释文字。\n" +
+        val system = "你是「苔米林」的英语文章生成器。只输出 JSON，不输出任何解释文字。\n" +
             "写作要求：\n" +
             "1. 用选出的英文词写一篇语义连贯、自然的短文，允许合理的词形变化（复数、时态等）；\n" +
             "2. 没选进来的词尽量使用${level}难度及以下的常用词，不堆砌生僻词；\n" +
