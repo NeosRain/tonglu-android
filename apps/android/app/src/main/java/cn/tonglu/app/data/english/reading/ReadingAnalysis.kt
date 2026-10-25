@@ -43,7 +43,7 @@ fun readingTokens(sentence: ReadingSentence): List<ReadingToken> =
 
 /** 模型只能引用已提供的 token ID，不能自造偏移。坏结果必须报错，不能画错线后当作成功。 */
 object ReadingAnalysisCodec {
-    const val PROMPT_VERSION = "sentence-v1"
+    const val PROMPT_VERSION = "sentence-v2"
     val roles = setOf("主语", "谓语", "宾语", "定语", "状语", "补语", "从句")
 
     fun decode(raw: String, tokens: List<ReadingToken>): SentenceAnalysis {

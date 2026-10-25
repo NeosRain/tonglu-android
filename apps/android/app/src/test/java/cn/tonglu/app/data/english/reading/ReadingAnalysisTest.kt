@@ -125,4 +125,29 @@ class ReadingAnalysisTest {
         rejects { ReadingAiContext(sentence, 99).turns(emptyList(), "问") }
         rejects { ReadingAiContext(sentence).turns(emptyList(), "") }
     }
+    @Test fun legacyValidatedCacheRemainsReadableWithoutKey() = runBlocking {
+        val cache = Cache()
+        cache.rows["a" to readingAnalysisKey(sentence, configured, "sentence-v1")] = valid
+        val service = ReadingAnalysisService("a", cache, ReadingAnalysisModel { _, _ -> fail("不得发请求"); valid })
+        assertEquals("我们帮助他们。", service.analyze(sentence, configured.copy(apiKey = "")).translation)
+    }
+    @Test fun legacyCacheNeverCrossesAccountBoundary() = runBlocking {
+        val cache = Cache()
+        cache.rows["a" to readingAnalysisKey(sentence, configured, "sentence-v1")] = valid
+        val service = ReadingAnalysisService("b", cache, ReadingAnalysisModel { _, _ -> fail("不得发请求"); valid })
+        try { service.analyze(sentence, configured.copy(apiKey = "")); fail() }
+        catch (expected: IllegalArgumentException) { assertTrue(expected.message!!.contains("自己的AI")) }
+    }
+    @Test fun newPromptDoesNotReuseLegacyCacheWhenGenerationIsExplicitlyRequested() = runBlocking {
+        val cache = Cache()
+        val old = readingAnalysisKey(sentence, configured, "sentence-v1")
+        cache.rows["a" to old] = valid
+        var calls = 0
+        val service = ReadingAnalysisService("a", cache, ReadingAnalysisModel { _, _ -> calls++; valid })
+        service.analyze(sentence, configured)
+        assertEquals(1, calls)
+        assertNotEquals(old, readingAnalysisKey(sentence, configured))
+        assertEquals(2, cache.rows.size)
+    }
+
 }

@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -20,6 +21,13 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import cn.tonglu.app.data.speech.*
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -95,10 +103,21 @@ internal fun readingAnalysisActions(state: ReadingAnalysisUi): List<ReadingAnaly
     // 未配置：两个都给。用户配完回来点一下「分析这句」就能发，不必收起浮层重开。
     is ReadingAnalysisUi.NeedsConfig -> listOf(ReadingAnalysisAction.Settings, ReadingAnalysisAction.Analyze)
     // 在途：什么都不给（此时重复发起由状态机自己挡掉，界面也不该给一个点了没用的按钮）。
-    is ReadingAnalysisUi.Loading -> emptyList()
+    is ReadingAnalysisUi.Loading, is ReadingAnalysisUi.Ready -> emptyList()
     is ReadingAnalysisUi.Failed -> listOf(ReadingAnalysisAction.Retry)
     else -> listOf(ReadingAnalysisAction.Analyze)
 }
+
+/** Only the selected component is highlighted; nested clauses must not paint the entire sentence. */
+internal fun sentenceComponentHighlight(selection: ReaderSelection, component: SentenceComponent?, color: Color): AnnotatedString =
+    buildAnnotatedString {
+        append(selection.sentence.text)
+        component?.let { part ->
+            val covered = selection.tokens.filter { it.id in part.tokenIds }
+            if (covered.isNotEmpty()) addStyle(SpanStyle(color = color, textDecoration = TextDecoration.Underline),
+                covered.first().start, covered.last().end)
+        }
+    }
 
 @Composable
 internal fun ReadingStructurePanel(
@@ -111,98 +130,106 @@ internal fun ReadingStructurePanel(
     modifier: Modifier = Modifier,
     onPickWord: ((Int) -> Unit)? = null,
 ) {
+    var details by rememberSaveable(selection.sentence.hash) { mutableStateOf(false) }
     var openComponent by remember(selection) { mutableStateOf<SentenceComponent?>(null) }
-    Surface(modifier = modifier.fillMaxWidth(), shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
-        color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState())
-            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 20.dp)) {
+    var speechProblem by remember(selection) { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    val speech = remember(context, selection) {
+        SpeechService(context) { speechProblem = "原句朗读失败，请检查本机英语语音数据或语音引擎" }
+    }
+    DisposableEffect(speech, lifecycle) {
+        speech.start()
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) speech.stop() }
+        lifecycle.addObserver(observer)
+        onDispose { lifecycle.removeObserver(observer); speech.shutdown() }
+    }
+    fun speakSentence() {
+        speechProblem = null
+        when (val result = speech.speak(SpeechRequest(text = selection.sentence.text,
+            voiceId = SpeechCatalog.systemVoice().id, purpose = SpeechPurpose.Sentence))) {
+            SpeechResult.Spoken -> Unit
+            is SpeechResult.Failed -> speechProblem = result.hint
+            is SpeechResult.Unavailable -> speechProblem = result.reason
+            is SpeechResult.Degraded -> speechProblem = result.reason
+        }
+    }
+    val analysis = (analysisState as? ReadingAnalysisUi.Ready)?.analysis
+    Surface(modifier = modifier.fillMaxWidth().heightIn(max = 640.dp),
+        shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp), color = MaterialTheme.colorScheme.surface) {
+        Column(Modifier.fillMaxWidth().navigationBarsPadding().padding(start = 20.dp, end = 20.dp, top = 10.dp, bottom = 12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("句子结构", fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
+                Text("句子精读", fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
                 TextButton(onClick = onClose) { Text("收起") }
             }
-            // 原句：覆盖到的词加下划线与成分色；未覆盖的保持原样。
-            val scheme = MaterialTheme.colorScheme
-            val analysis = (analysisState as? ReadingAnalysisUi.Ready)?.analysis
-            if (analysis != null) {
-                val annotated = buildAnnotatedString {
-                    append(selection.sentence.text)
-                    analysis.components.forEach { component ->
-                        val covered = selection.tokens.filter { it.id in component.tokenIds }
-                        if (covered.isNotEmpty()) {
-                            addStyle(SpanStyle(color = readingRoleColor(component.role, scheme),
-                                textDecoration = TextDecoration.Underline),
-                                covered.first().start, covered.last().end)
+            if (analysisState is ReadingAnalysisUi.NeedsConfig) Text("先配置 AI 接口；朗读和查词仍可使用",
+                fontSize = 12.sp, lineHeight = 18.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp))
+            // The header and actions stay reachable while a long sentence/explanation scrolls.
+            Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                val color = openComponent?.let { readingRoleColor(it.role, MaterialTheme.colorScheme) }
+                    ?: MaterialTheme.colorScheme.onSurface
+                StructureSentenceText(sentenceComponentHighlight(selection, if (details) openComponent else null, color), selection, onPickWord)
+                if (analysis != null) {
+                    Text("译文 · AI 生成，可能有误", fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
+                    Text(analysis.translation, fontSize = 16.sp, lineHeight = 25.sp,
+                        color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 4.dp))
+                    Text("理解这句", fontWeight = FontWeight.SemiBold, fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 16.dp))
+                    Text(analysis.summary, fontSize = 14.sp, lineHeight = 22.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
+                    analysis.uncertainty?.takeIf(String::isNotBlank)?.let {
+                        Text("需要留意：$it", fontSize = 13.sp, lineHeight = 20.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 8.dp))
+                    }
+                    TextButton(onClick = { details = !details; if (!details) openComponent = null }) {
+                        Text(if (details) "收起语法细节" else "展开语法细节（${analysis.components.size}）")
+                    }
+                    if (details) {
+                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            analysis.components.forEach { component ->
+                                val roleColor = readingRoleColor(component.role, MaterialTheme.colorScheme)
+                                FilterChip(selected = openComponent === component,
+                                    onClick = { openComponent = if (openComponent === component) null else component },
+                                    colors = FilterChipDefaults.filterChipColors(labelColor = roleColor,
+                                        selectedLabelColor = roleColor, selectedContainerColor = roleColor.copy(alpha = 0.12f)),
+                                    label = { Text(component.role) })
+                            }
+                        }
+                        openComponent?.let { component ->
+                            Surface(shape = RoundedCornerShape(10.dp), color = MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                                Column(Modifier.padding(12.dp)) {
+                                    Text(componentOriginalText(component, selection.tokens, selection.sentence.text),
+                                        fontSize = 15.sp, lineHeight = 23.sp, color = MaterialTheme.colorScheme.onSurface)
+                                    Text(component.explanation, fontSize = 14.sp, lineHeight = 22.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
+                                }
+                            }
                         }
                     }
-                }
-                StructureSentenceText(annotated, selection, onPickWord)
-                Text("译文 · AI 生成，可能有误", fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
-                Text(analysis.translation, fontSize = 15.sp, lineHeight = 23.sp,
-                    color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.padding(top = 2.dp))
-                analysis.uncertainty?.takeIf { it.isNotBlank() }?.let {
-                    Surface(shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier
-                            .fillMaxWidth().padding(top = 8.dp)) {
-                        Text("模型说明歧义：$it", fontSize = 12.sp, lineHeight = 18.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(10.dp))
+                } else {
+                    when (analysisState) {
+                        is ReadingAnalysisUi.Loading -> LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 12.dp))
+                        is ReadingAnalysisUi.Failed -> Text(analysisState.reason, fontSize = 13.sp, lineHeight = 20.sp,
+                            color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
+                        is ReadingAnalysisUi.NeedsConfig -> Text("句子解释需要你自己的 AI 接口。原句朗读和查词仍可使用。",
+                            fontSize = 13.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 12.dp))
+                        else -> Text("先读原句，需要帮助时点「分析这句」查看译文和解释。不会自动发起 AI 请求。",
+                            fontSize = 13.sp, lineHeight = 20.sp, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 12.dp))
                     }
                 }
-                // 成分标签：颜色 + 文字，**横向流动**排布（与 ArticleReader 的 FlowRow 一致）——
-                // 一个成分一行会把面板撑到十几屏，用户要滚很久才看得见下面的总结。
-                FlowRow(Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    analysis.components.forEach { component ->
-                        val color = readingRoleColor(component.role, scheme)
-                        FilterChip(selected = openComponent === component,
-                            onClick = { openComponent = if (openComponent === component) null else component },
-                            colors = FilterChipDefaults.filterChipColors(
-                                labelColor = color, selectedLabelColor = color, selectedContainerColor = color.copy(alpha = 0.12f)),
-                            label = { Text(component.role) })
-                    }
-                }
-                // 展开的解释卡统一显示在标签行下方（整宽，不挤压标签流）：点哪个标签就显示哪一段。
-                openComponent?.let { component ->
-                    Surface(shape = RoundedCornerShape(10.dp),
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-                        Column(Modifier.padding(10.dp)) {
-                            Text(componentOriginalText(component, selection.tokens, selection.sentence.text),
-                                fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
-                            Text(component.explanation, fontSize = 13.sp, lineHeight = 19.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(top = 4.dp))
-                        }
-                    }
-                }
-                Text(analysis.summary, fontSize = 13.sp, lineHeight = 19.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 10.dp))
-            } else {
-                StructureSentenceText(AnnotatedString(selection.sentence.text), selection, onPickWord)
-                when (analysisState) {
-                    is ReadingAnalysisUi.Loading -> Column(Modifier.padding(top = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        LinearProgressIndicator(Modifier.fillMaxWidth().heightIn(min = 2.dp))
-                        Text("正在分析这一句（AI 生成，可能有误）…", fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    is ReadingAnalysisUi.Failed -> Text("这次分析没有成功：${analysisState.reason}",
-                        fontSize = 13.sp, lineHeight = 19.sp, color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(top = 12.dp))
-                    is ReadingAnalysisUi.NeedsConfig -> Text(
-                        "句子结构分析要用你自己的 AI 接口。普通阅读和查词不受影响。",
-                        fontSize = 13.sp, lineHeight = 19.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
-                    else -> Text("点「分析这句」查看句子成分。分析由 AI 生成，可能有误。",
-                        fontSize = 13.sp, lineHeight = 19.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 12.dp))
-                }
+                speechProblem?.let { Text(it, fontSize = 13.sp, lineHeight = 20.sp,
+                    color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp)) }
             }
-            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 渲染完全由 [readingAnalysisActions] 决定 —— 单测钉住那个纯函数，这里不许再自己分支。
+            FlowRow(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { speakSentence() }) { Text("朗读原句") }
+                TextButton(onClick = { speech.stop() }) { Text("停止") }
                 readingAnalysisActions(analysisState).forEach { action ->
                     when (action) {
                         ReadingAnalysisAction.Settings -> TextButton(onClick = onOpenAiSettings) { Text("去配置 AI") }
@@ -211,6 +238,7 @@ internal fun ReadingStructurePanel(
                     }
                 }
                 TextButton(onClick = onAsk) { Text("问 AI") }
+                if (speechProblem != null) TextButton(onClick = { speech.openSystemSettings() }) { Text("语音引擎设置") }
             }
         }
     }

@@ -440,4 +440,25 @@ class ReadingDeepDiveStateTest {
         """.trimIndent()
         return ReadingAnalysisCodec.decode(json, tokens)
     }
+    @Test fun defaultSentenceHasNoRainbowDecoration() {
+        val sel = selection()
+        val result = sentenceComponentHighlight(sel, null, androidx.compose.ui.graphics.Color.Blue)
+        assertEquals(sel.sentence.text, result.text)
+        assertTrue(result.spanStyles.isEmpty())
+    }
+    @Test fun selectingRepeatedWordHighlightsOnlyItsExactOccurrence() {
+        val original = "We had had enough."
+        val sel = ReaderSelection.of("a", "v1", original, 0, original.length)
+        val second = sel.tokens.filter { it.text == "had" }.last()
+        val part = SentenceComponent("谓语", listOf(second.id), "示例")
+        val result = sentenceComponentHighlight(sel, part, androidx.compose.ui.graphics.Color.Blue)
+        assertEquals(1, result.spanStyles.size)
+        assertEquals(second.start, result.spanStyles.single().start)
+        assertEquals(second.end, result.spanStyles.single().end)
+    }
+    @Test fun readyAnalysisDoesNotOfferRedundantAnalyzeButton() {
+        assertTrue(readingAnalysisActions(ReadingAnalysisUi.Ready(
+            SentenceAnalysis("译文", "解释", emptyList(), null))).isEmpty())
+    }
+
 }

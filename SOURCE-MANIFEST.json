@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "cbf40e32cf4010d2323dd1d858a1b1b04eefd578",
+  "sourceCommit": "f78f48a9bbd68f67fa52c8f843b7e154dd254917",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -444,12 +444,12 @@
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/reading/ReadingAnalysis.kt",
       "bytes": 5435,
-      "sha256": "665131f9d6decf53192f42bacda40f0e2bfd6e7ff193eb02ca7b354012967f57"
+      "sha256": "e80f778050841442eccc2f1c1bbba9a564ec5c0afd17658f731c7132b7e6735e"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/reading/ReadingAnalysisService.kt",
-      "bytes": 4684,
-      "sha256": "e467e0c1009ac324cd510e604d370b740d40ca6d12fe8b366b50b363e1702045"
+      "bytes": 5144,
+      "sha256": "61c32c3988b919618b79440d122051793bd0c5084b61fc69cf10614f8ae02e24"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/reading/ReadingAnalysisStore.kt",
@@ -1088,8 +1088,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/reading/ReadingStructurePanel.kt",
-      "bytes": 15018,
-      "sha256": "5c12dc8be819417ef19d913671653091bf13ab43eaab9ca3181730e36c90a9f4"
+      "bytes": 17182,
+      "sha256": "bf07526b8b16083b86ad9e954bf74691d7c14850ae5ae99b9be582bb0f1f02c9"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/wordreview/WordReviewPage.kt",
@@ -2063,8 +2063,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/reading/ReadingAnalysisTest.kt",
-      "bytes": 7745,
-      "sha256": "0a7c1f6aa9b1d481af1cf382c80772b63d7856ac2a5277af5ecbc079f0d2fad6"
+      "bytes": 9283,
+      "sha256": "73c039947f8f8fae3e77d5628e0d6fde2dc6c5b3d5602e0634b656f20e19aec8"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/reading/ReadingConversationStoreTest.kt",
@@ -2318,8 +2318,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/english/reading/ReadingDeepDiveStateTest.kt",
-      "bytes": 20421,
-      "sha256": "1764dbcbd95f4b71a70c3d353356a124ba1821ab6e16c3e2a9ca156367b43f7f"
+      "bytes": 21581,
+      "sha256": "4eb9f4415eaa21a80b735760a675df8315e53e0e020d4e8108cb5bc940c8e305"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/EnglishCardActionsTest.kt",
@@ -2943,8 +2943,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 2290,
-      "sha256": "56ee5322407fcc33255c0c3f882dc25b4d0f53b5c0607f27eeb5858b3c618923"
+      "bytes": 214,
+      "sha256": "fdfcf3c6b96ef4a9db919646f82a98273295a031d41ab62179bb9430f75580ce"
     },
     {
       "path": "content/intensive/provenance.json",
