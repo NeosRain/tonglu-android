@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "f78f48a9bbd68f67fa52c8f843b7e154dd254917",
+  "sourceCommit": "015901dc594005de26033659f049f9ede5ee95c6",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,8 +38,8 @@
     },
     {
       "path": "apps/android/app/build.gradle.kts",
-      "bytes": 17983,
-      "sha256": "e1de2f6ac3e64aa89c8add90ee4749c110aa713d8aae7efef70650dea20a83a9"
+      "bytes": 17990,
+      "sha256": "6dd7eeb4d208a8dbdeb85445b5372a845cfa0b557227fcbd3ead5c25fc683a03"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
