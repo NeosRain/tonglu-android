@@ -218,6 +218,17 @@ class ReadingStore(context: Context, owner: String) {
             .coerceIn(ReadingPrefs.LINE_MIN, ReadingPrefs.LINE_MAX)
         set(value) { prefs.edit().putFloat("line_height",
             value.coerceIn(ReadingPrefs.LINE_MIN, ReadingPrefs.LINE_MAX)).apply() }
+    // English typography is independent of other books. Existing explicit preferences remain the fallback.
+    var englishFontSize: Int
+        get() = prefs.getInt("english_font_size", if (prefs.contains("font_size")) fontSize else 19)
+            .coerceIn(ReadingPrefs.FONT_MIN, ReadingPrefs.FONT_MAX)
+        set(value) { prefs.edit().putInt("english_font_size",
+            value.coerceIn(ReadingPrefs.FONT_MIN, ReadingPrefs.FONT_MAX)).apply() }
+    var englishLineHeight: Float
+        get() = prefs.getFloat("english_line_height", if (prefs.contains("line_height")) lineHeight else 1.8f)
+            .coerceIn(ReadingPrefs.LINE_MIN, ReadingPrefs.LINE_MAX)
+        set(value) { prefs.edit().putFloat("english_line_height",
+            value.coerceIn(ReadingPrefs.LINE_MIN, ReadingPrefs.LINE_MAX)).apply() }
     var paper: Boolean
         get() = paperStyle != ReadingPrefs.PAPER_DEFAULT
         set(value) {

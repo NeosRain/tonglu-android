@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "adf439387e6d60a48199777633125130a2b781c3",
+  "sourceCommit": "cbf40e32cf4010d2323dd1d858a1b1b04eefd578",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -538,8 +538,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/LearningCatalog.kt",
-      "bytes": 13861,
-      "sha256": "78c401225334acbb3c2834bde0bd518bfc34287aa713183137423ca3f12fc036"
+      "bytes": 14686,
+      "sha256": "acc5b090c445c94dd6df6c64f8c1940fe70cfdd4255c2ecf837275d8242a4734"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/LearningFeed.kt",
@@ -888,8 +888,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ArticleReader.kt",
-      "bytes": 90622,
-      "sha256": "5ebe8a11cd81461b3d9dccf5bfbe819539f031e63a2b9c23a05f7b799925d309"
+      "bytes": 92980,
+      "sha256": "fb12af50005878a1a023ee8bfaf8a82c69f25d96557e211aed8e3df266ad3cc2"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/Avatar.kt",
@@ -2387,6 +2387,11 @@
       "sha256": "16cee5e61bb8dd3631dbbafacf441896ef37cb67df97a940bf5607ad35c2f905"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/readingselection/EnglishReadingEligibilityTest.kt",
+      "bytes": 1492,
+      "sha256": "5e1543d3547e46890330c473da7e31e66605e989bafd1ec5bd9e47535b2d484b"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/readingselection/ReadingTextHitTest.kt",
       "bytes": 3795,
       "sha256": "99e30106c1779bc656b492f9df82e10157be3d41389fb4dc71cc9f950a004397"
@@ -2938,8 +2943,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 2435,
-      "sha256": "54ec1d0b55dec361ba36be2387278e4d3265e241e335a169196fb99d84dcec07"
+      "bytes": 209,
+      "sha256": "21e738616278215e5f21337e15b5e9bf035e6a1c8049be11ef41260560f2753e"
     },
     {
       "path": "content/intensive/provenance.json",

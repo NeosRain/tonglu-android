@@ -104,6 +104,7 @@ import cn.tonglu.app.ui.glass.GlassActionPanel
 import cn.tonglu.app.ui.readingselection.readingTextHit
 import cn.tonglu.app.ui.readingselection.supportsPreciseReading
 import cn.tonglu.app.ui.readingselection.ReaderInteractiveParagraph
+import cn.tonglu.app.ui.readingselection.isEnglishReadingArticle
 
 internal fun copyArticleSource(context: Context, article: LearningArticle) {
     if (article.sourceUrl.isBlank()) return
@@ -349,8 +350,10 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
     val motion = remember { Animatable(if (isTopPage) 0f else 1f) }
     val latestClose by rememberUpdatedState(onClose)
     var closing by remember { mutableStateOf(false) }
-    var fontSize by rememberSaveable { mutableIntStateOf(store.fontSize) }
-    var lineHeight by rememberSaveable { mutableFloatStateOf(store.lineHeight) }
+    val englishReading = remember(article.id, article.body) { isEnglishReadingArticle(article) }
+    val directReading = englishReading && onReadingSelection != null
+    var fontSize by rememberSaveable { mutableIntStateOf(if (englishReading) store.englishFontSize else store.fontSize) }
+    var lineHeight by rememberSaveable { mutableFloatStateOf(if (englishReading) store.englishLineHeight else store.lineHeight) }
     // 纸张三态：**用户显式选过就尊重他**；没选过则**跟着主题走** ——
     // 夜间进文章直接给「夜墨」，不然一片白纸（用户 2026-10-08 报的就是这条）。
     // 老值 `plain/midnight/kraft` 是早期 id，继续兼容。
@@ -383,7 +386,8 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
      * 精读模式：打开之后点段落，把「这一段」冒泡给上层弹精读浮层。
      * 与划线模式**互斥** —— 同一个点击手势不能既写笔记又开浮层，否则用户猜不到会弹哪个。
      */
-    var deepDiving by rememberSaveable { mutableStateOf(false) }
+    var deepDiving by rememberSaveable(article.id) { mutableStateOf(directReading) }
+    var showReadingHint by rememberSaveable(article.id) { mutableStateOf(true) }
     /**
      * 精读模式里选的是「查词」而不是「句子结构」。
      *
@@ -500,8 +504,8 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
         if (cjk * 2 > contentKey.length) {
             Toast.makeText(context, "这篇资料已经是中文，无需翻译", Toast.LENGTH_SHORT).show(); return
         }
-        if (transBlocks.isEmpty() && !transRunning) { transMode = 1; startTranslation() }
-        else { transVisible = true; if (transMode == 0) transMode = 1 }
+        if (transBlocks.isEmpty() && !transRunning) { transMode = if (englishReading) 2 else 1; startTranslation() }
+        else { transVisible = true; if (transMode == 0) transMode = if (englishReading) 2 else 1 }
     }
     // 章数够多才走「书籍封面」形态：显示章节目录、正文收到「查看项目说明全文」里。
     // 只有 1~2 章的（比如只有一个 README 的 awesome 清单）直接显示正文，否则用户会以为这篇是空的。
@@ -726,13 +730,13 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                         onNext = { findMatch(1) }, onClose = { showSearch = false; searchQuery = "" })
                     if (marking && !showSearch) MarkingBar(paper, notes = pageNotes.size,
                         onDone = { marking = false })
-                    if (deepDiveActive && !showSearch) DeepDiveBar(paper,
-                        onDone = { deepDiving = false; wordLooking = false })
+                    if (deepDiveActive && !showSearch && showReadingHint) DeepDiveBar(paper,
+                        onDone = { showReadingHint = false })
                     if (transVisible && onTranslate != null) TranslateBar(paper, mode = transMode,
                         onMode = { transMode = it }, translated = transBlocks.size, total = transTotal,
                         cached = transCached, running = transRunning, needsModel = transNeedsModel,
                         error = if (transRunning) null else transError,
-                        onRetry = { startTranslation() }, onClose = { transVisible = false })
+                        onRetry = { startTranslation() }, onClose = { transVisible = false; transMode = 0 })
                     val bodyStyle = MaterialTheme.typography.bodyLarge.copy(
                         fontSize = fontSize.sp, lineHeight = (fontSize * lineHeight).sp,
                         color = paper.fg, letterSpacing = 0.sp, fontFamily = FontFamily.SansSerif,
@@ -850,12 +854,14 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                                 }
                             })
                     }
-                    GlassActionPanel(readerBackdrop, Modifier.align(Alignment.BottomCenter).padding(horizontal = 12.dp, vertical = 10.dp), surfaceColor = background) {
+                    val readerTools: @Composable () -> Unit = {
                     ReaderTools(article, paper, favorite,
                         marks = pageBookmarks.size + pageNotes.size + wholeNotes.size,
                         marking = marking,
                         deepDiving = deepDiveActive,
                         deepDiveAvailable = onReadingSelection != null,
+                        englishReading = englishReading,
+                        onTranslate = onTranslate?.let { { requestTranslate() } },
                         onFavorite = { onFavorite(!favorite) },
                         onToc = { sheet = 1 },
                         onSettings = { sheet = 2 },
@@ -867,10 +873,14 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                         onDeepDive = { deepDiving = !deepDiving
                             // 退出精读要把「查词/句子结构」的选择也复位：下次进来默认还是句子结构，
                             // 免得用户以为上次的查词模式是默认行为。
-                            if (deepDiving) { showSearch = false; marking = false; wordLooking = true } else wordLooking = false },
+                            if (deepDiving) { showSearch = false; marking = false; wordLooking = true; showReadingHint = true } else wordLooking = false },
                         onCopy = { copyArticleSource(context, article) },
                     )
                     }
+                    val toolsModifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 12.dp, vertical = 10.dp)
+                    if (englishReading) Surface(modifier = toolsModifier, shape = RoundedCornerShape(24.dp),
+                        color = background, tonalElevation = 3.dp, shadowElevation = 2.dp) { readerTools() }
+                    else GlassActionPanel(readerBackdrop, toolsModifier, surfaceColor = background) { readerTools() }
                     }
                 }
             }
@@ -904,7 +914,8 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                 },
             )
         }
-        if (sheet != 0) ModalBottomSheet(onDismissRequest = { sheet = 0 }, containerColor = background) {
+        if (sheet != 0) ModalBottomSheet(onDismissRequest = { sheet = 0 }, containerColor = background,
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = englishReading)) {
             if (sheet == 1) ReaderToc(headings, currentHeading?.index, paper.muted, paper.fg,
                 chapters = chapters, onChapter = { document -> sheet = 0; onChapter(document) },
                 // 在读某一章时默认给「本页目录」，而不是又一张全书章节表
@@ -926,9 +937,9 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                 onDeleteNote = { id -> library.removeNote(id); libraryChanged() },
             )
             else ReaderSettings(fontSize, lineHeight, paperStyle,
-                onFont = { fontSize = it.coerceIn(13, 28); store.fontSize = fontSize },
-                onLine = { lineHeight = it; store.lineHeight = it },
-                onPaper = { id -> paperStyle = id; store.paperStyle = id })
+                onFont = { fontSize = it.coerceIn(13, 28); if (englishReading) store.englishFontSize = fontSize else store.fontSize = fontSize },
+                onLine = { lineHeight = it; if (englishReading) store.englishLineHeight = it else store.lineHeight = it },
+                onPaper = { id -> paperStyle = id; store.paperStyle = id }, englishReading = englishReading, onClose = { sheet = 0 })
         }
         // 宿主浮层画在最后 = 画在最上面，且与正文同一个窗口、同一份纸张配色。
         overlay()
@@ -1082,18 +1093,26 @@ private fun ReaderTools(article: LearningArticle, paper: PaperPreset, favorite: 
     marking: Boolean, deepDiving: Boolean, deepDiveAvailable: Boolean, onFavorite: () -> Unit,
     onToc: () -> Unit, onSettings: () -> Unit,
     onMarks: () -> Unit, onBookmark: () -> Unit, onMarking: () -> Unit,
-    onDeepDive: () -> Unit, onCopy: () -> Unit) {
+    onDeepDive: () -> Unit, onCopy: () -> Unit, englishReading: Boolean = false,
+    onTranslate: (() -> Unit)? = null) {
     var more by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically) {
-        ReaderTool(Icons.Outlined.FormatListBulleted, "目录", paper.fg, onToc)
+        if (englishReading) {
+            onTranslate?.let { ReaderTool(Icons.Outlined.Translate, "翻译", paper.fg, it) }
+            ReaderTool(Icons.Outlined.TextFields, "排版", paper.fg, onSettings)
+        } else ReaderTool(Icons.Outlined.FormatListBulleted, "目录", paper.fg, onToc)
         ReaderTool(Icons.Outlined.StickyNote2, "笔记", if (marks > 0) NoteAccent else paper.fg, onMarks)
-        if (deepDiveAvailable) ReaderTool(Icons.Outlined.AutoStories,
+        if (deepDiveAvailable && !englishReading) ReaderTool(Icons.Outlined.AutoStories,
             if (deepDiving) "退出精读" else "精读", if (deepDiving) DeepDiveAccent else paper.fg, onDeepDive)
         Box {
             ReaderTool(Icons.Outlined.MoreHoriz, "更多", paper.fg) { more = true }
             DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                DropdownMenuItem(text = { Text("字号与纸张") }, onClick = { more = false; onSettings() })
+                if (englishReading) {
+                    DropdownMenuItem(text = { Text("文章目录") }, onClick = { more = false; onToc() })
+                    if (deepDiveAvailable) DropdownMenuItem(text = { Text(if (deepDiving) "关闭点词与选句" else "开启点词与选句") },
+                        onClick = { more = false; onDeepDive() })
+                } else DropdownMenuItem(text = { Text("字号与纸张") }, onClick = { more = false; onSettings() })
                 DropdownMenuItem(text = { Text("添加当前位置书签") }, onClick = { more = false; onBookmark() })
                 DropdownMenuItem(text = { Text(if (marking) "退出划线" else "划线写想法") }, onClick = { more = false; onMarking() })
                 DropdownMenuItem(text = { Text(if (favorite) "取消收藏文章" else "收藏文章") }, onClick = { more = false; onFavorite() })
@@ -1139,7 +1158,7 @@ private fun DeepDiveBar(paper: PaperPreset, onDone: () -> Unit) {
         Row(Modifier.padding(start = 14.dp, end = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("点单词查词 · 长按句子分析", fontSize = 12.sp, color = paper.fg,
                 modifier = Modifier.weight(1f))
-            TextButton(onClick = onDone) { Text("退出精读", fontSize = 12.sp, color = DeepDiveAccent) }
+            TextButton(onClick = onDone) { Text("知道了", fontSize = 12.sp, color = DeepDiveAccent) }
         }
     }
 }
@@ -1269,11 +1288,15 @@ private fun ReaderToc(headings: List<ReaderHeading>, currentIndex: Int?, muted: 
 
 @Composable
 private fun ReaderSettings(fontSize: Int, lineHeight: Float, paperStyle: String,
-    onFont: (Int) -> Unit, onLine: (Float) -> Unit, onPaper: (String) -> Unit) {
+    onFont: (Int) -> Unit, onLine: (Float) -> Unit, onPaper: (String) -> Unit, englishReading: Boolean = false, onClose: () -> Unit = {}) {
     Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState())
         .padding(start = 24.dp, end = 24.dp, bottom = 32.dp)) {
-        Text("阅读设置", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(vertical = 12.dp))
-        TextButton(onClick = { onFont(16); onLine(1.6f); onPaper("default") }) { Text("恢复推荐排版") }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("阅读设置", style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.weight(1f).padding(vertical = 12.dp))
+            if (englishReading) TextButton(onClick = onClose) { Text("完成") }
+        }
+        TextButton(onClick = { onFont(if (englishReading) 19 else 16); onLine(if (englishReading) 1.8f else 1.6f); onPaper("default") }) { Text("恢复推荐排版") }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text("字号", modifier = Modifier.weight(1f)); Text("$fontSize sp")
         }
@@ -1315,23 +1338,25 @@ private fun TranslateBar(paper: PaperPreset, mode: Int, onMode: (Int) -> Unit,
     Surface(color = paper.muted.copy(alpha = 0.08f), modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
                 listOf("原文" to 0, "译文" to 1, "双语" to 2).forEach { (label, m) ->
                     FilterChip(selected = mode == m, onClick = { onMode(m) },
                         label = { Text(label, fontSize = 12.sp) },
                         modifier = Modifier.padding(end = 6.dp).heightIn(min = 30.dp))
                 }
-                Spacer(Modifier.weight(1f))
-                Text(
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Outlined.Close, "返回原文", tint = paper.muted, modifier = Modifier.size(20.dp))
+                }
+            }
+            Text(
                     when {
                         running -> "翻译中 ${translated}/${total}"
                         needsModel && translated < total -> "已缓存 ${translated}/${total} 段"
                         else -> "已译 ${translated}/${total} 段" + if (cached > 0) " · 其中缓存 $cached" else ""
                     },
-                    fontSize = 11.sp, color = paper.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Outlined.Close, "收起翻译栏", tint = paper.muted, modifier = Modifier.size(16.dp))
-                }
-            }
+                    fontSize = 11.sp, color = paper.muted,
+                    modifier = Modifier.padding(end = 12.dp, bottom = 4.dp))
             if (needsModel && translated < total && !running) {
                 Text("还有段落没人翻过。到「学习 → 英语学习 → AI 设置」填入你自己的接口（DeepSeek / 智谱 / Kimi 等）后点重试，费用计入你的账户；已缓存的段落不受影响。",
                     fontSize = 11.sp, lineHeight = 16.sp, color = paper.muted,
