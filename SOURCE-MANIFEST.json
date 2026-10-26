@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "9210a14d53ac94df5d7417e9f12f47f2082e8eaa",
+  "sourceCommit": "3e1ccd832c8959373390577038e6845faffcbbbd",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -39,7 +39,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 17990,
-      "sha256": "6f9312b1b240ea416d3bb859ed167cebbe86e58f290d582829f3de13b9f83fe3"
+      "sha256": "b03a6d53466681a65a4676a7de4d50b08a180b2d994fe952db66274f58d68cae"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1523,8 +1523,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ScheduleViews.kt",
-      "bytes": 63463,
-      "sha256": "467caf1c2eee0bd4eac44633c6ac25c2b14dc7cfd894a63424de54e24aa67e88"
+      "bytes": 62025,
+      "sha256": "aae6f656bdd618f6334291960b8f6409c766561b62f23b4a67e14939b3a8772d"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ScoreImportScreen.kt",
@@ -1678,8 +1678,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CoursePopup.kt",
-      "bytes": 7847,
-      "sha256": "56902996bcb22941ae26ad04e2de2b0109fc48a16ebcd33631e736a8950f30dc"
+      "bytes": 10551,
+      "sha256": "3296c28342d7e2f3bff8af78aa30ab2e8e5f8adadac8de3c3d74fd2a9bc16b54"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TimetableEditGrid.kt",
@@ -1713,8 +1713,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/CalendarWidget.kt",
-      "bytes": 7119,
-      "sha256": "2b40cdf565fc06f06d9a7c62c4c108546cbeeebebf2f972f703aafd6caa813a9"
+      "bytes": 7120,
+      "sha256": "c42e77a2597c3c446eccf0b91454d725ccbae29f10d40e8493f2d4d13e26770c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/CalendarWidgetLayout.kt",
@@ -1723,8 +1723,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/TodayWidget.kt",
-      "bytes": 8672,
-      "sha256": "def879460824609429a31bc4034bb57a46041f621d10d397cfa1463deb526c6b"
+      "bytes": 8824,
+      "sha256": "7938c8d28df9ed875488b4425183234689153958331dad1ab75599f223185d58"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/TodayWidgetDeadlines.kt",
@@ -1758,8 +1758,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/WeekWidget.kt",
-      "bytes": 8187,
-      "sha256": "6991cb1d1bdf1db8247f39e8c4a73f917da87f2b0165f9b3de9879c19a33fb35"
+      "bytes": 8339,
+      "sha256": "18126c50ba4fff7a57cb17a964139fa415a5e311322b5f70e1a8922412110a89"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/WeekWidgetLayout.kt",
@@ -1803,8 +1803,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/widget/WidgetUi.kt",
-      "bytes": 7901,
-      "sha256": "496be581d7cb6501231396bfdfe7e3536ba523737e82d57a3b6fbca09e7b53fa"
+      "bytes": 8621,
+      "sha256": "c83629afeff71c31c6dd8563d6c0cd29d3d1e40fb025d857236b2766ce6ae4ed"
     },
     {
       "path": "apps/android/app/src/main/res/drawable/ic_calendar_widget_preview.xml",
@@ -2968,8 +2968,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 2376,
-      "sha256": "306e0e90017ddb8a55405d80228a5eac2c6218128ef2a2fa559f9c27ca80cbb6"
+      "bytes": 171,
+      "sha256": "32158d6dff541737ad90bd1b1a65994579c7130138df0f8bac087fa283815625"
     },
     {
       "path": "content/intensive/provenance.json",

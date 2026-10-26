@@ -842,7 +842,7 @@ internal fun TimetableGrid(
 ) {
     val maxPeriod = maxOf(PeriodTable.maxPeriod(), courses.maxOfOrNull { it.endPeriod } ?: 8).coerceIn(8, 30)
     val groupsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> scheduleOverlapGroups(items) } }
-    var overlapping by remember(courses) { mutableStateOf<List<CourseDto>?>(null) }
+    var overlapping by remember(courses) { mutableStateOf<CourseOverlapSelection?>(null) }
     val rowHeight = if (expanded) 76.dp else 56.dp
     val timeColumnWidth = if (expanded) 30.dp else 20.dp
     val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
@@ -935,7 +935,7 @@ internal fun TimetableGrid(
                                 .coerceAtMost(maxPeriod - period + 1)
                             if (course == null) OverlappingCourseBlock(
                                 courses = group.courses, height = rowHeight * span,
-                                onOpen = { overlapping = group.courses },
+                                onOpen = { overlapping = CourseOverlapSelection(group.courses, it) },
                             ) else CourseBlock(
                                 course = course,
                                 height = rowHeight * span,
@@ -952,40 +952,18 @@ internal fun TimetableGrid(
             }
         }
     }
-    overlapping?.let { items ->
-        AlertDialog(
-            onDismissRequest = { overlapping = null },
-            title = { Text("同一时段有 ${items.size} 门课") },
-            text = {
-                Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("这些课程的节次有重叠，请核对学校安排。点选查看详情。", color = AppColors.TextSecondary)
-                    items.forEach { item ->
-                        Surface(shape = RoundedCornerShape(16.dp), color = AppColors.ChipIdle) {
-                            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f).clickable { overlapping = null; onTapCourse(item, Rect.Zero) }.padding(8.dp)) {
-                                    Text(item.name, fontWeight = FontWeight.SemiBold)
-                                    Text("${item.startPeriod}-${item.endPeriod}节 · ${item.weekLabel()}", style = MaterialTheme.typography.bodySmall)
-                                    Text(item.location?.takeIf { it.isNotBlank() } ?: "未填写教室", style = MaterialTheme.typography.bodySmall)
-                                }
-                                IconButton(onClick = { overlapping = null; onLongPressCourse(item) }) {
-                                    Icon(Icons.Outlined.DeleteOutline, "删除课程：${item.name}")
-                                }
-                            }
-                        }
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { overlapping = null }) { Text("关闭") } },
-        )
+    overlapping?.let { selection ->
+        CourseOverlapDialog(selection, onSelect = onTapCourse, onDismiss = { overlapping = null })
     }
 }
 
 /** 一个时段只占一个可点区域，避免窄列里把两门课压成无法点中的细条。 */
 @Composable
-private fun OverlappingCourseBlock(courses: List<CourseDto>, height: Dp, onOpen: () -> Unit) {
+private fun OverlappingCourseBlock(courses: List<CourseDto>, height: Dp, onOpen: (Rect) -> Unit) {
+    var bounds by remember { mutableStateOf(Rect.Zero) }
     Column(Modifier.fillMaxWidth().height(height).padding(1.5.dp)
-        .clip(RoundedCornerShape(9.dp)).clickable(onClick = onOpen),
+        .onGloballyPositioned { val at = it.positionInWindow(); bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height) }
+        .clip(RoundedCornerShape(9.dp)).clickable { onOpen(bounds) },
         verticalArrangement = Arrangement.spacedBy(1.dp)) {
         courses.take(2).forEach { course ->
             Box(Modifier.fillMaxWidth().weight(1f).background(courseColor(course.name)).padding(3.dp),

@@ -66,7 +66,7 @@ private fun WeekContent(context: Context, snapshot: TodayWidgetSource.WeekSnapsh
     val dateLine = lineHeightDp(context, 8f, "10/12").dp
     // 滚动区高度 = 宿主真实高度 − 头部实测高度（旧实现固定减 64dp，实测头部约 70dp →
     // 第 6 行被卡片下沿裁掉，用户 2026-10-18 截图里能看到）。
-    val listHeight = WeekWidgetLayout.listHeight(LocalSize.current.height, headerLine, dayLine, dateLine)
+    val listHeight = (WeekWidgetLayout.listHeight(LocalSize.current.height, headerLine, dayLine, dateLine) - widgetOpenFooterHeight(context)).coerceAtLeast(1.dp)
     val width = (LocalSize.current.width.value - 16f).coerceAtLeast(160f)
     val foreground = GlanceTheme.colors.onSurface.getColor(context)
     val empty = GlanceTheme.colors.surfaceVariant.getColor(context).copy(alpha = .32f)
@@ -86,7 +86,7 @@ private fun WeekContent(context: Context, snapshot: TodayWidgetSource.WeekSnapsh
             WeekGridArtwork.band(snapshot, it, width, foreground, empty, fallback, bitmapScale)
         }
     }
-    Column(GlanceModifier.fillMaxSize().widgetAppearance(context, "Week").padding(8.dp)) {
+    Column(GlanceModifier.fillMaxSize().widgetAppearance(context, "Week").clickable(actionStartActivity(widgetOpenAppIntent(context))).padding(8.dp)) {
         val title = snapshot.week?.let { "第${it}周" } ?: "完整课表"
         WidgetDateHeader(title, "week", offset)
         Row(GlanceModifier.fillMaxWidth().padding(bottom = 5.dp)) {
@@ -126,6 +126,7 @@ private fun WeekContent(context: Context, snapshot: TodayWidgetSource.WeekSnapsh
                 }
             }
         }
+        WidgetOpenFooter(context)
     }
 }
 

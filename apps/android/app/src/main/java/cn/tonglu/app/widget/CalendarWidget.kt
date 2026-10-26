@@ -55,10 +55,10 @@ import androidx.glance.unit.ColorProvider
 class CalendarWidget : GlanceAppWidget() {
 
     /**
-     * 两档就够：倒计时最多两条（[TodayWidgetDeadlines.MAX_ITEMS]），
-     * 更高的格子只会留白。
+     * 使用宿主真实尺寸，整张卡片及下方留白都保留应用点击入口。
+     * SMALL/WIDE只作为预览与布局测试尺寸。
      */
-    override val sizeMode: SizeMode = SizeMode.Responsive(setOf(SMALL, WIDE))
+    override val sizeMode: SizeMode = SizeMode.Exact
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initial = WidgetNavigation.selection(context, id)

@@ -12,6 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.glance.action.clickable
 import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.layout.Alignment
@@ -166,4 +167,20 @@ internal fun lineHeightDp(context: Context, sp: Float, sample: String): Float {
         .setIncludePad(true)
         .build()
     return layout.height / metrics.density
+}
+
+
+/** Reserve a real, non-collection hit area: AdapterView blank space does not forward clicks. */
+internal fun widgetOpenFooterHeight(context: android.content.Context): Dp =
+    lineHeightDp(context, 10f, "打开课表 ›").dp + 8.dp
+
+@Composable
+internal fun WidgetOpenFooter(context: android.content.Context) {
+    androidx.glance.layout.Box(
+        GlanceModifier.fillMaxWidth().height(widgetOpenFooterHeight(context))
+            .clickable(actionStartActivity(widgetOpenAppIntent(context))),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text("打开课表 ›", style = TextStyle(color = WIDGET_ACCENT_PROVIDER, fontSize = 10.sp))
+    }
 }

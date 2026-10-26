@@ -68,8 +68,8 @@ private fun TodayContent(context: Context, snapshot: TodayWidgetSource.Snapshot,
     // 列表就会多算 1dp、把最后一行课压到卡片外面去。
     val headerLine = lineHeightDp(context, 12f, "‹ 前日 回到今天 · 第7周 后日 ›").dp
     val dateLine = lineHeightDp(context, 10f, snapshot.dateLabel + " " + snapshot.weekdayLabel + " · 第7周").dp
-    val listHeight = TodayWidgetLayout.listHeight(LocalSize.current.height, headerLine, dateLine)
-    Column(GlanceModifier.fillMaxSize().widgetAppearance(context, "Today").padding(horizontal = 10.dp, vertical = 6.dp)) {
+    val listHeight = (TodayWidgetLayout.listHeight(LocalSize.current.height, headerLine, dateLine) - widgetOpenFooterHeight(context)).coerceAtLeast(1.dp)
+    Column(GlanceModifier.fillMaxSize().widgetAppearance(context, "Today").clickable(actionStartActivity(widgetOpenAppIntent(context))).padding(horizontal = 10.dp, vertical = 6.dp)) {
         val ongoing = (snapshot.state as? TodayWidgetModel.State.Courses)?.ongoing
         WidgetDateHeader(if (offset == 0 && ongoing != null) "正在上课" else "今天", "today", offset)
         Text("${snapshot.dateLabel} ${snapshot.weekdayLabel}" + (snapshot.week?.let { " · 第${it}周" } ?: ""),
@@ -98,6 +98,7 @@ private fun TodayContent(context: Context, snapshot: TodayWidgetSource.Snapshot,
                 Column(GlanceModifier.fillMaxWidth().padding(vertical = 3.dp)) { DeadlineRow(deadline, inline = true) }
             } }
         }
+        WidgetOpenFooter(context)
     }
 }
 

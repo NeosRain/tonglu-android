@@ -145,3 +145,44 @@ private fun CourseDetailField(label: String, value: String) {
         Text(value, color = AppColors.TextPrimary, fontSize = 16.sp, lineHeight = 24.sp)
     }
 }
+
+
+internal data class CourseOverlapSelection(val courses: List<CourseDto>, val origin: Rect)
+
+/** The compact overlap chooser uses the same motion, colors and detail entry as a single course. */
+@Composable
+internal fun CourseOverlapDialog(selection: CourseOverlapSelection,
+    onSelect: (CourseDto, Rect) -> Unit, onDismiss: () -> Unit) {
+    var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
+    CoursePopup(selection.origin, onDismiss = { onDismiss(); afterClose?.invoke() }) { close ->
+        Column(Modifier.fillMaxWidth().padding(22.dp)) {
+            Text("同一时段 · ${selection.courses.size} 门课", fontSize = 20.sp, lineHeight = 28.sp,
+                fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
+            Text("课程时间有重叠，请核对学校安排。点选课程查看完整详情。",
+                fontSize = 14.sp, lineHeight = 21.sp, color = AppColors.TextSecondary,
+                modifier = Modifier.padding(top = 8.dp))
+        }
+        Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
+            .padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            selection.courses.forEach { course ->
+                var bounds by remember(course.id) { mutableStateOf(Rect.Zero) }
+                Surface(Modifier.fillMaxWidth().onGloballyPositioned {
+                    val at = it.positionInWindow()
+                    bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height)
+                }.clickable { afterClose = { onSelect(course, bounds) }; close() },
+                    shape = RoundedCornerShape(18.dp), color = courseColor(course.name),
+                    contentColor = AppColors.OnAccent) {
+                    Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(course.name, fontSize = 17.sp, lineHeight = 24.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${course.startPeriod}–${course.endPeriod} 节 · ${course.weekLabel()}", fontSize = 13.sp, lineHeight = 20.sp)
+                        Text(course.location?.takeIf(String::isNotBlank) ?: "未填写地点", fontSize = 13.sp, lineHeight = 20.sp)
+                        Text("查看详情 ›", fontSize = 12.sp, lineHeight = 18.sp, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.End) {
+            TextButton(onClick = close) { Text("关闭", color = AppColors.Accent) }
+        }
+    }
+}
