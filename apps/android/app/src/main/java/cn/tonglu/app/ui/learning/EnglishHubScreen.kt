@@ -47,15 +47,9 @@ import kotlinx.coroutines.flow.first
 /**
  * 英语唯一一级入口（47 §2 / 48 §1、§3）。
  *
- * 学习页只有「英语」这一张卡。进来先是今日进度与四个练习入口，
- * 里面的单词、听说、精读和做题都连接已有能力屏 —— 各自复用原有的
- * EnglishStudyScreen / ListeningScreen，**不重写**。
- *
- * 三条纪律（照 47 §3 P1/P2 与 48 §3）：
- * 1. 未有能力的入口不许显示成可点的假入口 —— 当前有「单词」「听说」「做题」三个**真实**入口。
- *    （B4 起做题升为独立入口：材料自带题仍从「听说」进，两条路共用同一个错题本。）
- * 2. 目录/书籍不塞进这里：英语页内不出现「书籍」分类（书籍在资料区，独立保留）。
- * 3. 返回链：能力屏返回 → 回英语首页；英语首页返回 → 回学习页；绝不到桌面。
+ * 首页以四六级精读、继续阅读和个人文章为主，单词等能力收进「学习工具」。
+ * 复用原能力屏，不显示尚未实现的假入口。
+ * 返回链：能力屏返回 → 回英语首页；英语首页返回 → 回学习页。
  */
 @Composable
 internal fun EnglishHubScreen(
@@ -185,6 +179,7 @@ internal fun EnglishHubScreen(
                 initialMaterialId = initialMaterialId)
         } }
         "voice" -> { { VoiceSettingsScreen(owner, onClose = { route = "home" }) } }
+        "tools" -> { { EnglishAuxiliaryTools(onSelect = { route = it }, onClose = { route = "home" }) } }
         "questions" -> { {
             QuestionBankScreen(owner, onClose = { route = "home" }, onPracticeChanged = onPracticeChanged)
         } }
@@ -276,45 +271,23 @@ internal fun EnglishHubScreen(
                 ) {
                     item("intro") {
                         Column(Modifier.padding(top = 8.dp, bottom = 4.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("今天，学一点英语", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
-                            Text("从单词开始，也可以直接听读。", style = MaterialTheme.typography.bodyMedium, color = AppColors.TextSecondary)
+                            Text("读懂一篇英语", fontSize = 28.sp, fontWeight = FontWeight.Bold, color = AppColors.TextPrimary)
+                            Text("从四六级阅读开始，逐段理解，逐句精读。", style = MaterialTheme.typography.bodyMedium, color = AppColors.TextSecondary)
                         }
                     }
-                    item("today") {
-                        EnglishTodayCard(owner, refreshKey = route,
-                            onWords = { route = "today" }, onSentences = { route = "daily" },
-                            onQuestions = { route = "questions" }, onWrong = { route = "wrong" })
-                    }
-                    item("practice") {
-                        Text("按你想学的开始", fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                EnglishPracticeTile(Icons.Outlined.Translate, "单词", "词书与查词", { route = "words" }, Modifier.weight(1f))
-                                EnglishPracticeTile(Icons.Outlined.Mic, "听说", "精听与跟读", { route = "listening" }, Modifier.weight(1f))
-                            }
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                EnglishPracticeTile(Icons.Outlined.MenuBook, "精读", "年份套卷 · 逐句语法", { route = "intensive" }, Modifier.weight(1f))
-                                EnglishPracticeTile(Icons.Outlined.Quiz, "做题", "题组与错题复习", { route = "questions" }, Modifier.weight(1f))
-                            }
-                        }
+                    item("cet") {
+                        EnglishEntryCard(Icons.Outlined.MenuBook, "四六级真题精读", "选年份与套卷 · 选词填空 / Section C · 逐句分色", { route = "intensive" })
                     }
                     item("reading") {
-                        Text("阅读", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))
+                        Text("继续阅读", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))
                         EnglishReadingCard(article = cardArticle, ratio = cardRatio, finished = cardFinished,
                             onOpen = openArticle, onChoose = { route = "intensive" })
                     }
                     item("library") {
                         EnglishEntryCard(Icons.Outlined.MenuBook, "我的文章与书籍", "导入 PDF、EPUB 或文本", { route = "myReading" })
                     }
-                    item("collections") {
-                        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            EnglishPracticeTile(Icons.Outlined.LocalLibrary, "我的词书", "管理与导入", { route = "myBooks" }, Modifier.weight(1f))
-                            EnglishPracticeTile(Icons.Outlined.Bookmarks, "单词收藏", "回看收藏的词", { route = "favorites" }, Modifier.weight(1f))
-                        }
-                    }
                     item("tools") {
-                        EnglishEntryCard(Icons.Outlined.Widgets, "更多学习工具", "每日例句 · 学习计划 · 词汇诊断", { route = "more" })
+                        EnglishEntryCard(Icons.Outlined.Widgets, "学习工具", "听说、练习与其他辅助工具", { route = "tools" })
                         Spacer(Modifier.height(16.dp))
                     }
                 }
@@ -339,6 +312,27 @@ internal fun EnglishHubScreen(
         materialReader(article) {
             readingArticle = null
             refreshTrackedArticle(article)
+        }
+    }
+}
+
+@Composable
+private fun EnglishAuxiliaryTools(onSelect: (String) -> Unit, onClose: () -> Unit) {
+    val motion = rememberOverlayMotion(onClose = { OverlayDismissGuard.arm(); onClose() }, predictive = OverlayMotion.enabledState, selfDrag = true)
+    Dialog(onDismissRequest = { motion.requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = AppColors.Canvas) {
+            LazyColumn(Modifier.fillMaxSize().safeDrawingPadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                item { Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
+                    Text("学习工具", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
+                } }
+                item { EnglishEntryCard(Icons.Outlined.Mic, "听说", "精听与跟读", { onSelect("listening") }) }
+                item { EnglishEntryCard(Icons.Outlined.Quiz, "题组与错题", "练习与复习", { onSelect("questions") }) }
+                item { EnglishEntryCard(Icons.Outlined.Translate, "词汇与查词", "辅助阅读时使用", { onSelect("words") }) }
+                item { EnglishEntryCard(Icons.Outlined.Bookmarks, "单词收藏", "回看收藏", { onSelect("favorites") }) }
+                item { EnglishEntryCard(Icons.Outlined.LocalLibrary, "我的书籍", "管理个人阅读材料", { onSelect("myBooks") }) }
+                item { EnglishEntryCard(Icons.Outlined.Widgets, "更多工具", "例句、计划与诊断", { onSelect("more") }) }
+            }
         }
     }
 }

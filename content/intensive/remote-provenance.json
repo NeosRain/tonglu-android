@@ -1,0 +1,9 @@
+{
+  "sourceUrl": "https://github.com/0609x/CET46-Resources",
+  "license": "GPL-3.0-only (index and numeric grammar only; not exam source PDFs)",
+  "fingerprint": "0576ec7d37e3e5851f2faeaaac2027d9eac18e3f59711ad45c98adf9c597e974",
+  "file": "apps/android/app/src/main/assets/intensive/remote-index.json",
+  "entries": 80,
+  "distribution": "metadata only; no prose, translation, PDFs or model weights",
+  "sourceRights": "Each entry separately records upstream source URL, PDF SHA and rights URL"
+}

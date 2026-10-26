@@ -2,6 +2,7 @@ package cn.tonglu.app.ui.english.intensive
 
 import android.content.SharedPreferences
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -22,6 +23,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.luminance
+import cn.tonglu.app.R
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -41,15 +46,47 @@ import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
+import cn.tonglu.app.ui.english.reading.readingRoleColor
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPreferences, owner: String, onLookup: (String) -> Unit) {
     val context = LocalContext.current
     val entry = article.entry
     val dictionary=remember(owner) { IntensiveWordLookup(context,owner) }
     val sentences = remember(article) { article.paragraphs.flatMap { it.sentences } }
+    val translator = remember(owner) { CetLocalTranslator(context, owner) }
+    DisposableEffect(translator) { onDispose { translator.close() } }
+    val scope = rememberCoroutineScope()
+    var translated by remember(article, owner) { mutableStateOf(sentences.mapNotNull { row ->
+        (row.translation.takeIf { it.isNotBlank() } ?: translator.cached(row.text))?.let { row.id to it }
+    }.toMap()) }
+    var translationBusy by remember { mutableStateOf(false) }
+    var translationError by remember { mutableStateOf<String?>(null) }
+    var translationJob by remember { mutableStateOf<Job?>(null) }
+    var syntax by rememberSaveable(entry.progressKey) { mutableStateOf(true) }
+    val scheme = MaterialTheme.colorScheme
+    val colors = remember(scheme) { listOf("主语", "谓语", "宾语", "定语", "状语", "补语", "从句").associateWith { readingRoleColor(it, scheme) } }
+    fun translateRows(rows: List<IntensiveSentence>) {
+        if (translationBusy) return
+        translationJob = scope.launch {
+            translationBusy = true; translationError = null
+            try {
+                for (row in rows) if (translated[row.id].isNullOrBlank()) {
+                    val value = translator.translate(row.text)
+                    translated = translated + (row.id to value)
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                android.util.Log.w("CetTranslation", "local translation failed", e)
+                translationError = "本机翻译暂未完成，请检查网络后重试；已生成的译文会保留。"
+            } finally { translationBusy = false }
+        }
+    }
     var showTranslation by rememberSaveable(entry.progressKey) { mutableStateOf(false) }
     var selectedId by rememberSaveable(entry.progressKey) { mutableStateOf<String?>(null) }
     var focusedId by rememberSaveable(entry.progressKey) { mutableStateOf<String?>(null) }
@@ -98,10 +135,14 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
         verticalArrangement=Arrangement.spacedBy(26.dp)) {
         item(key="reading-header") {
             Text(entry.subtitle,style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("已读 "+read.size+" / "+entry.sentences+" 句",
+                style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             Row(verticalAlignment=Alignment.CenterVertically) {
-                Text("已读 "+read.size+" / "+entry.sentences+" 句",Modifier.weight(1f),
-                    style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                TextButton(onClick={ showTranslation=!showTranslation }) { Text(if(showTranslation) "隐藏译文" else "显示译文") }
+                TextButton(onClick={
+                    showTranslation = !showTranslation
+                    if (showTranslation) translateRows(sentences) else translationJob?.cancel()
+                }) { Text(if(showTranslation) "隐藏译文" else "Google 翻译") }
+                Spacer(Modifier.weight(1f))
                 IconButton(onClick={speech.stop()}) { Icon(Icons.Outlined.Stop,"停止朗读") }
                 Box {
                     IconButton(onClick={more=true}) { Icon(Icons.Outlined.MoreVert,"阅读更多操作") }
@@ -115,6 +156,15 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
             LinearProgressIndicator(progress={read.size.toFloat()/entry.sentences.coerceAtLeast(1)},modifier=Modifier.fillMaxWidth().height(2.dp))
             Text("点句子看翻译与语法，点词可查释义。",Modifier.padding(top=12.dp),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { syntax = !syntax }) { Text(if (syntax) "语法分色：开" else "语法分色：关") }
+                listOf("主语", "谓语", "宾语").forEach { role -> Text(role, color = colors.getValue(role), fontSize = 12.sp) }
+            }
+            if (showTranslation && article.entry.remote != null) Text("本机机器译文仅辅助理解，请结合原文核对。首次需下载语言模型，建议使用 Wi‑Fi。",
+                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (translationBusy) Text("正在准备模型或本机翻译…", style = MaterialTheme.typography.bodySmall)
+            translationError?.let { Text(it, color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = { translateRows(sentences) }) { Text("重试翻译") } }
             if(entry.qualityNotice.isNotBlank()) Text(entry.qualityNotice,Modifier.padding(top=8.dp),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             problem?.let { Text(it,color=MaterialTheme.colorScheme.error)
@@ -132,9 +182,12 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
                 }
                 val highlight=MaterialTheme.colorScheme.secondaryContainer
                 val ranges=remember(paragraph) { intensiveSentenceRanges(paragraph) }
-                val annotated=remember(paragraph,focusedId,highlight) {
+                val annotated=remember(paragraph,focusedId,highlight,syntax,colors) {
                     buildAnnotatedString {
                         append(paragraph.text)
+                        if (syntax) ranges.forEach { range -> range.sentence.tokens.forEach { token ->
+                            colors[token.role]?.let { addStyle(SpanStyle(color = it), range.start + token.start, range.start + token.end) }
+                        } }
                         ranges.firstOrNull { it.sentence.id==focusedId }?.let { addStyle(SpanStyle(background=highlight),it.start,it.end) }
                     }
                 }
@@ -144,8 +197,13 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
                         intensiveSentenceAt(paragraph,offset)?.let { speech.stop();focusedId=it.id;selectedId=it.id }
                     })
                 }
-                if(showTranslation) Text(paragraph.translation,fontSize=(fontSize-1).sp,lineHeight=(fontSize*1.6f).sp,
-                    color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
+                val paragraphTranslation = paragraph.translation.takeIf { it.isNotBlank() }
+                    ?: paragraph.sentences.mapNotNull { translated[it.id] }.joinToString(" ")
+                if(showTranslation && paragraphTranslation.isNotBlank()) {
+                    Text(paragraphTranslation,fontSize=(fontSize-1).sp,lineHeight=(fontSize*1.6f).sp,
+                        color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
+                    if (entry.remote != null) GoogleTranslationAttribution()
+                }
             }
         }
         item { Text("机器辅助译文与语法，仅供核对。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -161,7 +219,8 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
             }
             key(selected.id) {
                 SentenceDetails(entry,selected,preferences,dictionary,{speak(selected.text)},
-                    { speech.stop();onLookup(it) },Modifier.weight(1f))
+                    { speech.stop();onLookup(it) },Modifier.weight(1f), translation = translated[selected.id],
+                    translationBusy = translationBusy, onTranslate = { translateRows(listOf(selected)) })
             }
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
                 TextButton(modifier=Modifier.weight(1f),enabled=position>0,onClick={speech.stop();selectedId=sentences[position-1].id;focusedId=selectedId}) { Text("上一句") }
@@ -204,16 +263,33 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
             } else {
                 item { Text(article.notice,lineHeight=26.sp) }
                 item { SelectionContainer { Text(article.license+"\n"+article.sourceUrl,style=MaterialTheme.typography.bodySmall) } }
-                item { Text("句法：Stanza EWT；翻译：opus-mt-en-zh。电脑 GPU 预计算，手机离线查看。",
+                item { Text(if (entry.remote != null) "句法：Stanza EWT GPU 预分析位置；译文：按需下载模型后在本机生成。原卷从标明来源读取，仅保存在应用私有缓存。"
+                    else "句法：Stanza EWT；翻译：opus-mt-en-zh。电脑 GPU 预计算，手机离线查看。",
                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                if (entry.remote != null) item {
+                    Text("Google Translate 本机机器翻译：原文及译文不发送至 Google；SDK 可能联网更新模型并发送运行和使用指标。Google 不对机器译文的准确性、可靠性或适用性作保证，请核对原文。",
+                        style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                    val uri = LocalUriHandler.current
+                    TextButton(onClick={uri.openUri("https://developers.google.com/ml-kit/terms")}) { Text("翻译条款与隐私") }
+                    TextButton(onClick={uri.openUri("https://cloud.google.com/translate")}) { Text("Google Translate 说明") }
+                }
             }
         }
     }
 }
 
 @Composable
+private fun GoogleTranslationAttribution() {
+    val image = if (MaterialTheme.colorScheme.surface.luminance() < .5f)
+        R.drawable.google_translate_white else R.drawable.google_translate_color
+    Image(painterResource(image), "powered by Google Translate",
+        Modifier.padding(top=8.dp).height(16.dp).aspectRatio(11f))
+}
+
+@Composable
 private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,preferences: SharedPreferences,
-    dictionary: IntensiveWordLookup,play: ()->Unit,lookup: (String)->Unit,modifier: Modifier) {
+    dictionary: IntensiveWordLookup,play: ()->Unit,lookup: (String)->Unit,modifier: Modifier,
+    translation: String? = null, translationBusy: Boolean = false, onTranslate: () -> Unit = {}) {
     var tokenId by rememberSaveable(sentence.id) { mutableIntStateOf(0) }
     var reference by rememberSaveable(sentence.id) { mutableStateOf(true) }
     val noteKey=remember(entry.progressKey,sentence.id) { intensiveTranslationKey(entry,sentence) }
@@ -242,9 +318,14 @@ private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,pr
     LazyColumn(modifier,contentPadding=PaddingValues(horizontal=20.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item {
             val background=MaterialTheme.colorScheme.secondaryContainer
-            val annotated=remember(sentence,tokenId,background) {
+            val scheme = MaterialTheme.colorScheme
+            val annotated=remember(sentence,tokenId,background,scheme) {
                 buildAnnotatedString {
                     append(sentence.text)
+                    sentence.tokens.forEach { token ->
+                        if (token.role in setOf("主语", "谓语", "宾语", "定语", "状语", "补语", "从句"))
+                            addStyle(SpanStyle(color = readingRoleColor(token.role, scheme)), token.start, token.end)
+                    }
                     sentence.tokens.firstOrNull { it.id==tokenId }?.let { addStyle(SpanStyle(background=background),it.start,it.end) }
                 }
             }
@@ -283,8 +364,16 @@ private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,pr
             }
         } }
         if(reference) item {
-            Text("参考译文",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
-            SelectionContainer { Text(sentence.translation,fontSize=18.sp,lineHeight=29.sp,modifier=Modifier.padding(top=6.dp)) }
+            Text(if (entry.remote != null) "本机译文 · 机器结果请核对" else "参考译文",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            val value = translation?.takeIf { it.isNotBlank() } ?: sentence.translation
+            if (value.isNotBlank()) {
+                SelectionContainer { Text(value,fontSize=18.sp,lineHeight=29.sp,modifier=Modifier.padding(top=6.dp)) }
+                if (entry.remote != null) GoogleTranslationAttribution()
+            }
+            else {
+                Text("首次需下载语言模型，建议使用 Wi‑Fi。", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onTranslate, enabled = !translationBusy) { Text(if (translationBusy) "正在本机翻译…" else "使用 Google 翻译这句") }
+            }
         }
         item {
             Text("句子主干",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)

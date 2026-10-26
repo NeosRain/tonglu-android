@@ -52,5 +52,23 @@
     "sourceUrl": "https://raw.githubusercontent.com/Kyant0/Shapes/1.2.0/LICENSE",
     "sha256": "16a47a85a8cb1e113fb45f7cde7cd9df4846d5f3dc5dd216f7109e9991fee7f7",
     "bytes": 10750
+  },
+  {
+    "path": "apps/android/app/src/main/res/drawable/google_translate_color.png",
+    "sourceUrl": "https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip",
+    "archiveMember": "png/color-regular@3x.png",
+    "licenseUrl": "https://cloud.google.com/translate/attribution",
+    "license": "Google Translate attribution/brand guidelines; not GPL",
+    "sha256": "44aab849963bc32493c1b2ff4ed9d47aea8d16cdfa12d3aaebef22feb2ba2ca9",
+    "bytes": 12770
+  },
+  {
+    "path": "apps/android/app/src/main/res/drawable/google_translate_white.png",
+    "sourceUrl": "https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip",
+    "archiveMember": "png/white-regular@3x.png",
+    "licenseUrl": "https://cloud.google.com/translate/attribution",
+    "license": "Google Translate attribution/brand guidelines; not GPL",
+    "sha256": "f5a888a335c107b6cc106e59804d08b5feb35b3755188b17ffc5e577298e6f1e",
+    "bytes": 9606
   }
 ]

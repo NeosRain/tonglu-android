@@ -8,7 +8,8 @@ import java.security.MessageDigest
 
 data class IntensiveEntry(val id: String, val exam: String, val year: Int, val month: Int,
     val suite: Int, val kind: String, val words: Int, val sentences: Int,
-    val sha256: String, val bytes: Int, val textSha256: String, val model: String, val qualityNotice: String = "") {
+    val sha256: String, val bytes: Int, val textSha256: String, val model: String, val qualityNotice: String = "",
+    val remote: RemoteCetSpec? = null) {
     val title: String get() = when(kind) {
         "cloze" -> "选词填空"; "passage1" -> "Section C · 第一篇"; else -> "Section C · 第二篇"
     }
@@ -123,10 +124,13 @@ object IntensiveCodec {
 
 class IntensiveRepository(context: Context) {
     private val assets = context.applicationContext.assets
+    private val remote = RemoteCetRepository(context)
     suspend fun catalog(): List<IntensiveEntry> = withContext(Dispatchers.IO) {
-        assets.open("intensive/catalog.json").bufferedReader().use { IntensiveCodec.catalog(it.readText()) }
+        val bundled = assets.open("intensive/catalog.json").bufferedReader().use { IntensiveCodec.catalog(it.readText()) }
+        if (bundled.isNotEmpty()) bundled else assets.open("intensive/remote-index.json").bufferedReader().use { RemoteCetCodec.catalog(it.readText()) }
     }
     suspend fun article(entry: IntensiveEntry): IntensiveArticle = withContext(Dispatchers.IO) {
+        if (entry.remote != null) return@withContext remote.article(entry)
         // AAPT removes .gz and expands source assets during packaging.
         assets.open("intensive/articles/" + entry.id + ".json").use {
             IntensiveCodec.article(entry, it.readBytes())

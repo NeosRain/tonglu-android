@@ -59,8 +59,8 @@ android {
         //              今日/整周小组件裁切与清晰度；网盘容量口径与分享链。
         // M0 内测候选：Android 收口首页/学习/我的，社区入口隐藏，数据与后端保留。
         // 每日预览进preview、每周正式进stable；0.16起预览序号1–98、正式槽99。
-        versionCode = 200002
-        versionName = "0.20.0-beta.2"
+        versionCode = 210001
+        versionName = "0.21.0-beta.1"
         buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
     }
 
@@ -256,6 +256,7 @@ dependencies {
     implementation(libs.androidx.camera.view)
     // EF09 拍照识词：ML Kit 文本识别（on-device，拉丁文模型；不联网、照片不出本机）
     implementation("com.google.mlkit:text-recognition:16.0.1")
+    implementation("com.google.mlkit:translate:17.0.3")
     // 任务B 追修 OCR 质量：试卷封面/中文说明需要本机中文模型（on-device，图片不上传）。
     // 许可证：Google ML Kit（随 Google Play 服务/App 内嵌模型条款）；不调用云端。
     implementation("com.google.mlkit:text-recognition-chinese:16.0.0")

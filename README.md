@@ -32,7 +32,9 @@ Android Studio 可打开 `apps/android`。`local.properties`、构建缓存、�
 
 ## 内容范围
 
-为了把“代码开源”与“拥有第三方教材的再分发权”说清楚，开源构建不附带真题正文及其派生分析、学校地图图片或混合许可的完整资料包。相应页面明确提示未附带资料；地图可打开学校官网原页，个人文章仍可从英语入口导入。空目录是明确的资源边界，不会伪装成已收录题目。
+开源构建不附带真题正文、整篇译文、PDF、模型权重、学校地图图片或混合许可的完整资料包。四六级目录保留来源链接、全文指纹及数值语法位置；用户点选后从固定上游版本读取资料，仅放入应用私有缓存，全文匹配后才能应用语法分色。在线可访问不代表取得教材再分发许可；来源可能受网络影响，目录并非所有年份套卷题型齐全。个人文章仍可导入。
+
+精读使用 Google Translate（ML Kit）按需下载语言模型并在本机翻译；原文和译文不发送给 Google，SDK 可能联网更新模型并发送运行/使用指标，见[条款与隐私](https://developers.google.com/ml-kit/terms)及[Google Translate 文档](https://cloud.google.com/translate)。模型就绪后可断网使用，结果只作为粗略辅助理解。Google SDK、模型和商标适用各自条款，并未被本项目重新许可为GPL。
 
 保留了两个 BSD-3-Clause 精简词书、原创练习题、阅读器/词库/精读代码、原生传输源码、测试、Room schema、原创品牌素材和相关工具。语音模型及角色声音实验不在仓库中。
 
@@ -40,7 +42,7 @@ Android Studio 可打开 `apps/android`。`local.properties`、构建缓存、�
 
 `SOURCE-MANIFEST.json` 记录源码快照、逐文件指纹、资源排除和针对开源构建的明确改动。私有项目的历史、账号配置、部署日志和签名从未复制到本仓库。检查记录见 [BUILD-VERIFICATION.md](BUILD-VERIFICATION.md)。
 
-原生依赖的首次构建较慢，`-j 2` 限制 Rust 并发；不会调用 GPU 编译 Kotlin/Rust。Python 边界回归可执行 `python -m unittest discover -s scripts/tests -p test_intensive_reading.py`；因公开源码没有真题材料，整批真题覆盖验证会明确跳过，不能把它算作通过。
+原生依赖的首次构建较慢，`-j 2` 限制 Rust 并发；不会调用 GPU 编译 Kotlin/Rust。Python 边界回归可执行 `python -m unittest discover -s scripts/tests -p test_intensive_reading.py` 和 `python -m unittest discover -s scripts/tests -p test_cet_remote_catalog.py`；公开源码没有整批原文输入，整批真题覆盖验证明确跳过，不能把它算作通过。数值目录不是Android构建期间重新生成的；重新分析需自备可使用材料与GPU环境。
 
 ## 参与
 

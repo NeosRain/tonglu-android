@@ -1,10 +1,9 @@
 {
-  "sourceCommit": "3e1ccd832c8959373390577038e6845faffcbbbd",
+  "sourceCommit": "e339f7d2f7302f8819e842bd0aa8eca6b37fcca1",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
     "apps/android/app/build.gradle.kts",
-    "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReadingScreen.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/home/HomeCards.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/map/CampusMapScreen.kt",
     "apps/android/gradle/wrapper/gradle-wrapper.properties",
@@ -15,7 +14,7 @@
   ],
   "excluded": [
     "backend, web, admin, deployment, private docs, signing material",
-    "intensive exam texts and derived analyses: redistribution grant not established",
+    "intensive exam texts and full-text derived analyses: redistribution grant not established; numeric source index retained",
     "school map images: redistribution grant not established",
     "learning full-text packs: mixed licenses; not licensed as project code",
     "model weights, voice experiments, caches and local binaries"
@@ -38,8 +37,8 @@
     },
     {
       "path": "apps/android/app/build.gradle.kts",
-      "bytes": 17990,
-      "sha256": "b03a6d53466681a65a4676a7de4d50b08a180b2d994fe952db66274f58d68cae"
+      "bytes": 18046,
+      "sha256": "33854e3a4d0818fb7efc89225f3f08e62ef3380e261b6f71e7f6b46851eb3836"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -150,6 +149,11 @@
       "path": "apps/android/app/src/main/assets/intensive/catalog.json",
       "bytes": 82,
       "sha256": "516a15094def0df8ca692abc0e04bdea5497d581f53a65ba209d5ae81a0e40ee"
+    },
+    {
+      "path": "apps/android/app/src/main/assets/intensive/remote-index.json",
+      "bytes": 1407870,
+      "sha256": "0576ec7d37e3e5851f2faeaaac2027d9eac18e3f59711ad45c98adf9c597e974"
     },
     {
       "path": "apps/android/app/src/main/assets/learning/life-decision-guide-LICENSE",
@@ -412,14 +416,29 @@
       "sha256": "80f1d8a0d514a5bbbfb7fc7287c57d7b1ad8a097723c2631f73c070add4b7b6e"
     },
     {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/CetLocalTranslator.kt",
+      "bytes": 2108,
+      "sha256": "6d3c31074ce9f9a8dd818a6e3a844b5006ce6f4e3ca631c05e05bc7570529aac"
+    },
+    {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/IntensiveReading.kt",
-      "bytes": 8280,
-      "sha256": "edf38ae80e1bee9c38f5c3118388d9b0d67c9b5a0e8a48f6c7fbb5d15d390dac"
+      "bytes": 8615,
+      "sha256": "2fd97006420343609b56cdb8115477ee71c43a7c3b4129c13b030657dcb753a1"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/IntensiveReadingExperience.kt",
       "bytes": 4812,
       "sha256": "30b80892440fa3c83544bbb3616c83383d552abc3900f337922f5e76a2582b88"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/RemoteCetCodec.kt",
+      "bytes": 8239,
+      "sha256": "e7aee4ce86251841f016c9dbc1d87b2f53a603a99d020cff74f051af5d109d34"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/RemoteCetRepository.kt",
+      "bytes": 5832,
+      "sha256": "15e7998461be0b4e5795a39f6bf8e5118a03142a933afc4e7616743933932bc5"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/materials/ExamMaterialsApi.kt",
@@ -813,8 +832,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/AppUpdates.kt",
-      "bytes": 15257,
-      "sha256": "691236ab8ca0a41457b6d95fcd82608bc4a242303593c40627af1553fc5cfbc1"
+      "bytes": 16952,
+      "sha256": "89adc53f9a4c62ac54fc3c63422e2acb1a28ad84232bbfd5eed60a37b2e13d56"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateApkCache.kt",
+      "bytes": 1602,
+      "sha256": "3bb3a47d1f068179689b815abe41e5f3bd0423c4cdd651ca933c958d0899985b"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateChannel.kt",
@@ -1058,13 +1082,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReaderContent.kt",
-      "bytes": 22512,
-      "sha256": "ea3f044ee56a3915fc8a3777a7217954f317fc4d4fe6b9286948b5c4c0f0e9a2"
+      "bytes": 28857,
+      "sha256": "154b730fe84f9a4c5701e993022314967373ca17856317d4743579e78eb830ef"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReadingScreen.kt",
-      "bytes": 9172,
-      "sha256": "6dbde43fde0aa231b25e28d9932f66692fe2f5325c7dcf600c1cc09e801b08d1"
+      "bytes": 10191,
+      "sha256": "e9c7219ab60e6cfb819224d6d155072026ad0588add6cc398823f6fe7288fe45"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveWordLookup.kt",
@@ -1243,8 +1267,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishHubScreen.kt",
-      "bytes": 31009,
-      "sha256": "038dff32cce8bfd4717896c6fe79d510319ee1659b2b6399d0c6082264252ded"
+      "bytes": 30607,
+      "sha256": "6ff4bb913464c2feb3dbdf67079e8ddb96454189111cdbf5e01900ee561f1988"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishPromptAudio.kt",
@@ -1807,6 +1831,16 @@
       "sha256": "c83629afeff71c31c6dd8563d6c0cd29d3d1e40fb025d857236b2766ce6ae4ed"
     },
     {
+      "path": "apps/android/app/src/main/res/drawable/google_translate_color.png",
+      "bytes": 12770,
+      "sha256": "44aab849963bc32493c1b2ff4ed9d47aea8d16cdfa12d3aaebef22feb2ba2ca9"
+    },
+    {
+      "path": "apps/android/app/src/main/res/drawable/google_translate_white.png",
+      "bytes": 9606,
+      "sha256": "f5a888a335c107b6cc106e59804d08b5feb35b3755188b17ffc5e577298e6f1e"
+    },
+    {
       "path": "apps/android/app/src/main/res/drawable/ic_calendar_widget_preview.xml",
       "bytes": 2198,
       "sha256": "49b7fc40683556ab385df7aac0dca979cb3c1cfa6d831ac9fb548b796dfff5eb"
@@ -2067,6 +2101,11 @@
       "sha256": "06773254fcad8515698b4f55994322514f17c89287d9e58b177c2ef2ccd480db"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/intensive/RemoteCetCodecTest.kt",
+      "bytes": 3948,
+      "sha256": "bb6e3d9559696568b2461f2834c22b4fa74eaa1ed1918d881135b28a824ad724"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/materials/ExamMaterialsModelsTest.kt",
       "bytes": 7110,
       "sha256": "20ed6bf66420099f6bbb424d363f0dd8c050174184f218a72ac44247163dec16"
@@ -2260,6 +2299,11 @@
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/speech/TtsDownloadRegistryTest.kt",
       "bytes": 2900,
       "sha256": "c9b8ade41008aef6f7c47250e7135b170323549f4d2535e043e407943577abb3"
+    },
+    {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdateApkCacheTest.kt",
+      "bytes": 3094,
+      "sha256": "f29a9ed2e7ffc429a057da9cc05547455b6719fff944f1bc89c54d71d5b94d2f"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdateChannelTest.kt",
@@ -2968,13 +3012,18 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 2203,
-      "sha256": "f16a2af389f71f82f8e03a5656e66ac768bf3c3da0473217149801b94901a86b"
+      "bytes": 269,
+      "sha256": "8a564c4f229be01bb908a1c0c71aca1d0119379ac93bd07ccdfb0e87e61db385"
     },
     {
       "path": "content/intensive/provenance.json",
       "bytes": 121,
       "sha256": "2fe6bfaa825ecbe62ca2e52a55247bb853e5644cd20f8cfc4378fe1182f7ab7e"
+    },
+    {
+      "path": "content/intensive/remote-provenance.json",
+      "bytes": 505,
+      "sha256": "8091e669002bd340d36f14cb3fb22551ad7ec3e40b8200bdd20584d81c6c0c94"
     },
     {
       "path": "content/learning/catalog.json",
@@ -3038,8 +3087,8 @@
     },
     {
       "path": "docs/BRAND.md",
-      "bytes": 2126,
-      "sha256": "309689dab01f7ad96422adb2f4497f49f88d16d4ae27866c9336820d35d21967"
+      "bytes": 2546,
+      "sha256": "d56a8fe1cef7a3e211aecc1473dec662ffe09c130a588bfa490000a4599df045"
     },
     {
       "path": "LICENSE",
@@ -3078,8 +3127,8 @@
     },
     {
       "path": "licenses/PROVENANCE.json",
-      "bytes": 2164,
-      "sha256": "a594f4babc2dd326e89305fd66e4b3bc045685dcba0ea7eed04bbd4df650a6c4"
+      "bytes": 3159,
+      "sha256": "157687e34a6f097a66a993f6f5d0095325407d7796afcd181b55a446eb7208ee"
     },
     {
       "path": "licenses/Shapes-APACHE.txt",
@@ -3098,8 +3147,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 5508,
-      "sha256": "e5224cf2f9f29d35f6e3f0ede529b1bb3b06f9180210e7bc509758c73025852c"
+      "bytes": 6265,
+      "sha256": "c3820fd61c68f14d8c08e3503510802c51204232a48d190da30819ad83a8c58e"
     },
     {
       "path": "scripts/audit_resource_provenance.py",
@@ -3117,6 +3166,11 @@
       "sha256": "92b7b2de8ac3777d345d6021d28ab4d16f0dc4844613d5f6c7309e626e538d5c"
     },
     {
+      "path": "scripts/cet_remote_catalog.py",
+      "bytes": 5266,
+      "sha256": "9aa44273f351575a279d132468c1dc50684c06eae8c32379966b50cbd29c097a"
+    },
+    {
       "path": "scripts/gen_launcher_icons.py",
       "bytes": 2906,
       "sha256": "d3210654917456b3ee2f0103cd758880fa8f393b302fad195237ecc12fe48409"
@@ -3125,6 +3179,11 @@
       "path": "scripts/intensive_reading.py",
       "bytes": 32339,
       "sha256": "031114a979feb128dd48dc3a1525855e5d7473e32b67e62240d23b9bda6e1e01"
+    },
+    {
+      "path": "scripts/tests/test_cet_remote_catalog.py",
+      "bytes": 3735,
+      "sha256": "bc975a98d945347f0c5425567054cead57aa4246c866336bceab47ab85d2a777"
     },
     {
       "path": "scripts/tests/test_intensive_reading.py",
@@ -3148,8 +3207,8 @@
     },
     {
       "path": "THIRD_PARTY.md",
-      "bytes": 4052,
-      "sha256": "fcb4364ccb5ff2d882129004250ab7dbd62d9f1fbb1225dd12598c5d08b42aa9"
+      "bytes": 5052,
+      "sha256": "13fae30ec6b27e9423ab6562a68c61af335ac31087fd40fc791a0acf2c4fa048"
     }
   ]
 }

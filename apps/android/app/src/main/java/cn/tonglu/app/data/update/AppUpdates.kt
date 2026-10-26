@@ -117,6 +117,7 @@ internal object AppUpdates {
         val epoch = generation
         mutable.value = mutable.value.copy(channel = selected)
         scope.launch {
+            cleanInstalledApks(c)
             try {
                 val saved = prefs(c).getString("latest_manifest.${selected.key}", null)?.let { parseUpdateRelease(it) }
                 if (epoch != generation) return@launch
@@ -150,6 +151,32 @@ internal object AppUpdates {
                 }
             }
         } catch (e: Exception) { Log.w("AppUpdates", "更新下载或校验失败", e); mutable.value = mutable.value.copy(downloading = false, ready = false, error = e.message ?: "更新校验失败") }
+    }
+
+    /** A completed upgrade no longer needs its installer; keep active and still-installable downloads. */
+    private fun cleanInstalledApks(c: Context) {
+        try {
+            val external = c.getExternalFilesDir(null) ?: return
+            val download = prefs(c).getString("downloadRelease", null)?.let { parseUpdateRelease(it) }
+            val protected = mutableSetOf<Long>()
+            if (download != null) {
+                if (isNewerThanInstalled(download)) protected += download.versionCode
+                val id = prefs(c).getLong("downloadId", -1)
+                if (id >= 0) c.getSystemService(DownloadManager::class.java)
+                    .query(DownloadManager.Query().setFilterById(id)).use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
+                            if (status in setOf(DownloadManager.STATUS_PENDING, DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED))
+                                protected += download.versionCode
+                        }
+                    }
+            }
+            val result = pruneInstalledUpdateApks(external, BuildConfig.VERSION_CODE.toLong(), protected)
+            if (result.removed > 0) Log.i("AppUpdates", "已清理${result.removed}个旧安装包，释放${result.bytes}字节")
+            result.failures.forEach { Log.w("AppUpdates", "旧安装包清理失败：$it") }
+        } catch (e: Exception) {
+            Log.w("AppUpdates", "清理旧更新缓存失败，保留文件", e)
+        }
     }
 
     private fun updateFile(c: Context, code: Long): File = File(c.getExternalFilesDir(null) ?: error("更新存储不可用"), "app-updates/$code.apk").also { check(it.parentFile!!.exists() || it.parentFile!!.mkdirs()) { "无法创建更新目录" } }

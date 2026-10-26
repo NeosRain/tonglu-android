@@ -65,13 +65,13 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
             lastId = id; preferences.edit().putString("lastArticle", id).apply()
         }
         catch (e: CancellationException) { throw e }
-        catch (e: Exception) { articleError = "文章读取或校验失败，请重试"; android.util.Log.e("Intensive", id, e) }
+        catch (e: Exception) { articleError = e.message?.take(180) ?: "原卷读取失败，请重试"; android.util.Log.e("Intensive", id, e) }
     }
     IntensiveWindow("考试精读", onClose) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             item {
                 Text(if (catalog?.isEmpty() == true) "继续读自己的文章" else "选一篇，就开始", fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                Text("开源版不附带未获再分发授权的真题材料；可从英语首页导入自己的文章。", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text("四级 / 六级 · 选词填空与仔细阅读 · 语法分色 · 听音", color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             if (catalog?.isEmpty() == true) item {
                 Text("本版本不附带尚未确认再分发授权的真题正文。个人文章精读、翻译、查词和朗读入口保留在英语首页。")
@@ -85,19 +85,19 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
                     }
                 }
             } }
-            item { Choices((2026 downTo 2021).toList(), year, { it.toString() }) { year = it; if (year == 2026) month = 6 } }
+            item { Choices(catalog.orEmpty().map { it.year }.distinct().sortedDescending(), year, { it.toString() }) { year = it; if (year == 2026) month = 6 } }
             item { Choices(listOf("CET4", "CET6"), exam, { if (it == "CET4") "大学英语四级" else "大学英语六级" }) { exam = it } }
             item { Choices(if (year == 2026) listOf(6) else listOf(6, 12), month, { it.toString() + " 月" }) { month = it } }
             item { Choices(listOf(1, 2, 3), suite, { "第 " + it + " 套" }) { suite = it } }
             if (catalog == null && error == null) item { CircularProgressIndicator() }
             error?.let { message -> item { Text(message); TextButton(onClick = { retry++ }) { Text("重试") } } }
             val rows = catalog.orEmpty().filter { it.year == year && it.exam == exam && it.month == month && it.suite == suite }
-            items(listOf("cloze", "passage1", "passage2")) { kind ->
+            items(listOf("cloze", "passage1", "passage2").filter { kind -> rows.any { it.kind == kind } }) { kind ->
                 val entry = rows.firstOrNull { it.kind == kind }
                 OutlinedCard(onClick = { entry?.let { openId = it.id } }, enabled = entry != null, modifier = Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(when(kind) { "cloze" -> "选词填空"; "passage1" -> "Section C · 第一篇"; else -> "Section C · 第二篇" }, fontWeight = FontWeight.SemiBold)
-                        Text(if (entry == null) "开源源码不附带该真题正文" else entry.words.toString() + " 词 · " + entry.sentences + " 句 · 离线可读",
+                        Text(if (entry == null) "本套该题型尚未核对，不会用其他文章代替" else entry.words.toString() + " 词 · " + entry.sentences + " 句 · " + if (entry.remote != null) "首次联网读取原卷" else "离线可读",
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                         if (entry != null) {
                             if (entry.qualityNotice.isNotBlank()) Text(entry.qualityNotice, style = MaterialTheme.typography.bodySmall)
@@ -108,7 +108,14 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
                     }
                 }
             }
-            item { Text("翻译和语法由 GPU 预先分析，打开即用。机器结果需结合原文核对；缺失或校验未通过的材料不会显示为可读。",
+            if (catalog != null && rows.isEmpty()) item {
+                Text("当前选择没有已核验的文章，请切换年月或套卷。目录只展示真实来源，不用其他文章填充。")
+            }
+            if (rows.isNotEmpty()) item {
+                Text("本套可读：" + rows.joinToString("、") { it.title },
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            item { Text("点文章后从标明的原卷来源读取，保存在本机供后续阅读。语法位置由 GPU 预分析，原文指纹一致后显示；译文在本机按需生成。",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }
@@ -120,7 +127,10 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
             articleError != null -> Column(Modifier.padding(24.dp)) {
                 Text(articleError.orEmpty()); Button(onClick = { articleRetry++ }) { Text("重试") }
             }
-            else -> Box(Modifier.padding(24.dp)) { CircularProgressIndicator() }
+            else -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                CircularProgressIndicator()
+                Text("正在读取原卷并核对文章，首次需要网络；已读取的原卷可继续从本机打开。")
+            }
         }
     }
 }

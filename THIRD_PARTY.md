@@ -4,6 +4,8 @@ The root GPL-3.0-only license applies to project-authored work, not a relicensin
 
 | Component | Terms and retained source/notices |
 |---|---|
+| Google ML Kit text recognition / translation | Maven SDK and downloaded models have separate [Google ML Kit terms and privacy](https://developers.google.com/ml-kit/terms); they are not relicensed as GPL. Coordinates are pinned in app Gradle. Text and translation stay on-device; SDK may send utilization/performance metrics and fetch updates. [Translation attribution guidelines](https://developers.google.com/ml-kit/language/translation/translation-terms) apply. |
+| Google Translate attribution badges | Unmodified color/white `regular@3x` PNGs from Google's [official badge archive](https://docs.cloud.google.com/static/translate/images/google-translate-attribution.zip), used under [brand/attribution requirements](https://cloud.google.com/translate/attribution). Paths/hashes/zip members recorded separately in `licenses/PROVENANCE.json`; Google marks remain Google's, without endorsement. |
 | Gradle Wrapper | Apache-2.0; `licenses/Gradle-APACHE.txt`; https://github.com/gradle/gradle. Distribution version is fixed in gradle-wrapper.properties. |
 | Miuix 0.9.4 | Apache-2.0; `licenses/Miuix-APACHE.txt`; https://github.com/compose-miuix-ui/miuix/tree/v0.9.4 |
 | Backdrop 2.0.1 / Shapes 1.2.0 | Apache-2.0; `licenses/Backdrop-APACHE.txt`, `licenses/Shapes-APACHE.txt`; https://github.com/Kyant0/AndroidLiquidGlass/tree/2.0.1 and https://github.com/Kyant0/Shapes/tree/1.2.0 |
@@ -22,6 +24,6 @@ The root GPL-3.0-only license applies to project-authored work, not a relicensin
 
 Paths beginning `assets/` are relative to `apps/android/app/src/main/`.
 
-Full copyrighted exam passages, derived translations/grammar, school map artwork and mixed-license learning packs are excluded from this source release. Their online availability is not treated as an open license. Model weights, anime character models/recordings, private files and user data are also excluded. The English speech index contains public resource metadata only, no character recordings or model weights; external audio/model use has separately stated terms in the application.
+Full copyrighted exam passages, prose translations/grammar packs, school map artwork and mixed-license learning packs are excluded. The CET remote index contains source links/hashes and numeric grammar offsets, never full passages, translated sentences or model weights. `content/intensive/remote-provenance.json` records upstream source, rights notice and fingerprints separately; upstream online access is not an open redistribution grant. Anime character recordings/models, private files and user data are excluded. External audio/model use has separately stated terms in the application.
 
 GPL source release does not itself verify every optional external model for every use. Do not describe model licensing, speaker/character rights and engine licensing as one permission.
