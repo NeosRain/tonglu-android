@@ -228,7 +228,7 @@ internal fun EnglishAiSettingsDialog(
         title = { Text("AI 设置") },
         text = {
             Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("请求从手机直接发到你填的地址，苔米林服务器不中转、不保存对话；密钥只写进本机加密存储，不随学习记录导出。",
+                Text("请求从手机直接发到你填的地址，苔米厸服务器不中转、不保存对话；密钥只写进本机加密存储，不随学习记录导出。",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("服务商", style = MaterialTheme.typography.labelLarge)

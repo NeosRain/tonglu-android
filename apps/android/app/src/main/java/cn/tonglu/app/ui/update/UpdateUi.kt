@@ -29,7 +29,7 @@ internal fun AppUpdateHost() {
     if (hidden == release.versionCode || AppUpdates.dismissed(c, release.versionCode)) return
     fun close() { OverlayDismissGuard.arm(); hidden = release.versionCode; AppUpdates.dismiss(c, release.versionCode) }
     AlertDialog(containerColor = AppColors.SurfaceOpaque, onDismissRequest = { close() },
-        title = { Text("苔米林 ${release.versionName} 可以更新", color = AppColors.TextPrimary) },
+        title = { Text("苔米厸 ${release.versionName} 可以更新", color = AppColors.TextPrimary) },
         text = { Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(release.notes, color = AppColors.TextSecondary)
             Text("${release.size / 1_000_000} MB · 下载后由系统确认安装", color = AppColors.TextMuted)

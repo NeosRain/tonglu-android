@@ -11,6 +11,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.data.ScheduleText
@@ -25,8 +26,10 @@ internal fun WeeklyTimetablePager(
     search: String, nowMinutes: Int, onWeekChange: (Int) -> Unit, expanded: Boolean,
     modifier: Modifier = Modifier, onImport: (() -> Unit)? = null,
     onLongPressCourse: (CourseDto) -> Unit,
-    onTapCourse: (CourseDto) -> Unit = {},
+    onTapCourse: (CourseDto, Rect) -> Unit = { _, _ -> },
+    onRescheduleCourse: ((CourseDto, CourseDto, (Boolean, String) -> Unit) -> Unit)? = null,
 ) {
+    var dragging by remember { mutableStateOf(false) }
     val lastWeek = maxOf(20, selectedWeek, currentWeek ?: 0,
         allCourses.maxOfOrNull { it.weeks.maxOrNull() ?: it.endWeek } ?: 0)
     val pager = rememberPagerState(initialPage = selectedWeek, pageCount = { lastWeek + 1 })
@@ -62,7 +65,7 @@ internal fun WeeklyTimetablePager(
     }
     val courseEnd = remember(allCourses) { allCourses.maxOfOrNull { it.weeks.maxOrNull() ?: it.endWeek } }
     HorizontalPager(state = pager, modifier = modifier.fillMaxWidth(),
-        beyondViewportPageCount = 0, key = { it }, verticalAlignment = Alignment.Top) { page ->
+        beyondViewportPageCount = 0, key = { it }, verticalAlignment = Alignment.Top, userScrollEnabled = !dragging && !(expanded && onRescheduleCourse != null)) { page ->
         val courses = remember(matching, page) { matching.filter { page == 0 || it.activeInWeek(page) } }
         val finished = page > 0 && courseEnd != null && page > courseEnd
         val message = when {
@@ -72,7 +75,8 @@ internal fun WeeklyTimetablePager(
             else -> "这一周没有课"
         }
         Column(Modifier.fillMaxWidth()
-            .then(if (expanded) Modifier.fillMaxHeight().verticalScroll(rememberScrollState()) else Modifier)
+            .then(if (expanded && onRescheduleCourse == null) Modifier.fillMaxHeight().verticalScroll(rememberScrollState())
+                else if (expanded) Modifier.fillMaxHeight() else Modifier)
             .padding(horizontal = if (expanded) 10.dp else 2.dp)) {
             if (courses.isEmpty()) {
                 Column(Modifier.fillMaxWidth().heightIn(min = 132.dp).padding(vertical = 24.dp),
@@ -86,6 +90,11 @@ internal fun WeeklyTimetablePager(
                         }
                     }
                 }
+            } else if (expanded && onRescheduleCourse != null) {
+                TimetableEditGrid(courses, allCourses, Modifier.fillMaxSize(),
+                    weekStartMillis = if (page > 0) ScheduleText.weekStartOfTerm(termStart, page) else null,
+                    today = if (page > 0 && page == currentWeek) ScheduleText.todayWeekday() else null,
+                    onTapCourse = onTapCourse, onDragging = { dragging = it }, onSave = onRescheduleCourse)
             } else {
                 TimetableGrid(courses = courses,
                     today = if (page > 0 && page == currentWeek) ScheduleText.todayWeekday() else null,

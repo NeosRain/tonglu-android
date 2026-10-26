@@ -375,7 +375,7 @@ private fun ConfirmPhase(ticket: QrTicketDto, onConfirm: () -> Unit, onCancel: (
         Spacer(Modifier.height(64.dp))
         Text("确认登录电脑？", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
         Text(
-            "确认后，这台设备将登录你的苔米林账号",
+            "确认后，这台设备将登录你的苔米厸账号",
             color = AppColors.TextMuted,
             style = MaterialTheme.typography.bodySmall,
             modifier = Modifier.padding(top = 6.dp),

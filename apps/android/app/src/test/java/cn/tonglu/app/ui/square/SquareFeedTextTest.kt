@@ -5,6 +5,7 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import cn.tonglu.app.data.AppBrand
 
 /**
  * 广场正文加工（话题高亮 / 分享文案 / 折叠判据）。
@@ -73,7 +74,7 @@ class SquareFeedTextTest {
         val out = shareText("校园动态", "图书馆今晚延长到 23 点", "自习的同学注意啦")
         assertTrue(out.startsWith("【校园动态】图书馆今晚延长到 23 点"))
         assertTrue(out.contains("自习的同学注意啦"))
-        assertTrue(out.endsWith("—— 来自苔米林 App"))
+        assertTrue(out.endsWith("—— 来自${AppBrand.CHINESE_NAME} App"))
     }
 
     @Test

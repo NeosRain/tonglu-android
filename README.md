@@ -1,8 +1,8 @@
-# 苔米林 · Taimi Forest · Android
+# 苔米厸 · Taimi Forest · Android
 
-<img src="apps/android/app/src/main/artwork/store-icon-512.png" width="96" alt="苔米林番茄酱图标" />
+<img src="apps/android/app/src/main/artwork/store-icon-512.png" width="96" alt="苔米厸厸字标" />
 
-让学习、工作和人与人的连接轻松一点。这是苔米林（Taimi Forest）安卓客户端的完整源码，包含单词学习、阅读与精读、课表与桌面小组件、番茄钟、个人书库、校园工具和局域网传输。
+让学习、工作和人与人的连接轻松一点。这是苔米厸（Taimi Forest）安卓客户端的完整源码，包含单词学习、阅读与精读、课表与桌面小组件、番茄钟、个人书库、校园工具和局域网传输。
 
 技术缩写 **TML**，内部代号 **taimilin**。名称与兼容约定见 [品牌说明](docs/BRAND.md)。
 
@@ -34,9 +34,9 @@ Android Studio 可打开 `apps/android`。`local.properties`、构建缓存、�
 
 为了把“代码开源”与“拥有第三方教材的再分发权”说清楚，开源构建不附带真题正文及其派生分析、学校地图图片或混合许可的完整资料包。相应页面明确提示未附带资料；地图可打开学校官网原页，个人文章仍可从英语入口导入。空目录是明确的资源边界，不会伪装成已收录题目。
 
-保留了两个 BSD-3-Clause 精简词书、原创练习题、阅读器/词库/精读代码、原生传输源码、测试、Room schema、番茄酱原创 AI 辅助素材和相关工具。语音模型及角色声音实验不在仓库中。
+保留了两个 BSD-3-Clause 精简词书、原创练习题、阅读器/词库/精读代码、原生传输源码、测试、Room schema、原创品牌素材和相关工具。语音模型及角色声音实验不在仓库中。
 
-`scripts/gen_launcher_icons.py` 可用 Pillow 从原始头像重新导出启动器资源。`scripts/intensive_reading.py` 和对应 Python 测试保留预处理、CUDA 分析、翻译、校验和打包逻辑；它不是 Android 构建的前置步骤，运行前需要自备有权使用的材料、CUDA PyTorch/Stanza/Transformers 环境和模型。外部输入放 `work/intensive-input/`，模型/中间结果放 `work/intensive-reading/`；不因脚本能处理某份真题就取得再分发权。个人文章仍可通过客户端原有导入流程使用。
+`scripts/gen_launcher_icons.py` 可用 Pillow 按内置几何图形重新生成薄荷色厸字标资源。`scripts/intensive_reading.py` 和对应 Python 测试保留预处理、CUDA 分析、翻译、校验和打包逻辑；它不是 Android 构建的前置步骤，运行前需要自备有权使用的材料、CUDA PyTorch/Stanza/Transformers 环境和模型。外部输入放 `work/intensive-input/`，模型/中间结果放 `work/intensive-reading/`；不因脚本能处理某份真题就取得再分发权。个人文章仍可通过客户端原有导入流程使用。
 
 `SOURCE-MANIFEST.json` 记录源码快照、逐文件指纹、资源排除和针对开源构建的明确改动。私有项目的历史、账号配置、部署日志和签名从未复制到本仓库。检查记录见 [BUILD-VERIFICATION.md](BUILD-VERIFICATION.md)。
 

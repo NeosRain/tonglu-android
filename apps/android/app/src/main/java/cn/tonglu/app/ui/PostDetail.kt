@@ -527,7 +527,7 @@ private fun FloorRow(comment: PostCommentDto, accent: Color, onReply: () -> Unit
                     }
                 }
                 // 时间单独一行、更小更灰（酷安同一层级：作者在上、时间在下）。
-                // 楼层号保留（**我们不照抄酷安取消楼层号那点**）：苔米林后端有 `floor`，
+                // 楼层号保留（**我们不照抄酷安取消楼层号那点**）：苔米厸后端有 `floor`，
                 // 而楼中楼是「回某层」，没有楼层号用户没法说清回的是哪一层。
                 Text(
                     "${comment.floor} 楼 · ${relativeIsoTime(comment.createdAt)}",
@@ -851,7 +851,7 @@ private fun solidGlassSurface(): Color =
 /**
  * 右侧操作组：只放**有真数据**的动作（plan §二：「不显示假按钮或伪造成功」）。
  *
- * 录屏原设计是「👍 👎 ⭐ ↗」。踩（👎）苔米林后端没有这个产品概念，**不做**；
+ * 录屏原设计是「👍 👎 ⭐ ↗」。踩（👎）苔米厸后端没有这个产品概念，**不做**；
  * 点赞（👍）与收藏（⭐）2026-10-13 全链路补齐（post_likes / post_favorites），
  * 分享（↗）是系统能力。四个键全是有真行为的。
  */
@@ -911,7 +911,7 @@ private fun DetailActionBar(
                 )
             }
             CompactIconAction(Icons.Outlined.Share, "把帖子分享出去") {
-                val text = "苔米林 · 校园社区"
+                val text = "苔米厸 · 校园社区"
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/plain"
                     putExtra(Intent.EXTRA_TEXT, text)

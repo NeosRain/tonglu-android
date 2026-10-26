@@ -35,4 +35,33 @@ class ScheduleMoveRulesTest {
         val full = original.copy(startPeriod=1, endPeriod=30)
         assertEquals(full.copy(weekday=3), ScheduleMoveRules.drag(full, CourseDragMode.Move, 100f, 999f, 100f, 80f, 30))
     }
+    @Test fun topAndBottomGripsResizeButMiddleMoves() {
+        assertEquals(CourseDragMode.Start, ScheduleMoveRules.gripMode(4f, 152f, 14f))
+        assertEquals(CourseDragMode.End, ScheduleMoveRules.gripMode(148f, 152f, 14f))
+        assertEquals(CourseDragMode.Move, ScheduleMoveRules.gripMode(76f, 152f, 14f))
+    }
+    @Test fun shortCourseStillHasAMoveRegion() {
+        assertEquals(CourseDragMode.Move, ScheduleMoveRules.gripMode(10f, 20f, 14f))
+        assertEquals(CourseDragMode.Start, ScheduleMoveRules.gripMode(2f, 20f, 14f))
+        assertEquals(CourseDragMode.End, ScheduleMoveRules.gripMode(19f, 20f, 14f))
+    }
+    @Test fun viewportAutoScrollIsIncludedInDropPosition() {
+        val moved = ScheduleMoveRules.dragWithScroll(original, CourseDragMode.Move,
+            0f, 0f, 100, 260, 100f, 80f, 30)
+        assertEquals(original.copy(startPeriod = 5, endPeriod = 7), moved)
+        assertEquals(original, ScheduleMoveRules.dragWithScroll(original, CourseDragMode.Move,
+            0f, -160f, 100, 260, 100f, 80f, 30))
+    }
+
+    @Test fun unrelatedCoursesDoNotLoseWidthToAnEarlierOverlap() {
+        val overlapping = original.copy(id = "overlap", startPeriod = 4, endPeriod = 6)
+        val later = original.copy(id = "later", startPeriod = 7, endPeriod = 8)
+        val otherDay = original.copy(id = "other-day", weekday = 3)
+        val layout = ScheduleMoveRules.groupedLanes(listOf(later, otherDay, overlapping, original))
+        assertEquals(0 to 2, layout[original.id])
+        assertEquals(1 to 2, layout[overlapping.id])
+        assertEquals(0 to 1, layout[later.id])
+        assertEquals(0 to 1, layout[otherDay.id])
+    }
+
 }

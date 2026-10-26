@@ -477,7 +477,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
             settingsPrefs.edit().putBoolean("profile_sync_notice_shown", true).apply()
         },
         title = { Text("课表与成绩已默认开启同步") },
-        text = { Text("为了换机不丢数据，课表、成绩和学期设置会跟随苔米林账号保存在应用服务器，本机变更后自动上传。\n\n· 只同步这三样。校园登录信息（Cookie）只留在本机，从不上传；示例数据也不会上传。\n· 同一门课两边都改过时，保留本机记录。\n· 不想要的话，随时可以在「我的」里关掉。") },
+        text = { Text("为了换机不丢数据，课表、成绩和学期设置会跟随苔米厸账号保存在应用服务器，本机变更后自动上传。\n\n· 只同步这三样。校园登录信息（Cookie）只留在本机，从不上传；示例数据也不会上传。\n· 同一门课两边都改过时，保留本机记录。\n· 不想要的话，随时可以在「我的」里关掉。") },
         confirmButton = {
             TextButton(onClick = {
                 OverlayDismissGuard.arm()

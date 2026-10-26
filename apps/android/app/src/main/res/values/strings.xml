@@ -8,13 +8,13 @@
   只能引用资源，写不了 Compose 里的字面量 —— 所以这里必须有。
 -->
 <resources>
-    <string name="app_name">苔米林</string>
+    <string name="app_name">苔米厸</string>
     <string name="shortcut_add_widgets">添加小组件</string>
     <!-- 桌面「添加小部件」列表里显示的名字 -->
     <string name="widget_today_label">今日课表</string>
-    <string name="widget_today_desc">显示今天的课程：节次、时间、科目、教室。点一下打开苔米林首页课表。</string>
+    <string name="widget_today_desc">显示今天的课程：节次、时间、科目、教室。点一下打开苔米厸首页课表。</string>
     <string name="widget_calendar_label">日历</string>
-    <string name="widget_calendar_desc">显示日期、星期、教学周和竞赛/考试倒计时。点一下打开苔米林。</string>
+    <string name="widget_calendar_desc">显示日期、星期、教学周和竞赛/考试倒计时。点一下打开苔米厸。</string>
     <string name="widget_week_label">完整课表</string>
-    <string name="widget_week_desc">显示本周整周课程网格：列是周几、行是节次。点一下打开苔米林课表。</string>
+    <string name="widget_week_desc">显示本周整周课程网格：列是周几、行是节次。点一下打开苔米厸课表。</string>
 </resources>

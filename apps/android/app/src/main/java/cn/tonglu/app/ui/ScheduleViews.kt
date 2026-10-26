@@ -272,7 +272,7 @@ internal fun TodayClassesCard(
 ) {
     val today = ScheduleText.todayWeekday()
     // 点今日课程行看这门课的详情（2026-10-10：与课表格子保持一致）
-    var selectedCourse by remember { mutableStateOf<CourseDto?>(null) }
+    var selectedCourse by remember { mutableStateOf<CourseSelection?>(null) }
     val holidayNow = remember { Holidays.holidayAt(System.currentTimeMillis()) }
     val todayCourses = remember(courses, today, week) { ScheduleBoard.ofDay(courses, today, week) }
     // 国定假期当天一律不上课（2026-10-05 用户报告）：当天课表**整体进入完成状态**，
@@ -400,7 +400,7 @@ internal fun TodayClassesCard(
                     isNext = course == nextCourse,
                     minutesToStart = (periodMinutes(course.startPeriod, start = true) ?: 0) - nowMinutes,
                     onLongPress = { onLongPressCourse(course) },
-                    onTap = { selectedCourse = course },
+                    onTap = { selectedCourse = CourseSelection(course, it) },
                 )
             }
             if (finishedCount > 0) {
@@ -435,7 +435,7 @@ internal fun TodayClassesCard(
             }
         }
     }
-    selectedCourse?.let { CourseDetailDialog(it) { selectedCourse = null } }
+    selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse) { selectedCourse = null } }
 }
 
 @Composable
@@ -446,8 +446,9 @@ private fun TodayClassRow(
     isNext: Boolean,
     minutesToStart: Int,
     onLongPress: () -> Unit,
-    onTap: () -> Unit = {},
+    onTap: (Rect) -> Unit = {},
 ) {
+    var tapBounds by remember(course.id) { mutableStateOf(Rect.Zero) }
     val accent = courseColor(course.name)
     Row(
         Modifier
@@ -455,7 +456,8 @@ private fun TodayClassRow(
             .padding(vertical = 3.dp)
             .clip(RoundedCornerShape(12.dp))
             // 与课表格子保持一致（2026-10-10）：点一下看这门课的详情，长按仍是删除确认。
-            .pointerInput(Unit) { detectTapGestures(onTap = { onTap() }, onLongPress = { onLongPress() }) }
+            .onGloballyPositioned { tapBounds = Rect(it.positionInWindow(), it.size.toSize()) }
+            .pointerInput(course) { detectTapGestures(onTap = { onTap(tapBounds) }, onLongPress = { onLongPress() }) }
             .background(
                 when {
                     ongoing -> accent.copy(alpha = 0.12f)
@@ -625,7 +627,7 @@ internal fun TimetableCard(
     var dragging by remember { mutableStateOf(false) }
     var cardBounds by remember { mutableStateOf(Rect.Zero) }
     // 点课格子的详情弹层（长按仍是删除确认，弹窗由首页管）
-    var selectedCourse by remember { mutableStateOf<CourseDto?>(null) }
+    var selectedCourse by remember { mutableStateOf<CourseSelection?>(null) }
     val density = LocalDensity.current
     val threshold = with(density) { 48.dp.toPx() }
     // 拖动中 1:1 跟手（16ms 近似无插值），松手后弹簧回位/放大。
@@ -694,9 +696,9 @@ internal fun TimetableCard(
             termStart = termStart, search = search, nowMinutes = nowMinutes,
             onWeekChange = onWeekChange, expanded = false, onImport = onImport,
             onLongPressCourse = onLongPressCourse,
-            onTapCourse = { selectedCourse = it },
+            onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
         )
-        selectedCourse?.let { CourseDetailDialog(it) { selectedCourse = null } }
+        selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse) { selectedCourse = null } }
         Spacer(Modifier.height(6.dp))
         // 拖拽把手：手势只认**小横条本体**（44dp 宽 + 纵向热区加宽到 44dp），
         // 横条左右两侧不响应 —— 2026-10-10 用户反馈：之前挂在 fillMaxWidth 的 Column 上，
@@ -763,8 +765,7 @@ internal fun FullscreenTimetableDialog(
     onRescheduleCourse: (CourseDto, CourseDto, (Boolean, String) -> Unit) -> Unit = { _, _, done -> done(false, "暂不可调整") },
 ) {
     // 满屏课表里点课格子的详情弹层
-    var selectedCourse by remember { mutableStateOf<CourseDto?>(null) }
-    var editing by remember { mutableStateOf(false) }
+    var selectedCourse by remember { mutableStateOf<CourseSelection?>(null) }
     AnimatedTimetableWindow(originBounds = originBounds, returnBounds = returnBounds, onDismiss = onDismiss) { close, dragHandle ->
         Surface(color = AppColors.SurfaceOpaque, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
@@ -798,19 +799,16 @@ internal fun FullscreenTimetableDialog(
                 Box(Modifier.padding(horizontal = 16.dp)) {
                     WeekChips(selected = weekFilter, currentWeek = currentWeek, onSelect = onWeekChange)
                 }
-                TextButton(onClick = { editing = !editing }, modifier = Modifier.padding(horizontal = 12.dp)) { Text(if (editing) "完成调整" else "调整课程") }
                 Spacer(Modifier.height(10.dp))
-                if (editing) TimetableEditGrid(
-                    courses = allCourses.filter { (weekFilter == 0 || it.activeInWeek(weekFilter)) && (search.isBlank() || it.name.contains(search, true) || it.location.orEmpty().contains(search, true) || it.teacher.orEmpty().contains(search, true)) },
-                    allCourses = allCourses, modifier = Modifier.weight(1f), onSave = onRescheduleCourse,
-                ) else WeeklyTimetablePager(
+                WeeklyTimetablePager(
                     allCourses = allCourses, selectedWeek = weekFilter, currentWeek = currentWeek,
                     termStart = termStart, search = search, nowMinutes = nowMinutes,
                     onWeekChange = onWeekChange, expanded = true,
                     onLongPressCourse = onLongPressCourse, modifier = Modifier.weight(1f),
-                    onTapCourse = { selectedCourse = it },
+                    onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
+                    onRescheduleCourse = onRescheduleCourse,
                 )
-                selectedCourse?.let { CourseDetailDialog(it) { selectedCourse = null } }
+                selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse) { selectedCourse = null } }
                 // 底部提示条：只留点击收起。
                 // 2026-10-05 起不再挂 dragHandle —— 用户点名「只有顶部灰色把手响应拖拽，
                 // 其下区域不响应」。这里原本也能下拖，结果是从正文区域往下拉会被误判成收起。
@@ -840,7 +838,7 @@ internal fun TimetableGrid(
     weekStartMillis: Long?,
     modifier: Modifier = Modifier,
     onLongPressCourse: (CourseDto) -> Unit = {},
-    onTapCourse: (CourseDto) -> Unit = {},
+    onTapCourse: (CourseDto, Rect) -> Unit = { _, _ -> },
 ) {
     val maxPeriod = maxOf(PeriodTable.maxPeriod(), courses.maxOfOrNull { it.endPeriod } ?: 8).coerceIn(8, 30)
     val groupsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> scheduleOverlapGroups(items) } }
@@ -945,7 +943,7 @@ internal fun TimetableGrid(
                                 dimmed = over,
                                 holiday = holiday != null,
                                 onLongPress = { onLongPressCourse(course) },
-                                onTap = { onTapCourse(course) },
+                                onTap = { onTapCourse(course, it) },
                             )
                             period += span
                         }
@@ -965,7 +963,7 @@ internal fun TimetableGrid(
                     items.forEach { item ->
                         Surface(shape = RoundedCornerShape(16.dp), color = AppColors.ChipIdle) {
                             Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Column(Modifier.weight(1f).clickable { overlapping = null; onTapCourse(item) }.padding(8.dp)) {
+                                Column(Modifier.weight(1f).clickable { overlapping = null; onTapCourse(item, Rect.Zero) }.padding(8.dp)) {
                                     Text(item.name, fontWeight = FontWeight.SemiBold)
                                     Text("${item.startPeriod}-${item.endPeriod}节 · ${item.weekLabel()}", style = MaterialTheme.typography.bodySmall)
                                     Text(item.location?.takeIf { it.isNotBlank() } ?: "未填写教室", style = MaterialTheme.typography.bodySmall)
@@ -1013,8 +1011,9 @@ private fun CourseBlock(
     dimmed: Boolean,
     holiday: Boolean,
     onLongPress: () -> Unit,
-    onTap: () -> Unit = {},
+    onTap: (Rect) -> Unit = {},
 ) {
+    var tapBounds by remember(course.id) { mutableStateOf(Rect.Zero) }
     val base = if (holiday) themeColor(Color(0xFFDDE1E7), AppColors.ChipIdle) else courseColor(course.name)
     // 已上完 → 整块降透明度（保留原色，一眼看出是已经上完的课）
     val fg = if (holiday) themeColor(Color(0xFF454D59), AppColors.TextSecondary) else AppColors.OnAccent
@@ -1025,99 +1024,12 @@ private fun CourseBlock(
             .padding(1.5.dp)
             .clip(RoundedCornerShape(if (expanded) 11.dp else 9.dp))
             // 点击看详情（2026-10-10 用户要求）；长按删除保留不变。
-            .pointerInput(Unit) { detectTapGestures(onTap = { onTap() }, onLongPress = { onLongPress() }) }
+            .onGloballyPositioned { tapBounds = Rect(it.positionInWindow(), it.size.toSize()) }
+            .pointerInput(course) { detectTapGestures(onTap = { onTap(tapBounds) }, onLongPress = { onLongPress() }) }
             .alpha(when { holiday -> 0.78f; dimmed -> 0.65f; else -> 1f })
             .background(base),
     ) {
-        val available = height - 3.dp
-        val showPlace = available >= (if (expanded) 70.dp else 66.dp)
-        val showTeacher = expanded && available >= 110.dp
-        val showTime = expanded && available >= 130.dp
-
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(horizontal = if (expanded) 5.dp else 4.dp, vertical = 4.dp),
-        ) {
-            MiuixText(
-                course.name,
-                color = fg,
-                fontSize = if (expanded) 11.sp else 10.sp,
-                lineHeight = if (expanded) 13.sp else 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = if (expanded && available >= 150.dp) 5 else 4,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.weight(1f))
-            shortPlace(course.location)?.let { place ->
-                if (showPlace) {
-                    MiuixText(
-                        place,
-                        color = fg.copy(alpha = 0.94f),
-                        fontSize = if (expanded) 8.5.sp else 8.sp,
-                        lineHeight = if (expanded) 10.sp else 9.5.sp,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (showTeacher) {
-                course.teacher?.takeIf { it.isNotBlank() }?.let { teacher ->
-                    MiuixText(
-                        teacher,
-                        color = fg.copy(alpha = 0.9f),
-                        fontSize = if (expanded) 8.5.sp else 8.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            MiuixText(
-                "${course.startPeriod}-${course.endPeriod}节",
-                color = fg.copy(alpha = 0.92f),
-                fontSize = if (expanded) 8.5.sp else 8.sp,
-                maxLines = 1,
-            )
-            if (showTime) {
-                MiuixText(
-                    course.timeText(),
-                    color = fg.copy(alpha = 0.8f),
-                    fontSize = 7.5.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Clip,
-                )
-            }
-        }
-    }
-}
-
-/** 点课格子弹出的课程详情（2026-10-10 用户要求；长按删除保留不变） */
-@Composable
-private fun CourseDetailDialog(course: CourseDto, onDismiss: () -> Unit) {
-    val weeks = if (course.weeks.isNotEmpty()) WeekSpec.describe(course.weeks)
-    else "${course.startWeek}-${course.endWeek} 周"
-    AlertDialog(
-        onDismissRequest = { OverlayDismissGuard.arm(); onDismiss() },
-        title = { Text(course.name, fontWeight = FontWeight.SemiBold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                detailLine("时间", "${ScheduleText.weekdayLabel(course.weekday)} · ${periodLabel(course)} · ${course.timeText()}")
-                detailLine("教室", course.location?.takeIf { it.isNotBlank() } ?: "未填写")
-                detailLine("教师", course.teacher?.takeIf { it.isNotBlank() } ?: "未填写")
-                detailLine("周次", weeks)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { OverlayDismissGuard.arm(); onDismiss() }) { Text("知道了") }
-        },
-    )
-}
-
-@Composable
-private fun detailLine(label: String, value: String) {
-    Row {
-        Text(label, color = SvMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.width(42.dp))
-        Text(value, style = MaterialTheme.typography.bodySmall)
+        CourseCardContent(course, foreground = fg, compact = !expanded)
     }
 }
 

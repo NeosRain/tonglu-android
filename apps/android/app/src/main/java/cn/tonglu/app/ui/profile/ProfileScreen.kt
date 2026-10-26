@@ -180,7 +180,7 @@ internal fun ProfileScreen(
                     PersonalBackup.decode(text)
                 }.getOrNull()
             }
-            if (parsed == null) backupNotice = "这个文件读不懂，可能不是苔米林导出的备份。"
+            if (parsed == null) backupNotice = "这个文件读不懂，可能不是苔米厸导出的备份。"
             else pendingRestore = parsed
         }
     }
@@ -699,7 +699,7 @@ internal fun ProfileScreen(
             } else {
                 OutlinedButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth()) { Text("退出登录") }
             }
-            Text("苔米林为非官方项目，与辽东学院及学校平台无隶属关系。", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            Text("苔米厸为非官方项目，与辽东学院及学校平台无隶属关系。", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }        }
         }
         }

@@ -1,6 +1,7 @@
 package cn.tonglu.app.ui
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.Text
@@ -14,6 +15,9 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
+import cn.tonglu.app.R
 import cn.tonglu.app.data.StartupArtwork
 import cn.tonglu.app.data.AppBrand
 import cn.tonglu.app.ui.startup.StartupRefraction
@@ -51,19 +55,22 @@ internal fun StartupScreen(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().safeDrawingPadding().padding(horizontal = 28.dp, vertical = 62.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Image(painterResource(R.drawable.ic_brand_logo), contentDescription = null,
+                modifier = Modifier.size(56.dp).graphicsLayer { alpha = startupTextReveal(progress()) })
+            Spacer(Modifier.height(16.dp))
             Canvas(Modifier.fillMaxWidth(.82f).height(40.dp).semantics { contentDescription = AppBrand.CHINESE_NAME + " " + AppBrand.ENGLISH_NAME }) {
                 val reveal = startupTextReveal(progress())
                 drawWordmark(ink, reveal)
             }
             Spacer(Modifier.height(14.dp))
             Text(
-                "苔米林 —— 陪你把这一天过好", color = ink, fontSize = 15.sp,
+                AppBrand.POEM, color = ink, fontSize = 14.sp, lineHeight = 24.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer { alpha = startupTextReveal(progress()) },
             )
             Spacer(Modifier.height(10.dp))
             // notice（如「启动背景读取失败」）**不随字标渐显**：progress=0 时它也得看得见，
             // 否则背景读取失败时用户只看到一张空白渐变，没有任何解释（2026-10-15 排查实录）。
-            Text(notice ?: "平等 · 互助 · 进步 · 团结", color = AppColors.TextMuted, fontSize = 11.sp)
+            Text(notice ?: AppBrand.VALUES, color = AppColors.TextMuted, fontSize = 11.sp)
         }
     }
 }
@@ -71,7 +78,7 @@ internal fun StartupScreen(
 /** System-font wordmark fitted to its available width; preserves the existing reveal timing. */
 private fun DrawScope.drawWordmark(ink: Color, reveal: Float) {
     if (reveal <= 0f || size.width <= 0f || size.height <= 0f) return
-    val text = AppBrand.ENGLISH_NAME
+    val text = AppBrand.CHINESE_NAME
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
         color = ink.toArgb()
         textAlign = android.graphics.Paint.Align.CENTER
