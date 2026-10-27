@@ -25,6 +25,7 @@ internal fun HomeScreen(
     state: AppUiState,
     search: String,
     onAdd: () -> Unit,
+    onEditCourse: (CourseDto)->Unit,
     onDeleteCourse: (String) -> Unit,
     onRescheduleCourse: (CourseDto, CourseDto, (Boolean, String) -> Unit) -> Unit,
     onImport: () -> Unit,
@@ -160,6 +161,9 @@ internal fun HomeScreen(
             weekStartMillis = gridWeekStart,
             onSetTermStart = { showTermStartDialog = true },
             onEditPeriods = onEditPeriods,
+            onAdd = onAdd,
+            onImport = onImport,
+            onEditCourse = onEditCourse,
             onRescheduleCourse = onRescheduleCourse,
             // AnimatedTimetableWindow.close 内部已 arm（BACK / 下拉 / 关闭按钮共用），
             // 这里再包一层防御未来新增的关闭路径 —— 重复 arm 无害（只是重置冷却起点）。
@@ -185,6 +189,7 @@ internal fun HomeScreen(
                     busy = state.busy,
                     onImport = onImport,
                     onAdd = onAdd,
+                    onEditCourse = onEditCourse,
                     onLongPressCourse = { pendingDelete = it },
                 )
             }
@@ -216,6 +221,7 @@ internal fun HomeScreen(
                     nowMinutes = nowMinutes,
                     onImport = onImport,
                     onAdd = onAdd,
+                    onEditCourse = onEditCourse,
                     today = todayForGrid,
                     weekStartMillis = gridWeekStart,
                     onEditPeriods = onEditPeriods,

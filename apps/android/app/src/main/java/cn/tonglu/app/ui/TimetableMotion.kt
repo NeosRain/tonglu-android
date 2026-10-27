@@ -3,7 +3,6 @@ package cn.tonglu.app.ui
 import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
@@ -124,7 +123,7 @@ internal fun AnimatedTimetableWindow(
                             val start = displayedProgress()
                             dragFraction = 0f
                             motion.snapTo(start)
-                            motion.animateTo(1f, spring(dampingRatio = 0.85f, stiffness = 450f))
+                            motion.animateTo(1f, tween(OverlayMotion.SETTLE_MS, easing = FastOutSlowInEasing))
                         }
                     }
                     accepted = false
@@ -134,7 +133,7 @@ internal fun AnimatedTimetableWindow(
                         val start = displayedProgress()
                         dragFraction = 0f
                         motion.snapTo(start)
-                        motion.animateTo(1f, spring(dampingRatio = 0.85f, stiffness = 450f))
+                        motion.animateTo(1f, tween(OverlayMotion.SETTLE_MS, easing = FastOutSlowInEasing))
                     }
                     accepted = false
                 },

@@ -9,12 +9,19 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -87,8 +94,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import cn.tonglu.app.data.ClassOverLines
 import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.data.Holidays
@@ -268,6 +273,7 @@ internal fun TodayClassesCard(
     busy: Boolean,
     onImport: () -> Unit,
     onAdd: () -> Unit,
+    onEditCourse: ((CourseDto)->Unit)? = null,
     onLongPressCourse: (CourseDto) -> Unit = {},
 ) {
     val today = ScheduleText.todayWeekday()
@@ -435,7 +441,7 @@ internal fun TodayClassesCard(
             }
         }
     }
-    selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse) { selectedCourse = null } }
+    selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
 }
 
 @Composable
@@ -534,6 +540,7 @@ private fun TimetableActions(
     onEditPeriods: () -> Unit,
     onAdd: (() -> Unit)? = null,
     onImport: (() -> Unit)? = null,
+    onManage: (() -> Unit)? = null,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
@@ -541,6 +548,7 @@ private fun TimetableActions(
             Icon(Icons.Outlined.MoreHoriz, "课表设置与操作", tint = SvMuted)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            onManage?.let { action -> DropdownMenuItem(text={MiuixText("管理课程")},onClick={expanded=false;action()}) }
             onAdd?.let { action -> DropdownMenuItem(text = { MiuixText("添加课程") },
                 onClick = { expanded = false; action() }) }
             onImport?.let { action -> DropdownMenuItem(text = { MiuixText("更新课表") },
@@ -609,6 +617,7 @@ internal fun TimetableCard(
     nowMinutes: Int,
     onImport: () -> Unit,
     onAdd: () -> Unit,
+    onEditCourse: ((CourseDto)->Unit)? = null,
     today: Int?,
     weekStartMillis: Long?,
     onEditPeriods: () -> Unit,
@@ -684,6 +693,7 @@ internal fun TimetableCard(
                 }
                 Spacer(Modifier.width(4.dp))
             }
+            IconButton(onClick=expand,modifier=Modifier.size(40.dp)) { Icon(Icons.Outlined.UnfoldMore,"打开完整课表",tint=SvAccent) }
             TimetableActions(onSetTermStart = onSetTermStart, onEditPeriods = onEditPeriods, onAdd = onAdd, onImport = onImport)
         }
         Spacer(Modifier.height(4.dp))
@@ -698,7 +708,7 @@ internal fun TimetableCard(
             onLongPressCourse = onLongPressCourse,
             onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
         )
-        selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse) { selectedCourse = null } }
+        selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
         Spacer(Modifier.height(6.dp))
         // 拖拽把手：手势只认**小横条本体**（44dp 宽 + 纵向热区加宽到 44dp），
         // 横条左右两侧不响应 —— 2026-10-10 用户反馈：之前挂在 fillMaxWidth 的 Column 上，
@@ -756,6 +766,9 @@ internal fun FullscreenTimetableDialog(
     today: Int?,
     weekStartMillis: Long?,
     onEditPeriods: () -> Unit,
+    onAdd: () -> Unit,
+    onImport: () -> Unit,
+    onEditCourse: (CourseDto)->Unit,
     onLongPressCourse: (CourseDto) -> Unit = {},
     allCourses: List<CourseDto> = courses,
     termStart: String? = null,
@@ -766,7 +779,9 @@ internal fun FullscreenTimetableDialog(
 ) {
     // 满屏课表里点课格子的详情弹层
     var selectedCourse by remember { mutableStateOf<CourseSelection?>(null) }
-    AnimatedTimetableWindow(originBounds = originBounds, returnBounds = returnBounds, onDismiss = onDismiss) { close, dragHandle ->
+    var managing by remember { mutableStateOf(false) }
+    var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
+    AnimatedTimetableWindow(originBounds = originBounds, returnBounds = returnBounds, onDismiss = {onDismiss();afterClose?.invoke()}) { close, dragHandle ->
         Surface(color = AppColors.SurfaceOpaque, modifier = Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))) {
                 // 顶部灰色把手：**唯一**响应拖拽的地方 —— 往下拖收起，点一下也收起。
@@ -792,8 +807,13 @@ internal fun FullscreenTimetableDialog(
                     Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    MiuixText(weekLabel, color = SvInk, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    TimetableActions(onSetTermStart = onSetTermStart, onEditPeriods = onEditPeriods)
+                    Column(Modifier.weight(1f)) {
+                        MiuixText("完整课表",color=SvInk,style=MaterialTheme.typography.titleMedium)
+                        MiuixText(weekLabel,color=SvMuted,style=MaterialTheme.typography.labelSmall)
+                    }
+                    IconButton(onClick=onAdd) { Icon(Icons.Outlined.Add,"添加课程",tint=SvAccent) }
+                    TimetableActions(onSetTermStart = onSetTermStart, onEditPeriods = onEditPeriods,onAdd=onAdd,
+                        onImport={afterClose=onImport;close()},onManage={managing=true})
                     IconButton(onClick = close) { Icon(Icons.Outlined.Close, "收起", tint = SvMuted) }
                 }
                 Box(Modifier.padding(horizontal = 16.dp)) {
@@ -808,7 +828,9 @@ internal fun FullscreenTimetableDialog(
                     onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
                     onRescheduleCourse = onRescheduleCourse,
                 )
-                selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse) { selectedCourse = null } }
+                selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse,onEdit=onEditCourse) { selectedCourse = null } }
+                if(managing) CourseManagementDialog(allCourses,onAdd,onEditCourse,onLongPressCourse,
+                    onDetails={ selectedCourse=CourseSelection(it) },onClose={managing=false})
                 // 底部提示条：只留点击收起。
                 // 2026-10-05 起不再挂 dragHandle —— 用户点名「只有顶部灰色把手响应拖拽，
                 // 其下区域不响应」。这里原本也能下拖，结果是从正文区域往下拉会被误判成收起。
@@ -821,6 +843,49 @@ internal fun FullscreenTimetableDialog(
                     contentAlignment = Alignment.Center,
                 ) {
                     MiuixText("点击收起", color = SvMuted, fontSize = 11.sp)
+                }
+            }
+        }
+    }
+}
+
+/** Full course list stays accessible even when overlapping grid cells are too narrow to label. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CourseManagementDialog(courses:List<CourseDto>,onAdd:()->Unit,onEdit:(CourseDto)->Unit,
+    onDelete:(CourseDto)->Unit,onDetails:(CourseDto)->Unit,onClose:()->Unit) {
+    var query by remember { mutableStateOf("") }
+    val motion=rememberOverlayMotion(onClose=onClose,predictive=OverlayMotion.enabledState,selfDrag=true)
+    val rows=remember(courses,query) { courses.filter { query.isBlank()||it.name.contains(query,true)||it.teacher.orEmpty().contains(query,true)||it.location.orEmpty().contains(query,true) }
+        .sortedWith(compareBy<CourseDto> { it.weekday }.thenBy { it.startPeriod }.thenBy { it.name }) }
+    Dialog(onDismissRequest={motion.requestClose()},properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion,fade=false),color=AppColors.CanvasOpaque,contentColor=AppColors.TextPrimary) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+                Row(Modifier.fillMaxWidth().padding(horizontal=12.dp),verticalAlignment=Alignment.CenterVertically) {
+                    Text("课程管理",Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
+                    IconButton(onClick=onAdd) { Icon(Icons.Outlined.Add,"添加课程") }
+                    IconButton(onClick={motion.requestClose()}) { Icon(Icons.Outlined.Close,"关闭课程管理") }
+                }
+                OutlinedTextField(query,onValueChange={query=it},label={Text("搜索课程、老师或教室")},singleLine=true,
+                    modifier=Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp))
+                Text("共 ${rows.size} 门课程 · 包含全部周次",Modifier.padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall)
+                LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+                    if(rows.isEmpty()) item { Text(if(courses.isEmpty()) "还没有课程，点右上角添加。" else "没有匹配的课程。") }
+                    items(rows,key={it.id}) { course ->
+                        Surface(shape=RoundedCornerShape(18.dp),color=AppColors.SurfaceOpaque) {
+                            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+                                Text(course.name,style=MaterialTheme.typography.titleMedium)
+                                Text("${ScheduleText.weekdayLabel(course.weekday)} · ${periodLabel(course)} · ${course.weekLabel()}",
+                                    style=MaterialTheme.typography.bodySmall,color=AppColors.TextSecondary)
+                                course.location?.takeIf { it.isNotBlank() }?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=AppColors.TextSecondary) }
+                                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick={onDetails(course)}) { Text("详情") }
+                                    TextButton(onClick={onEdit(course)}) { Text("编辑") }
+                                    TextButton(onClick={onDelete(course)}) { Text("删除",color=AppColors.Danger) }
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

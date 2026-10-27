@@ -59,8 +59,8 @@ android {
         //              今日/整周小组件裁切与清晰度；网盘容量口径与分享链。
         // M0 内测候选：Android 收口首页/学习/我的，社区入口隐藏，数据与后端保留。
         // 每日预览进preview、每周正式进stable；0.16起预览序号1–98、正式槽99。
-        versionCode = 210001
-        versionName = "0.21.0-beta.1"
+        versionCode = 210002
+        versionName = "0.21.0-beta.2"
         buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
     }
 

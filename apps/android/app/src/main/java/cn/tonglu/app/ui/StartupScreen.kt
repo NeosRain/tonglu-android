@@ -64,7 +64,7 @@ internal fun StartupScreen(
             }
             Spacer(Modifier.height(14.dp))
             Text(
-                AppBrand.POEM, color = ink, fontSize = 14.sp, lineHeight = 24.sp, textAlign = TextAlign.Center,
+                AppBrand.WELCOME, color = ink, fontSize = 14.sp, lineHeight = 24.sp, textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer { alpha = startupTextReveal(progress()) },
             )
             Spacer(Modifier.height(10.dp))

@@ -2,6 +2,8 @@ package cn.tonglu.app.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -15,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -206,6 +209,7 @@ private fun AiBubble(turn: EnglishAiTurn) {
 }
 
 /** 供应商 / 地址 / 模型 / 密钥。密钥进加密存储，界面默认打码。 */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun EnglishAiSettingsDialog(
     store: EnglishAiStore,
@@ -213,31 +217,43 @@ internal fun EnglishAiSettingsDialog(
     onSaved: (EnglishAiConfig) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var config by remember { mutableStateOf(initial) }
+    var config by remember { mutableStateOf(initial.migrated()) }
     var revealed by remember { mutableStateOf(false) }
     var testing by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
+    var fetching by remember { mutableStateOf(false) }
+    var models by remember { mutableStateOf(if(config.isDeepSeek()) EnglishAi.deepSeekModels else emptyList()) }
+    var fromServer by remember { mutableStateOf(false) }
+    var picker by remember { mutableStateOf(false) }
+    val drafts=remember { mutableMapOf<String,EnglishAiConfig>() }
+    val busy=testing || fetching
     val scope = rememberCoroutineScope()
+    val motion=rememberOverlayMotion(onClose=onDismiss,predictive=OverlayMotion.enabledState,selfDrag=true)
     fun applyPreset(id: String) {
+        drafts[config.presetId]=config
         val preset = EnglishAiPresets.find(id)
         config = if (id == "custom") config.copy(presetId = id)
-        else EnglishAiConfig.of(preset, config.apiKey)
+        else drafts[id] ?: EnglishAiConfig.of(preset)
+        models=if(config.isDeepSeek()) EnglishAi.deepSeekModels else emptyList()
+        fromServer=false
         result = null
     }
-    AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = onDismiss,
-        title = { Text("AI 设置") },
-        text = {
-            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("请求从手机直接发到你填的地址，苔米厸服务器不中转、不保存对话；密钥只写进本机加密存储，不随学习记录导出。",
+    Dialog(onDismissRequest={motion.requestClose()},properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion,fade=false),color=MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+                Row(Modifier.fillMaxWidth().heightIn(min=56.dp).padding(horizontal=8.dp),verticalAlignment=Alignment.CenterVertically) {
+                    IconButton(onClick={motion.requestClose()}) { Icon(Icons.AutoMirrored.Outlined.ArrowBack,"关闭 AI 设置") }
+                    Text("AI 设置",style=MaterialTheme.typography.titleLarge)
+                }
+            Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text("选择服务商，填入密钥，再从接口获取模型。请求由手机直连你的服务商。密钥仅保存在本机加密存储，不进入学习备份。",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("服务商", style = MaterialTheme.typography.labelLarge)
-                    EnglishAiPresets.all.chunked(3).forEach { row ->
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            row.forEach { preset ->
-                                EnglishChip(selected = config.presetId == preset.id, onClick = { applyPreset(preset.id) },
-                                    label = { Text(preset.name) })
-                            }
+                    FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(6.dp)) {
+                        EnglishAiPresets.all.forEach { preset ->
+                            FilterChip(selected=config.presetId==preset.id,enabled=!busy,onClick={applyPreset(preset.id)},
+                                label={Text(preset.name,maxLines=1)})
                         }
                     }
                     EnglishAiPresets.find(config.presetId).let { preset ->
@@ -245,39 +261,95 @@ internal fun EnglishAiSettingsDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                 }
-                OutlinedTextField(config.baseUrl, onValueChange = { config = config.copy(baseUrl = it) },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("接口地址") }, singleLine = true,
-                    placeholder = { Text("https://api.deepseek.com/v1") })
-                OutlinedTextField(config.model, onValueChange = { config = config.copy(model = it) },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("模型名") }, singleLine = true)
-                OutlinedTextField(config.apiKey, onValueChange = { config = config.copy(apiKey = it) },
-                    modifier = Modifier.fillMaxWidth(), label = { Text("API Key") }, singleLine = true,
+                OutlinedTextField(config.baseUrl, onValueChange = { config = config.copy(baseUrl = it);models=emptyList();fromServer=false;result=null },
+                    modifier = Modifier.fillMaxWidth(), label = { Text("接口根地址") }, singleLine = true,enabled=!busy,
+                    keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Uri),
+                    placeholder = { Text("https://api.deepseek.com") })
+                OutlinedTextField(config.apiKey, onValueChange = { config = config.copy(apiKey = it);models=emptyList();fromServer=false;result=null },
+                    modifier = Modifier.fillMaxWidth(), label = { Text(if(config.presetId=="local") "API Key（无鉴权可留空）" else "API Key") }, singleLine = true,enabled=!busy,
                     visualTransformation = if (revealed) VisualTransformation.None else PasswordVisualTransformation(),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                     trailingIcon = { IconButton(onClick = { revealed = !revealed }) {
                         Icon(if (revealed) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
                             if (revealed) "隐藏密钥" else "显示密钥") } })
-                result?.let { Text(it, color = if (it.startsWith("可用")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
-            }
-        },
-        confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { testing = true; result = null; scope.launch {
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick={fetching=true;result=null;scope.launch {
+                        try { models=EnglishAi.models(config);fromServer=true;result="已获取 ${models.size} 个模型，请选择。" }
+                        catch(e:kotlinx.coroutines.CancellationException) { throw e }
+                        catch(e:EnglishAiException) { result=e.message }
+                        catch(_:Exception) { result="获取失败，请检查地址和密钥格式。" }
+                        finally { fetching=false }
+                    }},enabled=config.connectionReady()&&!busy,modifier=Modifier.weight(1f)) { Text(if(fetching) "获取中…" else "获取模型") }
+                    OutlinedButton(onClick={picker=true},enabled=models.isNotEmpty()&&!busy,modifier=Modifier.weight(1f)) { Text("选择模型") }
+                }
+                if(models.isNotEmpty()) Text(if(fromServer) "模型列表来自当前接口，按账户权限返回。" else "下列为官方预设；获取后可查看账户实际可用列表。",
+                    style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                OutlinedTextField(config.model,onValueChange={config=config.copy(model=it)},modifier=Modifier.fillMaxWidth(),
+                    label={Text("模型标识")},supportingText={Text("可从列表选择，也可手动填写。")},singleLine=true,enabled=!busy)
+                if(config.isDeepSeek()) {
+                    Text("思考强度",style=MaterialTheme.typography.labelLarge)
+                    FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                        listOf("none" to "关闭","low" to "低","high" to "高","max" to "最高").forEach { (value,label) ->
+                            FilterChip(selected=config.reasoningEffort==value,onClick={config=config.copy(reasoningEffort=value)},enabled=!busy,label={Text(label)})
+                        }
+                    }
+                    Text("日常问答默认关闭思考；开启后输出预算至少为 8192 tokens，可能耗时更长、消耗更多额度。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                result?.let { Text(it, color = if (it.startsWith("可用")||it.startsWith("已获取")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error) }
+                OutlinedButton(onClick = { testing = true; result = null; scope.launch {
                     try {
                         EnglishAi.chat(config, listOf(EnglishAiTurn("system", "只回复两个字：可用"), EnglishAiTurn("user", "可用吗")))
                         result = "可用：接口通了，模型有响应。"
                     } catch (cause: EnglishAiException) { result = cause.message ?: "连接失败" }
                     catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                    catch (cause: Exception) { result = "连接失败：${cause.message ?: cause::class.java.simpleName}" }
+                    catch (_: Exception) { result = "连接失败，请检查地址和密钥格式。" }
                     finally { testing = false }
-                } }, enabled = config.ready() && !testing) { Text(if (testing) "测试中…" else "测试连接") }
-                TextButton(onClick = { store.save(config); onSaved(config); onDismiss() }) { Text("保存") }
+                } }, enabled = config.ready() && !busy,modifier=Modifier.fillMaxWidth()) { Text(if (testing) "测试中…" else "测试连接") }
+                Text("测试会发送一条简短请求，可能消耗服务商额度。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(enabled=!busy&&config.apiKey.isNotBlank(),onClick={
+                    config=config.copy(apiKey="");drafts[config.presetId]=config;store.clearKey();onSaved(store.load())
+                }) { Text("清除已保存的密钥") }
+                Spacer(Modifier.height(12.dp))
             }
-        },
-        dismissButton = {
-            Row {
-                TextButton(onClick = { config = config.copy(apiKey = ""); store.clearKey(); onSaved(config.copy(apiKey = "")) }) { Text("清除密钥") }
-                TextButton(onClick = onDismiss) { Text("关闭") }
+                HorizontalDivider()
+                Button(onClick={
+                    val value=config.copy(baseUrl=config.baseUrl.trim(),model=config.model.trim(),apiKey=config.apiKey.trim()).migrated()
+                    try { EnglishAi.endpoint(value.baseUrl);store.save(value);onSaved(value);motion.requestClose() }
+                    catch(e:EnglishAiException) { result=e.message }
+                },enabled=config.ready()&&!busy,modifier=Modifier.fillMaxWidth().padding(horizontal=20.dp,vertical=12.dp)) { Text("保存配置") }
             }
-        })
+        }
+    }
+    if(picker) AiModelPicker(models,onSelect={config=config.copy(model=it.id);picker=false;result=null},onClose={picker=false})
+}
+
+@Composable
+private fun AiModelPicker(models:List<EnglishAi.Model>,onSelect:(EnglishAi.Model)->Unit,onClose:()->Unit) {
+    var filter by remember { mutableStateOf("") }
+    val visible=remember(models,filter) { models.filter { it.name.contains(filter,true)||it.id.contains(filter,true) } }
+    val motion=rememberOverlayMotion(onClose=onClose,predictive=OverlayMotion.enabledState,selfDrag=true)
+    Dialog(onDismissRequest={motion.requestClose()},properties=DialogProperties(usePlatformDefaultWidth=false,decorFitsSystemWindows=false)) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion,fade=false),color=MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
+                Row(Modifier.fillMaxWidth().heightIn(min=56.dp),verticalAlignment=Alignment.CenterVertically) {
+                    IconButton(onClick={motion.requestClose()}) { Icon(Icons.AutoMirrored.Outlined.ArrowBack,"关闭模型列表") }
+                    Text("选择模型",style=MaterialTheme.typography.titleLarge)
+                }
+                OutlinedTextField(filter,onValueChange={filter=it},label={Text("搜索模型名称或标识")},singleLine=true,
+                    modifier=Modifier.fillMaxWidth().padding(horizontal=20.dp))
+                Text("${visible.size} 个模型",Modifier.padding(horizontal=20.dp,vertical=8.dp),style=MaterialTheme.typography.bodySmall)
+                LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(horizontal=12.dp,vertical=8.dp)) {
+                    items(visible,key={it.id}) { model ->
+                        TextButton(onClick={onSelect(model)},modifier=Modifier.fillMaxWidth()) {
+                            Column(Modifier.fillMaxWidth().padding(8.dp)) {
+                                Text(model.name,maxLines=2,overflow=TextOverflow.Ellipsis)
+                                if(model.name!=model.id) Text(model.id,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                                model.contextWindow?.let { Text("上下文 $it tokens",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

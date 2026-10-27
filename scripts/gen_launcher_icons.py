@@ -19,13 +19,8 @@ def glyph(size,adaptive=False):
         d.polygon(coords,fill=INK)
     return im.resize((size,size),Image.Resampling.LANCZOS)
 def background(size):
-    start=(178,255,217);end=(0,185,209)
-    im=Image.new('RGBA',(size,size));pixels=im.load()
-    for y in range(size):
-        for x in range(size):
-            t=(x+y)/max(1,2*size-2)
-            pixels[x,y]=tuple(round(a+(b-a)*t) for a,b in zip(start,end))+(255,)
-    return im
+    return Image.new('RGBA',(size,size),'#8CE6CC')
+
 def icon(size,rounded=False,store=False):
     im=background(size);im.alpha_composite(glyph(size))
     if not store:

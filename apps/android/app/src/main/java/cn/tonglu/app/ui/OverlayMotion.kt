@@ -192,8 +192,12 @@ object OverlayMotion {
     var dragProgress by mutableFloatStateOf(0f)
         private set
 
+    var dragFromLeft by mutableStateOf(true)
+        private set
+
     /** 层把跟手进度广播出来（每帧一次，来自 `SideEffect`）。 */
-    fun publishDrag(progress: Float) {
+    fun publishDrag(progress: Float, fromLeft: Boolean = true) {
+        dragFromLeft = fromLeft
         dragProgress = progress.coerceIn(0f, 1f)
     }
 }
@@ -207,12 +211,10 @@ object OverlayMotion {
  * 不会触发整棵主内容重组 —— 主内容有五个常驻页面，一帧重组一次是不可接受的。
  */
 fun GraphicsLayerScope.underlayParallax() {
-    val p = OverlayMotion.dragProgress
-    if (p <= 0f) return
-    translationX = -p * size.width * OverlayMotion.UNDERLAY_PARALLAX
-    val shrink = 1f - (1f - p) * OverlayMotion.UNDERLAY_MIN_SCALE
-    scaleX *= shrink
-    scaleY *= shrink
+    val transform = underlayBackTransform(OverlayMotion.dragProgress, OverlayMotion.dragFromLeft)
+    translationX += transform.translationRatio * size.width
+    scaleX *= transform.scale
+    scaleY *= transform.scale
 }
 
 /**
@@ -711,7 +713,7 @@ fun OverlayLayerHost(
     // 广播给下层。**读值发生在 [UnderlayParallaxSync] 这个叶子里**，所以本层不跟着重组。
     // 用 SideEffect 而不是在组合里直接赋值：直接赋值是「组合期写 State」，
     // 一旦下层也在组合期读它就会互相触发，最坏情况是无限重组。
-    UnderlayParallaxSync(motion.predictive, back)
+    UnderlayParallaxSync(motion.predictive, back, motion.edge)
     // ⚠️ 复位是**必须的**：这一层从组合里消失时 SideEffect 不会再跑，
     // 下层会永远停在「被推开一半、还缩了一点」的位置上。
     DisposableEffect(motion) { onDispose { OverlayMotion.publishDrag(0f) } }
@@ -742,10 +744,10 @@ fun OverlayLayerHost(
 }
 
 @Composable
-private fun UnderlayParallaxSync(predictive: Boolean, back: State<Float>) {
+private fun UnderlayParallaxSync(predictive: Boolean, back: State<Float>, edge: EdgeBackState) {
     // 组合期读值 —— 但只在这个叶子里读，失效范围就这几行；本层与页面都不跟着重组。
     val progress = back.value
-    SideEffect { OverlayMotion.publishDrag(if (predictive) progress else 0f) }
+    SideEffect { OverlayMotion.publishDrag(if (predictive) progress else 0f, edge.fromLeft) }
 }
 
 @Composable

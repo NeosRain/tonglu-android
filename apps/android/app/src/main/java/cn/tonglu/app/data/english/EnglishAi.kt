@@ -10,6 +10,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
@@ -35,18 +36,18 @@ data class EnglishAiPreset(val id: String, val name: String, val baseUrl: String
 object EnglishAiPresets {
     /** 顺序即界面顺序。`custom` 放最后，选中后三项都自己填。 */
     val all = listOf(
-        EnglishAiPreset("deepseek", "DeepSeek", "https://api.deepseek.com/v1", "deepseek-chat",
-            "国内直连、便宜，deepseek-chat 足够讲单词"),
-        EnglishAiPreset("zhipu", "智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "glm-4-flash",
-            "glm-4-flash 有免费额度"),
-        EnglishAiPreset("moonshot", "月之暗面 Kimi", "https://api.moonshot.cn/v1", "moonshot-v1-8k",
-            "新用户有赠送额度"),
-        EnglishAiPreset("siliconflow", "硅基流动", "https://api.siliconflow.cn/v1", "Qwen/Qwen2.5-7B-Instruct",
-            "聚合多家开源模型"),
-        EnglishAiPreset("openai", "OpenAI", "https://api.openai.com/v1", "gpt-4o-mini",
-            "需要能访问 OpenAI 的网络"),
-        EnglishAiPreset("local", "本地 / 中转", "http://127.0.0.1:11434/v1", "qwen2.5:7b",
-            "Ollama、LM Studio、自建中转选这个"),
+        EnglishAiPreset("deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek-flash",
+            "使用官方当前模型；也可从接口刷新可用列表。"),
+        EnglishAiPreset("zhipu", "智谱 GLM", "https://open.bigmodel.cn/api/paas/v4", "",
+            "填入密钥后获取模型；可用模型与权限以账户返回为准。"),
+        EnglishAiPreset("moonshot", "Kimi", "https://api.moonshot.cn/v1", "",
+            "从接口选择账户可用模型，不预设赠送额度。"),
+        EnglishAiPreset("siliconflow", "硅基流动", "https://api.siliconflow.cn/v1", "",
+            "填入密钥后获取模型，也可手动填写模型标识。"),
+        EnglishAiPreset("openai", "OpenAI", "https://api.openai.com/v1", "",
+            "从接口选择模型，需要可以访问服务的网络。"),
+        EnglishAiPreset("local", "本地服务", "http://127.0.0.1:11434/v1", "",
+            "支持 Ollama / LM Studio；127.0.0.1 指手机自身，电脑服务请填局域网地址。"),
         EnglishAiPreset("custom", "自定义", "", "", "兼容 OpenAI 的任意地址，三项都自己填"),
     )
 
@@ -59,9 +60,14 @@ data class EnglishAiConfig(
     val baseUrl: String = EnglishAiPresets.all.first().baseUrl,
     val model: String = EnglishAiPresets.all.first().model,
     val apiKey: String = "",
+    val reasoningEffort: String = "none",
 ) {
     /** 缺任何一项都算没配好 —— 界面据此决定是弹设置还是直接问。 */
-    fun ready(): Boolean = baseUrl.isNotBlank() && model.isNotBlank() && apiKey.isNotBlank()
+    fun connectionReady(): Boolean = baseUrl.isNotBlank() && (apiKey.isNotBlank() || presetId == "local")
+    fun ready(): Boolean = connectionReady() && model.isNotBlank()
+    fun isDeepSeek(): Boolean = baseUrl.toHttpUrlOrNull()?.host == "api.deepseek.com"
+    fun migrated(): EnglishAiConfig = if (isDeepSeek() && model in setOf("deepseek-chat", "deepseek-reasoner"))
+        copy(model="deepseek-flash", reasoningEffort=if(model=="deepseek-reasoner") "high" else "none") else this
 
     companion object {
         fun of(preset: EnglishAiPreset, key: String = "") =
@@ -94,7 +100,8 @@ class EnglishAiStore(context: Context) {
         return try {
             val json = JSONObject(raw)
             EnglishAiConfig(json.optString("presetId", EnglishAiPresets.all.first().id),
-                json.optString("baseUrl"), json.optString("model"), json.optString("apiKey"))
+                json.optString("baseUrl"), json.optString("model"), json.optString("apiKey"),
+                json.optString("reasoningEffort", "none")).migrated()
         } catch (cause: Exception) {
             Log.w("EnglishAi", "配置解析失败，回退默认", cause)
             EnglishAiConfig()
@@ -104,7 +111,7 @@ class EnglishAiStore(context: Context) {
     fun save(config: EnglishAiConfig) {
         memory = config
         val json = JSONObject().put("presetId", config.presetId).put("baseUrl", config.baseUrl)
-            .put("model", config.model).put("apiKey", config.apiKey)
+            .put("model", config.model).put("apiKey", config.apiKey).put("reasoningEffort",config.reasoningEffort)
         try { preferences?.edit()?.putString("config", json.toString())?.apply() }
         catch (cause: Exception) { Log.w("EnglishAi", "配置保存失败", cause) }
     }
@@ -123,7 +130,72 @@ object EnglishAi {
         // 讲一个单词用不了太久，但便宜模型偶尔会排队，给足读超时
         .readTimeout(90, TimeUnit.SECONDS)
         .callTimeout(120, TimeUnit.SECONDS)
+        .followRedirects(false).followSslRedirects(false)
         .build()
+    private val modelClient = client.newBuilder().readTimeout(20,TimeUnit.SECONDS).callTimeout(30,TimeUnit.SECONDS).build()
+
+    data class Model(val id: String, val name: String = id, val contextWindow: Long? = null)
+    val deepSeekModels = listOf(Model("deepseek-flash", "DeepSeek Flash"),Model("deepseek-v4-pro", "DeepSeek V4 Pro"))
+
+    fun modelsEndpoint(baseUrl: String): String = rootEndpoint(baseUrl) + "/models"
+    private fun rootEndpoint(baseUrl: String): String {
+        val value = baseUrl.trim().trimEnd('/').removeSuffix("/chat/completions").removeSuffix("/models")
+        val url=value.toHttpUrlOrNull() ?: throw EnglishAiException("请填写有效的 HTTP 或 HTTPS 接口地址。")
+        if (url.username.isNotEmpty() || url.password.isNotEmpty() || url.query!=null || url.fragment!=null)
+            throw EnglishAiException("接口地址不能包含账号、密码、查询参数或锚点。密钥请填在 API Key。")
+        return url.toString().trimEnd('/')
+    }
+
+    fun parseModels(text: String): List<Model> {
+        val data=try { JSONObject(text).getJSONArray("data") } catch (_: Exception) {
+            throw EnglishAiException("接口未返回兼容的模型列表，可手动填写模型名。")
+        }
+        if(data.length()>5000) throw EnglishAiException("模型列表过大，请使用手动模型名。")
+        return (0 until data.length()).mapNotNull { i ->
+            val row=data.optJSONObject(i) ?: return@mapNotNull null
+            val id=(row.opt("id") as? String)?.trim() ?: return@mapNotNull null
+            if(id.isBlank() || id.length>200 || id.any { it.isISOControl() }) return@mapNotNull null
+            val name=row.optString("name").trim().takeIf { it.isNotBlank() && it.length<=200 && it.none(Char::isISOControl) } ?: id
+            Model(id,name,row.optLong("context_window").takeIf { it>0 })
+        }.distinctBy { it.id }.sortedBy { it.name.lowercase(java.util.Locale.ROOT) }
+    }
+
+    suspend fun models(config: EnglishAiConfig): List<Model> = withContext(Dispatchers.IO) {
+        if(!config.connectionReady()) throw EnglishAiException("先填写接口地址和密钥，再获取模型。")
+        val request=Request.Builder().url(modelsEndpoint(config.baseUrl)).apply {
+            if(config.apiKey.isNotBlank()) header("Authorization","Bearer ${config.apiKey.trim()}")
+        }.get().build()
+        try {
+            modelClient.newCall(request).execute().use { response ->
+                val bytes=response.body?.byteStream()?.use { input ->
+                    val output=java.io.ByteArrayOutputStream();val buffer=ByteArray(8192)
+                    while(true) { val n=input.read(buffer);if(n<0)break
+                        if(output.size()+n>2*1024*1024) throw EnglishAiException("模型列表响应过大，请手动填写。")
+                        output.write(buffer,0,n)
+                    };output.toByteArray()
+                } ?: ByteArray(0)
+                if(!response.isSuccessful) throw EnglishAiException(if(response.code==404 || response.code==405)
+                    "该接口不提供模型列表，可手动填写模型名。" else explain(response.code,bytes.toString(Charsets.UTF_8),config.apiKey))
+                parseModels(bytes.toString(Charsets.UTF_8)).ifEmpty { throw EnglishAiException("接口返回空模型列表，请核对权限或手动填写。") }
+            }
+        } catch(e:SocketTimeoutException) { throw EnglishAiException("获取模型超时，请重试；也可以手动填写。") }
+        catch(e:IOException) { throw EnglishAiException("无法获取模型，请检查网络和接口地址。") }
+    }
+
+    internal fun requestBody(config: EnglishAiConfig,turns:List<EnglishAiTurn>,maxTokens:Int,temperature:Double,jsonMode:Boolean):JSONObject {
+        val effective=config.migrated()
+        val body=JSONObject().put("model",effective.model.trim()).put("stream",false).put("max_tokens",maxTokens)
+        if(effective.isDeepSeek()) {
+            val effort=effective.reasoningEffort.takeIf { it in setOf("none","low","high","max") } ?: "none"
+            body.put("thinking",JSONObject().put("type",if(effort=="none") "disabled" else "enabled"))
+            if(effort!="none") body.put("reasoning_effort",effort).put("max_tokens",maxTokens.coerceAtLeast(8192))
+        } else body.put("temperature",temperature)
+        if(jsonMode)body.put("response_format",JSONObject().put("type","json_object"))
+        body.put("messages",JSONArray().apply {
+            put(JSONObject().put("role","system").put("content",cn.tonglu.app.data.ai.AssistantPersona.IDENTITY))
+            turns.forEach { put(JSONObject().put("role",it.role).put("content",it.content)) }
+        });return body
+    }
 
     private const val SYSTEM_PROMPT = "你是「苔米厸」里的英语单词教练，帮助中国大学生记住并会用单词。\n" +
         "要求：用中文回答；除学生明确要求长篇外控制在 220 字以内；先给记忆方法（词根词缀 / 拆分 / 联想 / 对比），" +
@@ -162,15 +234,9 @@ object EnglishAi {
     suspend fun chat(config: EnglishAiConfig, turns: List<EnglishAiTurn>,
         maxTokens: Int = 700, temperature: Double = 0.7, jsonMode: Boolean = false): String = withContext(Dispatchers.IO) {
         if (!config.ready()) throw EnglishAiException("还没有配置 API，先在「AI 设置」里填好。")
-        val body = JSONObject().put("model", config.model).put("stream", false)
-            .put("temperature", temperature).put("max_tokens", maxTokens)
-        if (jsonMode) body.put("response_format", JSONObject().put("type", "json_object"))
-        body.put("messages", JSONArray().apply {
-            put(JSONObject().put("role", "system").put("content", cn.tonglu.app.data.ai.AssistantPersona.IDENTITY))
-            turns.forEach { turn ->
-            put(JSONObject().put("role", turn.role).put("content", turn.content)) } })
+        val body = requestBody(config,turns,maxTokens,temperature,jsonMode)
         val request = Request.Builder().url(endpoint(config.baseUrl))
-            .addHeader("Authorization", "Bearer ${config.apiKey}")
+            .apply { if(config.apiKey.isNotBlank()) header("Authorization", "Bearer ${config.apiKey.trim()}") }
             .addHeader("Content-Type", "application/json")
             .post(body.toString().toRequestBody(json)).build()
         val response = try { client.newCall(request).execute() }
@@ -178,33 +244,34 @@ object EnglishAi {
         catch (cause: IOException) { throw EnglishAiException("连不上接口地址，检查网络与地址是否正确。") }
         response.use { res ->
             val text = res.body?.string().orEmpty()
-            if (!res.isSuccessful) throw EnglishAiException(explain(res.code, text))
+            if (!res.isSuccessful) throw EnglishAiException(explain(res.code, text,config.apiKey))
             val content = try {
                 JSONObject(text).optJSONArray("choices")?.optJSONObject(0)
                     ?.optJSONObject("message")?.optString("content")?.trim()
             } catch (_: Exception) { null }
-            if (content.isNullOrEmpty()) throw EnglishAiException("接口没返回内容，换个模型试试。")
+            if (content.isNullOrEmpty()) throw EnglishAiException("接口未返回正文；若启用了思考，请关闭思考重试，或提高输出预算。")
             content
         }
     }
 
     /** 用户手填地址时可能带 /chat/completions，也可能只填到 /v1，统一拼一次。 */
     fun endpoint(baseUrl: String): String {
-        val trimmed = baseUrl.trim().trimEnd('/')
-        return if (trimmed.endsWith("/chat/completions")) trimmed else "$trimmed/chat/completions"
+        return rootEndpoint(baseUrl) + "/chat/completions"
     }
 
     /** 把各家不同的错误体翻成人话；密钥、余额、地址是最常见的三种。 */
-    private fun explain(code: Int, body: String): String {
+    private fun explain(code: Int, body: String, key:String=""): String {
         val message = try { JSONObject(body).optJSONObject("error")?.optString("message") } catch (_: Exception) { null }
             ?.takeIf { it.isNotBlank() } ?: body.take(120)
+        val safe=if(key.isNotBlank()) message.replace(key.trim(),"[已隐藏]").take(180) else message.take(180)
         return when (code) {
-            401, 403 -> "密钥无效或没有这个模型的权限（$message）"
-            402 -> "账户余额不足（$message）"
-            404 -> "地址或模型名不对（$message）"
-            429 -> "请求太频繁或额度用完（$message）"
+            401, 403 -> "密钥无效或没有这个模型的权限（$safe）"
+            402 -> "账户余额不足（$safe）"
+            404 -> "地址或模型名不对（$safe）"
+            429 -> "请求太频繁或额度用完（$safe）"
             in 500..599 -> "供应商服务暂时不可用，稍后再试"
-            else -> "接口返回 $code：$message"
+            in 300..399 -> "接口要求重定向，请填写最终服务地址后重试。"
+            else -> "接口返回 $code：$safe"
         }
     }
 }

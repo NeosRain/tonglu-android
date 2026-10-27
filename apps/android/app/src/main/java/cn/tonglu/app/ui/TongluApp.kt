@@ -11,6 +11,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -287,6 +288,9 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     var search by rememberSaveable { mutableStateOf("") }
     var aiRequest by rememberSaveable { mutableIntStateOf(0) }
     var showCourseDialog by remember { mutableStateOf(false) }
+    var editingCourse by remember { mutableStateOf<CourseDto?>(null) }
+    var courseSaving by remember { mutableStateOf(false) }
+    var courseSaveError by remember { mutableStateOf<String?>(null) }
     var showPeriodEditor by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val tabNavigator = remember(mainPager, scope) { MainTabNavigator(mainPager, scope) }
@@ -568,7 +572,8 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     0 -> CompositionLocalProvider(LocalCourseColors provides courseColors) { HomeScreen(
                         state = state,
                         search = search,
-                        onAdd = { showCourseDialog = true },
+                        onAdd = { editingCourse=null;courseSaveError=null;showCourseDialog = true },
+                        onEditCourse = { editingCourse=it;courseSaveError=null;showCourseDialog=true },
                         onDeleteCourse = viewModel::deleteCourse,
                         onRescheduleCourse = viewModel::rescheduleCourse,
                         onImport = { importBoth = false; jointScheduleSaved = false; showScheduleImport = true },
@@ -758,8 +763,21 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     }
 
     if (showCourseDialog) CourseDialog(
-        onDismiss = { closeLayer { showCourseDialog = false } },
-        onSave = { course -> viewModel.createCourse(course) { ok -> if (ok) closeLayer { showCourseDialog = false } } },
+        initial=editingCourse,saving=courseSaving,saveError=courseSaveError,
+        onDismiss = { if(!courseSaving)closeLayer { showCourseDialog = false } },
+        onSave = { course ->
+            if(!courseSaving) {
+                courseSaving=true;courseSaveError=null
+                val before=editingCourse
+                if(before==null) viewModel.createCourse(course) { ok ->
+                    courseSaving=false
+                    if(ok)closeLayer { showCourseDialog=false } else courseSaveError="保存失败，请重试"
+                } else viewModel.updateCourse(before,course) { ok,message ->
+                    courseSaving=false
+                    if(ok)closeLayer { showCourseDialog=false } else courseSaveError=message
+                }
+            }
+        },
         onEditPeriods = { showPeriodEditor = true },
     )
     if (showPeriodEditor) PeriodEditorDialog(
@@ -1266,22 +1284,26 @@ private fun SearchField(
 private fun fieldColor(onGlass: Boolean, flat: Color): Color =
     if (onGlass) flat.copy(alpha = 0.94f) else flat
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CourseDialog(
     onDismiss: () -> Unit,
     onSave: (CreateCourseRequest) -> Unit,
     onEditPeriods: () -> Unit,
+    initial: CourseDto? = null,
+    saving: Boolean = false,
+    saveError: String? = null,
 ) {
-    var name by remember { mutableStateOf("") }
-    var teacher by remember { mutableStateOf("") }
-    var location by remember { mutableStateOf("") }
-    var weekday by remember { mutableIntStateOf(todayWeekday()) }
-    var start by remember { mutableStateOf("1") }
-    var end by remember { mutableStateOf("2") }
-    var weekMode by remember { mutableStateOf(WeekSpec.EVERY) }
-    var startWeek by remember { mutableStateOf("1") }
-    var endWeek by remember { mutableStateOf("20") }
-    var customWeeks by remember { mutableStateOf("") }
+    var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
+    var teacher by remember(initial?.id) { mutableStateOf(initial?.teacher.orEmpty()) }
+    var location by remember(initial?.id) { mutableStateOf(initial?.location.orEmpty()) }
+    var weekday by remember(initial?.id) { mutableIntStateOf(initial?.weekday ?: todayWeekday()) }
+    var start by remember(initial?.id) { mutableStateOf((initial?.startPeriod ?: 1).toString()) }
+    var end by remember(initial?.id) { mutableStateOf((initial?.endPeriod ?: 2).toString()) }
+    var weekMode by remember(initial?.id) { mutableStateOf(if(initial?.weeks?.isNotEmpty()==true) WeekSpec.CUSTOM else WeekSpec.EVERY) }
+    var startWeek by remember(initial?.id) { mutableStateOf((initial?.startWeek ?: 1).toString()) }
+    var endWeek by remember(initial?.id) { mutableStateOf((initial?.endWeek ?: 20).toString()) }
+    var customWeeks by remember(initial?.id) { mutableStateOf(initial?.weeks?.joinToString(",").orEmpty()) }
     var error by remember { mutableStateOf<String?>(null) }
 
     val fromPeriod = start.toIntOrNull() ?: 1
@@ -1296,19 +1318,18 @@ private fun CourseDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("添加课程") },
+        modifier = Modifier.imePadding(),
+        onDismissRequest = {if(!saving)onDismiss()},
+        title = { Text(if(initial==null) "添加课程" else "编辑课程") },
         text = {
             Column(
                 Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp),
             ) {
                 OutlinedTextField(name, { name = it.take(40) }, label = { Text("课程名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(teacher, { teacher = it.take(20) }, label = { Text("老师（可选）") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(location, { location = it.take(30) }, label = { Text("教室（可选）") }, singleLine = true, modifier = Modifier.weight(1f))
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                OutlinedTextField(teacher, { teacher = it.take(20) }, label = { Text("老师（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(location, { location = it.take(30) }, label = { Text("教室（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
                     Text("星期", color = Muted, style = MaterialTheme.typography.bodySmall)
                     (1..7).forEach { day ->
                         Surface(color = if (weekday == day) Accent else Canvas, shape = CircleShape, modifier = Modifier.clickable { weekday = day }) {
@@ -1330,7 +1351,7 @@ private fun CourseDialog(
                     color = Muted,
                     style = MaterialTheme.typography.bodySmall,
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text("周次", color = Muted, style = MaterialTheme.typography.bodySmall)
                     WeekSpec.allModes.forEach { mode ->
                         Surface(
@@ -1371,7 +1392,7 @@ private fun CourseDialog(
                 }
                 // 🔴 不能用写死的深红：深色主题下 `#C92A2A` 压在 `#1D2027` 的面板上只有约 2.6:1，
                 //    正文级文字要 ≥4.5:1。`AppColors.Danger` 本来就分浅/深两套，用它。
-                error?.let { Text(it, color = AppColors.Danger, style = MaterialTheme.typography.bodySmall) }
+                (error ?: saveError)?.let { Text(it, color = AppColors.Danger, style = MaterialTheme.typography.bodySmall) }
             }
         },
         confirmButton = {
@@ -1389,10 +1410,10 @@ private fun CourseDialog(
                     customWeeks = customWeeks,
                 )
                 val request = pair.first
-                if (request == null) error = pair.second ?: "信息还不完整" else onSave(request)
-            }) { Text("保存") }
+                if (request == null) error = pair.second ?: "信息还不完整" else {error=null;onSave(request)}
+            },enabled=!saving) { Text(if(saving) "保存中…" else "保存") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss,enabled=!saving) { Text("取消") } },
     )
 }
 

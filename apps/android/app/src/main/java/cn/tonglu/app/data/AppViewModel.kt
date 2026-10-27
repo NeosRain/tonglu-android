@@ -1170,6 +1170,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         } }
     }
 
+    fun updateCourse(before: CourseDto, request: CreateCourseRequest, onComplete: (Boolean,String)->Unit) {
+        val expectedOwner=ownerKey()
+        viewModelScope.launch { academicMutex.withLock {
+            try {
+                check(ownerKey()==expectedOwner) { "账号已切换，请重新打开课程" }
+                val courses=repository.snapshot(expectedOwner).courses
+                check(courses.firstOrNull { it.id==before.id }==before) { "课程已发生变化，请重新打开后编辑" }
+                val updated=editedCourse(before,request)
+                applyCourses(courses.map { if(it.id==before.id) updated else it },"课程已更新")
+                onComplete(true,"课程已更新")
+            } catch(e:CancellationException) { throw e }
+            catch(e:Exception) { handleFailure(e);onComplete(false,e.message?:"保存失败，请重试") }
+        } }
+    }
+
     fun deleteCourse(id: String) {
         viewModelScope.launch { academicMutex.withLock {
             runCatching { applyCourses(repository.snapshot(ownerKey()).courses.filterNot { it.id == id }, "课程已删除") }
