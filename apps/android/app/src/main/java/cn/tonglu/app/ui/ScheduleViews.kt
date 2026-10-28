@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -57,8 +59,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -91,6 +91,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
@@ -547,14 +548,30 @@ private fun TimetableActions(
         IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
             Icon(Icons.Outlined.MoreHoriz, "课表设置与操作", tint = SvMuted)
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            onManage?.let { action -> DropdownMenuItem(text={MiuixText("管理课程")},onClick={expanded=false;action()}) }
-            onAdd?.let { action -> DropdownMenuItem(text = { MiuixText("添加课程") },
-                onClick = { expanded = false; action() }) }
-            onImport?.let { action -> DropdownMenuItem(text = { MiuixText("更新课表") },
-                onClick = { expanded = false; action() }) }
-            DropdownMenuItem(text = { MiuixText("查看作息") }, onClick = { expanded = false; onEditPeriods() })
-            DropdownMenuItem(text = { MiuixText("开学日期") }, onClick = { expanded = false; onSetTermStart() })
+        if (expanded) {
+            val offset = with(LocalDensity.current) { 44.dp.roundToPx() }
+            val actions = buildList<Pair<String, () -> Unit>> {
+                onManage?.let { add("管理课程" to it) }
+                onAdd?.let { add("添加课程" to it) }
+                onImport?.let { add("更新课表" to it) }
+                add("查看作息" to onEditPeriods)
+                add("开学日期" to onSetTermStart)
+            }
+            Popup(alignment = Alignment.TopEnd, offset = IntOffset(0, offset),
+                onDismissRequest = { expanded = false }, properties = PopupProperties(focusable = true)) {
+                Surface(shape = RoundedCornerShape(22.dp), color = AppColors.SurfaceOpaque,
+                    contentColor = AppColors.TextPrimary, shadowElevation = 12.dp) {
+                    Column(Modifier.width(220.dp).padding(6.dp)) {
+                        actions.forEach { (label, action) ->
+                            Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                                .clickable { expanded = false; action() }.heightIn(min = 48.dp)
+                                .padding(horizontal = 16.dp, vertical = 12.dp), contentAlignment = Alignment.CenterStart) {
+                                MiuixText(label, color = AppColors.TextPrimary, fontSize = 16.sp)
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

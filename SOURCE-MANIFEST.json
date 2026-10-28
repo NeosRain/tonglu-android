@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "b1de3789678c413dc3e47e4499a80f4e35256749",
+  "sourceCommit": "0819966a0fc1e024663dc7ad26db9b91e1cab550",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "647ae4820351419cd3ca0ff11cea949b66a58f16ac6652d2cd123a0f28fabdf6"
+      "sha256": "ac8b1de19e626f80c6356618b97d65f8597575424b8b6119588590966ac77b8e"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -302,8 +302,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/AppViewModel.kt",
-      "bytes": 142133,
-      "sha256": "2b71ea12b2cb2f58689275c77e379efb3a01c952bbe022f5fdc9bea55eb05b07"
+      "bytes": 143831,
+      "sha256": "4fd39bc7a29c8a950688eb5400c7dddf3c5a64806163e8ee23daf4eff7bea007"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/AvatarImages.kt",
@@ -872,8 +872,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/MainActivity.kt",
-      "bytes": 13882,
-      "sha256": "1fdf78684d4d83b0a5cc314bf36d6165172ac1d60db173170a814931a3e9c1f9"
+      "bytes": 12829,
+      "sha256": "4b029d134c1852e3fd3e12ca024440230a1c037b3617ff4e6e1003d5cb696d58"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/notify/ClassReminder.kt",
@@ -914,6 +914,11 @@
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/AppColors.kt",
       "bytes": 12292,
       "sha256": "54c1417e1c18d3b12d19cb41c63ed89df20fc95f1ada55f8d448669f53217f2f"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/AppMaterialColors.kt",
+      "bytes": 2473,
+      "sha256": "7f3aeb7806a1edb0cef15eedc4e85bd7e55727c9e4c551efe68db30066c6abb6"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ArticleReader.kt",
@@ -1482,8 +1487,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ProfileScreen.kt",
-      "bytes": 49458,
-      "sha256": "bb5597990eacae170164dbbd57816e3ed9b95fca06bb99e331d3ca9c736f477a"
+      "bytes": 49957,
+      "sha256": "c8d2c89677e161ca7b92a1f5ab023823162a815a68e5083fd88b67f629b8c820"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ThemeModePicker.kt",
@@ -1557,8 +1562,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ScheduleViews.kt",
-      "bytes": 67153,
-      "sha256": "91a20c62ccf63d0d6675f3d976d16873340a3fb3f81451707b1fbc9a3a5b914b"
+      "bytes": 67925,
+      "sha256": "940c18568bde0f6ae126fa23c1d026377b14a647b4bec79b799fe65332aca611"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ScoreImportScreen.kt",
@@ -1732,8 +1737,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TongluApp.kt",
-      "bytes": 83165,
-      "sha256": "c6a056223c9ce71a2f31456eeb181fa965eaccf7dfe03d4a384125e9d277c0bd"
+      "bytes": 83362,
+      "sha256": "28cb6c870436ac7f3ee240624ec6e8992df555d3cdc9c20fa729885799f17a02"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/UnderlayBackTransform.kt",
@@ -2349,6 +2354,11 @@
       "path": "apps/android/app/src/test/java/cn/tonglu/app/notify/DeadlineReminderPlanTest.kt",
       "bytes": 9852,
       "sha256": "61facd487bb5dabacdf39fd9440a7bb74debad9350378c9477b2f39171462bb0"
+    },
+    {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/AppMaterialColorsTest.kt",
+      "bytes": 1586,
+      "sha256": "1bbbbd34716c028db754409f349999738d2b673e96b171b0055d92c3cadcf3fb"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/clubs/ClubActivityModelsTest.kt",

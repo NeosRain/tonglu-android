@@ -88,6 +88,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import top.yukonga.miuix.kmp.basic.TextField as MiuixTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -1319,6 +1320,10 @@ private fun CourseDialog(
 
     AlertDialog(
         modifier = Modifier.imePadding(),
+        shape = RoundedCornerShape(24.dp),
+        containerColor = AppColors.SurfaceOpaque,
+        titleContentColor = AppColors.TextPrimary,
+        textContentColor = AppColors.TextPrimary,
         onDismissRequest = {if(!saving)onDismiss()},
         title = { Text(if(initial==null) "添加课程" else "编辑课程") },
         text = {
@@ -1326,9 +1331,9 @@ private fun CourseDialog(
                 Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp),
             ) {
-                OutlinedTextField(name, { name = it.take(40) }, label = { Text("课程名称") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(teacher, { teacher = it.take(20) }, label = { Text("老师（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(location, { location = it.take(30) }, label = { Text("教室（可选）") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                MiuixTextField(name, { name = it.take(40) }, label = "课程名称", singleLine = true, modifier = Modifier.fillMaxWidth())
+                MiuixTextField(teacher, { teacher = it.take(20) }, label = "老师（可选）", singleLine = true, modifier = Modifier.fillMaxWidth())
+                MiuixTextField(location, { location = it.take(30) }, label = "教室（可选）", singleLine = true, modifier = Modifier.fillMaxWidth())
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement=Arrangement.spacedBy(6.dp)) {
                     Text("星期", color = Muted, style = MaterialTheme.typography.bodySmall)
                     (1..7).forEach { day ->
@@ -1369,10 +1374,10 @@ private fun CourseDialog(
                     }
                 }
                 if (weekMode == WeekSpec.CUSTOM) {
-                    OutlinedTextField(
+                    MiuixTextField(
                         customWeeks,
                         { customWeeks = it.take(60) },
-                        label = { Text("具体周次，如 1-8,10,12-16") },
+                        label = "具体周次，如 1-8,10,12-16",
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -1459,7 +1464,7 @@ private fun buildCourseRequest(
 
 @Composable
 private fun NumberField(value: String, onChange: (String) -> Unit, label: String, modifier: Modifier = Modifier) {
-    OutlinedTextField(value, onChange, modifier, label = { Text(label) }, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
+    MiuixTextField(value, onChange, modifier, label = label, singleLine = true, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number))
 }
 
 

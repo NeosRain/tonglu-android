@@ -664,6 +664,14 @@ internal fun ProfileScreen(
                     color = Muted, style = MaterialTheme.typography.bodySmall,
                     modifier = Modifier.padding(top = 8.dp),
                 )
+                val syncStatus = state.academicSyncStatus.takeIf {
+                    state.academicSyncSessionId == session.sessionId
+                }
+                Text(
+                    if (!syncEnabled) "自动上传已关闭" else syncStatus ?: "当前登录会话尚无上传成功记录，可点击下方确认同步",
+                    color = Muted, style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(top = 8.dp),
+                )
                 // 「立即同步」只在开关打开时可用：关着还能点，等于给了个人人看不懂的状态
                 // （点了到底算不算开启同步？）—— 要同步就先开开关，语义才唯一。
                 TextButton(onClick = { confirmAcademicSync = true }, enabled = !state.busy && syncEnabled) {

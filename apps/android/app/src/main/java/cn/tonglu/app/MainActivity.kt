@@ -14,8 +14,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalContentColor
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -25,6 +23,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import cn.tonglu.app.data.AppViewModel
 import cn.tonglu.app.notify.ClassReminder
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.appMaterialColors
+import androidx.compose.ui.graphics.compositeOver
 import cn.tonglu.app.ui.TongluApp
 import cn.tonglu.app.ui.theme.ThemeAccent
 import cn.tonglu.app.ui.theme.ThemeWallpaper
@@ -146,7 +146,13 @@ class MainActivity : ComponentActivity() {
             //    `MiuixTheme.color.surfaceContainer`（CardDefaults.defaultColors，反编译确认），
             //    只改 `AppColors.Surface` 管不到它们。弹层/对话框走 surface / surfaceContainerHigh。
             //    没壁纸时原样返回，默认路径逐字节不变。
-            val miuixColors = controller.currentColors().let { base ->
+            val miuixColors = controller.currentColors().let { defaults ->
+                val base = defaults.copy(
+                    primary = AppColors.Accent, onPrimary = AppColors.OnAccent,
+                    primaryVariant = AppColors.Accent.copy(alpha = .12f).compositeOver(AppColors.SurfaceOpaque),
+                    onPrimaryVariant = AppColors.TextPrimary,
+                    error = AppColors.Danger,
+                )
                 if (!cn.tonglu.app.ui.theme.ThemeCanvas.wallpaperActive) base else base.copy(
                     surface = cn.tonglu.app.ui.theme.ThemeCanvas.resolveCard(base.surface, dark),
                     surfaceVariant = cn.tonglu.app.ui.theme.ThemeCanvas.resolveCard(base.surfaceVariant, dark),
@@ -157,26 +163,7 @@ class MainActivity : ComponentActivity() {
             }
             MiuixTheme(colors = miuixColors) {
                 MaterialTheme(
-                    colorScheme = if (dark) darkColorScheme(
-                        // 深色下也走用户主题色；默认路径仍等于 GlassTokens.AccentDark（#4173CC）。
-                        primary = cn.tonglu.app.ui.AppColors.Accent,
-                        onPrimary = cn.tonglu.app.ui.AppColors.OnAccent,
-                        background = cn.tonglu.app.ui.glass.GlassTokens.ContainerDark,
-                        surface = Color(0xFF1D2027),
-                        onSurface = Color(0xFFEDEFF3),
-                        onBackground = Color(0xFFEDEFF3),
-                        onSurfaceVariant = Color(0xFFA8AEBA),
-                    ) else lightColorScheme(
-                        // 🔴 这里以前是**再抄一遍** `Color(0xFF3978E8)` —— 抄第二次就是分叉的起点：
-                        //    2026-10-11 改浅色强调色（4.18:1 → 5.17:1）时，就是因为这一行
-                        //    差点被漏掉，而「新蓝没覆盖到 Material 组件」肉眼很难发现。
-                        //    现在统一从语义槽取，只有 AppColors 一处真源。
-                        primary = cn.tonglu.app.ui.AppColors.Accent,
-                        onPrimary = cn.tonglu.app.ui.AppColors.OnAccent,
-                        background = Color(0xFFF5F6F8),
-                        surface = Color.White,
-                        onSurface = Color(0xFF20242B),
-                    ),
+                    colorScheme = appMaterialColors(),
                 ) {
                     val viewModel: AppViewModel = viewModel()
                     // 🔴 预测性返回时下层会被视差推走（`underlayParallax()` 往左移 + 缩小），

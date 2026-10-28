@@ -48,6 +48,8 @@ data class UsernamePromptState(
 )
 
 data class AppUiState(
+    val academicSyncSessionId: String? = null,
+    val academicSyncStatus: String? = null,
     val ready: Boolean = false,
     val session: LocalSession? = null,
     val previewMode: Boolean = false,
@@ -1768,12 +1770,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         mutableState.value.session?.userId?.takeIf { it.isNotBlank() }
             ?: mutableState.value.session?.username?.takeIf { it.isNotBlank() }
 
+    /** Session-scoped status: late results from another login must not change this account's UI. */
+    private fun reportAcademicSync(sessionId: String, message: String) {
+        mutableState.update { current ->
+            if (current.session?.sessionId != sessionId) current
+            else current.copy(academicSyncSessionId = sessionId, academicSyncStatus = message)
+        }
+    }
+
     /** Explicit user action: merge academic records, then CAS upload. Never upload school credentials. */
     fun syncAcademicNow() {
         val session = mutableState.value.session ?: return
-        if (mutableState.value.busy) return
+        if (mutableState.value.busy || !profileSyncEnabled()) return
         viewModelScope.launch {
             mutableState.update { it.copy(busy = true, error = null) }
+            reportAcademicSync(session.sessionId, "正在同步课表与成绩…")
             try {
                 academicMutex.withLock { profileMutex.withLock {
                     val cloud = sessions.authorized(session.sessionId) { api.getProfile(it) }
@@ -1794,9 +1805,11 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     scoreStore.save(scores); scoreStore.source = "import"
                     scoreStore.lastImport = "账号同步 ${scores.size} 条"
                     mutableState.update { it.copy(scores = scores, scoreSource = "import", lastScoreImport = scoreStore.lastImport, notice = "课表与成绩已同步到当前账号") }
+                    reportAcademicSync(session.sessionId, "本次课表与成绩同步成功")
                 } }
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
+                reportAcademicSync(session.sessionId, if (e is HttpException && e.code() == 409) "其他设备有更新，本机数据已保留，请确认后重新同步" else "本次同步未完成，本机数据已保留，请重试")
                 handleFailure(e, session.sessionId)
             } finally { mutableState.update { it.copy(busy = false) } }
         }
@@ -1867,6 +1880,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (!profileSyncEnabled()) return
         viewModelScope.launch {
             profileMutex.withLock {
+                if (mutableState.value.session?.sessionId != session.sessionId || !profileSyncEnabled()) return@withLock
+                reportAcademicSync(session.sessionId, "正在上传课表与成绩…")
                 runCatching {
                     val owner = ownerKey()
                     val payload = ProfilePayload(
@@ -1878,9 +1893,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     val result = sessions.authorized(session.sessionId) { bearer ->
                         api.putProfile(bearer, PutProfileRequest(baseVersion = profileVersion, payload = payload))
                     }
+                    if (mutableState.value.session?.sessionId != session.sessionId) return@withLock
                     profileVersion = result.version
+                    reportAcademicSync(session.sessionId, "本次课表与成绩上传成功")
                 }.onFailure { error ->
                     if (error is CancellationException) throw error
+                    if (mutableState.value.session?.sessionId != session.sessionId) return@withLock
+                    reportAcademicSync(session.sessionId, if (error is HttpException && error.code() == 409) "其他设备有更新，本机数据已保留，请确认后同步" else "自动上传未完成，本机数据已保留，可立即重试")
                     if (error is SessionExpiredException) {
                         expireSession(error.sessionId)
                     } else if (error is HttpException && error.code() == 409) {
