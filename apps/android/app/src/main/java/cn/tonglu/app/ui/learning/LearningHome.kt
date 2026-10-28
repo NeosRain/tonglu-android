@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.outlined.MenuBook
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.LearningArticle
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.noticeBackground
+import cn.tonglu.app.ui.noticeForeground
+import androidx.compose.ui.graphics.Color
 
 /** 首页只负责分流；书库目录、导入和阅读仍使用同一份账号数据与原阅读器。 */
 @Composable
@@ -36,7 +40,8 @@ internal fun LearningHome(
     onLibrary: () -> Unit,
     onContinue: () -> Unit,
     onEnglish: () -> Unit,
-    onWords: () -> Unit,
+    subjects: List<Pair<String, String>>,
+    onSubject: (String) -> Unit,
     onFocus: () -> Unit,
     onExams: () -> Unit,
     onCompetitions: () -> Unit,
@@ -90,7 +95,15 @@ internal fun LearningHome(
         }
         item("study-heading") { HomeSectionHeading("专业学习", "练习与专注") }
         item("english") {
-            EnglishDestinationPager(onReading = onEnglish, onWords = onWords)
+            Surface(shape = RoundedCornerShape(24.dp), color = AppColors.SurfaceOpaque) {
+                Column {
+                    AuxiliaryDestination("英语", Icons.Outlined.Translate, onEnglish)
+                    subjects.forEach { (id, title) ->
+                        HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = AppColors.Divider)
+                        AuxiliaryDestination(title, Icons.AutoMirrored.Outlined.MenuBook) { onSubject(id) }
+                    }
+                }
+            }
         }
         item("focus") {
             Surface(onClick = onFocus, shape = RoundedCornerShape(22.dp),
@@ -140,7 +153,9 @@ private fun BookDestination(title: String, icon: ImageVector, summary: String, d
     Surface(onClick = onClick, modifier = modifier.fillMaxHeight(), shape = RoundedCornerShape(24.dp),
         color = learningCardColor(AppColors.SurfaceOpaque)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Icon(icon, null, tint = AppColors.TextSecondary, modifier = Modifier.size(28.dp))
+            Surface(shape = RoundedCornerShape(16.dp), color = noticeBackground(learningDestinationTint(title))) {
+                Icon(icon, null, tint = noticeForeground(learningDestinationTint(title)), modifier = Modifier.padding(12.dp).size(28.dp))
+            }
             Spacer(Modifier.height(6.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             Text(summary, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
@@ -154,10 +169,21 @@ private fun AuxiliaryDestination(title: String, icon: ImageVector, onClick: () -
     Surface(onClick = onClick, color = androidx.compose.ui.graphics.Color.Transparent) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Icon(icon, null, tint = AppColors.TextSecondary, modifier = Modifier.size(20.dp))
+            Surface(shape = RoundedCornerShape(14.dp), color = noticeBackground(learningDestinationTint(title))) {
+                Icon(icon, null, tint = noticeForeground(learningDestinationTint(title)), modifier = Modifier.padding(10.dp).size(22.dp))
+            }
             Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = AppColors.TextSecondary,
                 modifier = Modifier.size(18.dp))
         }
     }
+}
+
+/** Decorative subject colors reuse the audited notice foreground/background pairing. */
+internal fun learningDestinationTint(title: String): Color = when {
+    title.contains("英语") || title.contains("精读") -> Color(0xFF16846E)
+    title.contains("数学") || title.contains("词") -> Color(0xFF8A5A00)
+    title.contains("书库") || title.contains("编程") -> Color(0xFF2563EB)
+    title.contains("竞赛") -> Color(0xFF2F6F4F)
+    else -> Color(0xFFD14343)
 }

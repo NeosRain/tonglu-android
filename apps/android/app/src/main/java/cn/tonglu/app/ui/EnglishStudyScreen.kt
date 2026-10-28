@@ -71,6 +71,8 @@ internal fun EnglishStudyScreen(
     initialFilter: String = "all",
     /** 今日入口直达练习；未下载词书时仍先选书。 */
     startOnReady: Boolean = false,
+    /** 从英语双卡直接开始时，退出会话返回来源，不插入设置首页。 */
+    directSessionExit: Boolean = false,
     /**
      * 首次学会一个词时回调（成长等级学习线 `words.learned`，plan/66 §2.3）。
      * 🔴 只在「第一次记住」时 +1，复习答对不计 —— 判据在 `EnglishRepository.answer`
@@ -178,11 +180,12 @@ internal fun EnglishStudyScreen(
         selfDrag = true,
         // 二级页里「返回」另有含义（内部返回）→ 不让 motion 接管，
         // 免得一次手势把整层关掉、或者反过来把层卡成透明。
-        backEnabled = route == entryRoute && !saving,
+        backEnabled = (route == entryRoute || (directSessionExit && route == "practice")) && !saving,
     )
     fun back() {
         if (saving) return
-        if (route != entryRoute) { route = entryRoute; speech.stop() } else motion.requestClose()
+        if (directSessionExit && route == "practice") motion.requestClose()
+        else if (route != entryRoute) { route = entryRoute; speech.stop() } else motion.requestClose()
     }
     /**
      * 选中一本词书：没下过就先下载（带进度），下完再导入。
@@ -226,7 +229,9 @@ internal fun EnglishStudyScreen(
     // 只在同词书时恢复；词单对不上号（重导词库 / 删书）就如实丢弃断点，不硬凑一组。
     // 🔴 完成语义：断点在答完最后一题的一刻已被清除，所以这里恢复出来的会话
     // 必然 index < 词单长度 —— 练习页只会落在题目上，不存在「恢复出完成页」。
+    var checkpointReady by remember(owner, book?.id) { mutableStateOf(false) }
     LaunchedEffect(book?.id) {
+        try {
         val target = book ?: return@LaunchedEffect
         val saved = try { checkpoint.load() } catch (_: Exception) { null } ?: return@LaunchedEffect
         if (saved.bookId != target.id || saved.index >= saved.wordIds.size) { checkpoint.clear(); return@LaunchedEffect }
@@ -243,6 +248,7 @@ internal fun EnglishStudyScreen(
             notice = "已恢复上次没答完的一组（${saved.index}/${words.size}），从第 ${saved.index + 1} 题继续。"
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { checkpoint.clear() }
+            } finally { checkpointReady = true }
     }
     LaunchedEffect(Unit) { while (true) { delay(60_000); clock = System.currentTimeMillis() } }
     LaunchedEffect(route, query, filter, limit, imported, stats.favorites, stats.wrong) {
@@ -298,9 +304,10 @@ internal fun EnglishStudyScreen(
             finally { busy = false }
         }
     }
-    LaunchedEffect(startOnReady, imported, book?.id, busy) {
-        if (startOnReady && !startedFromToday && book != null && imported == book.id && !busy) {
+    LaunchedEffect(startOnReady, imported, book?.id, busy, checkpointReady) {
+        if (startOnReady && checkpointReady && !startedFromToday && book != null && imported == book.id && !busy) {
             startedFromToday = true
+            if (route == "practice" && session.isNotEmpty()) return@LaunchedEffect
             // 查询当前数据库，避免首次统计 Flow 尚未发值时跳过到期复习。
             try {
                 val due = repository.dao.dueWords(owner, book.id, System.currentTimeMillis(), 1)

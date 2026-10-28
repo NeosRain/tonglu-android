@@ -283,6 +283,10 @@ internal fun ProfileScreen(
                     TextButton(onClick = onOpenAccountSettings, enabled = !state.busy) { Text("个人资料") }
                 }
             }
+            MiuixCard(insideMargin = PaddingValues(16.dp), modifier = Modifier.fillMaxWidth().clickable { showFeedback = true }) {
+                Text("反馈与建议 →", color = Accent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text("不用登录，直接告诉我们哪里需要改进", color = Muted, style = MaterialTheme.typography.bodySmall)
+            }
             Row(
                 Modifier.fillMaxWidth().onSizeChanged { headerTabsHeight = it.height },
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -314,12 +318,6 @@ internal fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
         if (page == 0) {
-        item {
-            MiuixCard(insideMargin = PaddingValues(16.dp), modifier = Modifier.fillMaxWidth().clickable { showFeedback = true }) {
-                Text("反馈与建议", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("遇到问题，或有更好的想法？", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
-            }
-        }
         // —— 等级与消息（docs/plan/66）——
         // 未登录时不显示这两项：等级和信任等级都挂在账号上，没账号就是没有，
         // 显示一个「Lv1 新生」会让人以为等级是自动的、不用登录也有。

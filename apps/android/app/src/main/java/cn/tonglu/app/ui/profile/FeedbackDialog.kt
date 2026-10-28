@@ -1,6 +1,8 @@
 package cn.tonglu.app.ui.profile
 
-import android.net.Uri
+import kotlinx.coroutines.launch
+import cn.tonglu.app.data.ApiFactory
+import cn.tonglu.app.data.FeedbackSubmission
 import android.os.Build
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,15 +27,19 @@ import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
 
-/** A local draft. Opening GitHub prepares a form; only the user can submit it. */
+/** Anonymous in-app delivery; a receipt is shown only after server acknowledgement. */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun FeedbackDialog(onClose: () -> Unit) {
     var title by rememberSaveable { mutableStateOf("") }
     var detail by rememberSaveable { mutableStateOf("") }
     var notice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+    var submitting by remember { mutableStateOf(false) }
+    var receipt by rememberSaveable { mutableStateOf<String?>(null) }
+    var submissionId by rememberSaveable { mutableStateOf(java.util.UUID.randomUUID().toString()) }
+    val api = remember { ApiFactory.create() }
     val clipboard = LocalClipboardManager.current
-    val uriHandler = LocalUriHandler.current
     val motion = rememberOverlayMotion(onClose = onClose, predictive = OverlayMotion.enabledState, selfDrag = true)
     val version = "${AppBrand.CHINESE_NAME} ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · Android ${Build.VERSION.RELEASE}"
     val body = "## 问题或建议\n${detail.trim()}\n\n## 版本\n$version"
@@ -48,10 +54,10 @@ internal fun FeedbackDialog(onClose: () -> Unit) {
                 Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("哪里不顺手？告诉我们。", style = MaterialTheme.typography.headlineSmall)
                     Text("写下操作步骤、遇到的情况和你期待的结果，也欢迎提出新想法。", color = AppColors.TextSecondary)
-                    OutlinedTextField(title, { title = it.take(100) }, label = { Text("简短标题") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(detail, { detail = it.take(4000) }, label = { Text("问题或建议") }, minLines = 6, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(title, { title = it.take(100); receipt = null; submissionId = java.util.UUID.randomUUID().toString() }, label = { Text("简短标题") }, singleLine = true, enabled = !submitting, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(detail, { detail = it.take(4000); receipt = null; submissionId = java.util.UUID.randomUUID().toString() }, label = { Text("问题或建议") }, minLines = 6, enabled = !submitting, modifier = Modifier.fillMaxWidth())
                     Text(version, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
-                    Text("反馈提交到公开的 GitHub Issues，需要登录 GitHub。打开后可以检查、修改，再由你提交。请勿填写密码、密钥、学号或其他个人信息。", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+                    Text("直接发送给开发者，无需登录应用或 GitHub。反馈不会公开展示。请勿填写密码、密钥、学号等个人信息。", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
                     Text("只附上以上应用和系统版本；不会自动上传日志、账号或学习数据。", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
                     notice?.let { Text(it, color = AppColors.TextPrimary) }
                 }
@@ -60,13 +66,20 @@ internal fun FeedbackDialog(onClose: () -> Unit) {
                         clipboard.setText(AnnotatedString(title.trim() + "\n\n" + body))
                         notice = "已复制，可粘贴到你选择的反馈渠道。"
                     }) { Text("复制反馈") }
-                    Button(enabled = ready, onClick = {
-                        val url = Uri.parse("https://github.com/NeosRain/tonglu-android/issues/new").buildUpon()
-                            .appendQueryParameter("title", title.trim()).appendQueryParameter("body", body).build().toString()
-                        try { uriHandler.openUri(url); notice = "已打开反馈页面，请检查后手动提交。" }
-                        catch (_: android.content.ActivityNotFoundException) { notice = "没有可用浏览器，请先复制反馈。" }
-                        catch (_: IllegalArgumentException) { notice = "无法打开反馈页面，请先复制反馈。" }
-                    }) { Text("打开反馈页面") }
+                    Button(enabled = ready && !submitting && receipt == null, onClick = {
+                        submitting = true
+                        scope.launch {
+                            try {
+                                val result = api.submitFeedback(FeedbackSubmission(submissionId, title.trim(), detail.trim(), version))
+                                require(result.receiptId.isNotBlank()) { "服务器未返回收件编号" }
+                                receipt = result.receiptId
+                                notice = "反馈已收到，编号：${result.receiptId}"
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (cause: Exception) {
+                                notice = "提交未确认，请重试。内容已保留，也可以复制反馈。"
+                            } finally { submitting = false }
+                        }
+                    }) { Text(if (submitting) "正在提交…" else if (receipt != null) "已提交" else "提交反馈") }
                 }
             }
         }

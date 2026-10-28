@@ -19,6 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.noticeBackground
+import cn.tonglu.app.ui.noticeForeground
 import kotlinx.coroutines.launch
 
 /** 同一横向入口中，精读优先；保留可见的下一张边缘与可点击页签。 */
@@ -36,14 +38,16 @@ internal fun EnglishDestinationPager(onReading: () -> Unit, onWords: () -> Unit)
             key = { it },
         ) { page ->
             val reading = page == 0
+            val ink = learningDestinationTint(if (reading) "精读" else "词")
+            val foreground = noticeForeground(ink)
             Surface(
                 onClick = if (reading) onReading else onWords,
                 modifier = Modifier.fillMaxWidth().semantics {
                     contentDescription = if (reading) "英语精读，打开精读材料" else "英语单词卡，打开单词学习"
                 },
                 shape = RoundedCornerShape(28.dp),
-                color = AppColors.SurfaceOpaque,
-                contentColor = AppColors.TextPrimary,
+                color = noticeBackground(ink),
+                contentColor = foreground,
             ) {
                 Column(
                     Modifier.fillMaxWidth().heightIn(min = 300.dp).padding(24.dp),
@@ -52,22 +56,22 @@ internal fun EnglishDestinationPager(onReading: () -> Unit, onWords: () -> Unit)
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(if (reading) "读懂每一句" else "在语境里记住", fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium, color = AppColors.TextSecondary)
+                            fontWeight = FontWeight.Medium, color = foreground)
                         Icon(if (reading) Icons.AutoMirrored.Outlined.MenuBook else Icons.Outlined.Style,
-                            null, Modifier.size(32.dp), tint = AppColors.Accent)
+                            null, Modifier.size(32.dp), tint = foreground)
                     }
                     Text(if (reading) "英语精读" else "英语单词卡", fontSize = 30.sp,
                         lineHeight = 38.sp, fontWeight = FontWeight.Bold)
                     Text(if (reading) "四六级材料，逐句理解。\n翻译、语法与朗读，跟着文章走。"
                         else "查词、听音、看例句。\n按自己的节奏，积累每一个词。",
-                        fontSize = 15.sp, lineHeight = 24.sp, color = AppColors.TextSecondary)
+                        fontSize = 15.sp, lineHeight = 24.sp, color = foreground)
                     Spacer(Modifier.weight(1f))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text(if (reading) "开始精读" else "打开单词卡", fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold, color = AppColors.Accent,
+                            fontWeight = FontWeight.SemiBold, color = foreground,
                             modifier = Modifier.weight(1f))
-                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = AppColors.Accent,
+                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, null, tint = foreground,
                             modifier = Modifier.size(22.dp))
                     }
                 }

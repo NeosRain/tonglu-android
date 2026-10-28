@@ -25,7 +25,12 @@ import java.util.concurrent.TimeUnit
 import java.io.IOException
 import java.util.UUID
 
+data class FeedbackSubmission(val submissionId: String, val title: String, val detail: String, val appVersion: String)
+data class FeedbackReceipt(val receiptId: String, val acceptedAt: String)
+
 interface TongluApi {
+    @POST("feedback") suspend fun submitFeedback(@Body request: FeedbackSubmission): FeedbackReceipt
+
     @GET("profile/me") suspend fun profile(@Header("Authorization") bearer: String): UserDto
     @retrofit2.http.Multipart @POST("profile/avatar") suspend fun avatar(@Header("Authorization") bearer: String, @retrofit2.http.Part image: okhttp3.MultipartBody.Part): UserDto
     @POST("captcha/challenge") suspend fun captcha(): CaptchaDto

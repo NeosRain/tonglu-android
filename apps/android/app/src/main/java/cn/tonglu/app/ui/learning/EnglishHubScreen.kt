@@ -166,7 +166,7 @@ internal fun EnglishHubScreen(
     // 顺带的好处是 route 收回 "home" 时 Hub 的滚动位置原样保留（原本就是这么设计的）。
     val abilityScreen: (@Composable () -> Unit)? = when (route) {
         "today" -> { { EnglishStudyScreen(owner, startOnReady = true, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
-        "words" -> { { EnglishStudyScreen(owner, initialQuery = "", onWordLearned = onWordLearned, onClose = { route = "home" }) } }
+        "words" -> { { EnglishStudyScreen(owner, initialQuery = "", startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
         // 单开一条「收藏」路由，而不是让用户自己进单词页再点「收藏」筛选 ——
         // 用户问过「收藏是干什么的、在哪看」，说明入口不可发现（2026-10-08）。
         "favorites" -> { {
@@ -275,8 +275,8 @@ internal fun EnglishHubScreen(
                             Text("从四六级阅读开始，逐段理解，逐句精读。", style = MaterialTheme.typography.bodyMedium, color = AppColors.TextSecondary)
                         }
                     }
-                    item("cet") {
-                        EnglishEntryCard(Icons.Outlined.MenuBook, "四六级真题精读", "选年份与套卷 · 选词填空 / Section C · 逐句分色", { route = "intensive" })
+                    item("english-destinations") {
+                        EnglishDestinationPager(onReading = { route = "intensive" }, onWords = { route = "words" })
                     }
                     item("reading") {
                         Text("继续阅读", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))

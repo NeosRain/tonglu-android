@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "8bc1d3521384f7f775d9e104778eaa38a290704a",
+  "sourceCommit": "88b009dd53c3699fbc82b0741735905b6465d310",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "6a5e7646dfaf38f0f87f42e905ebf17f8566c5315d7c73d772426527083675ed"
+      "sha256": "8eab87e49e872e068d492c0a95ac5903057d95fddc4b72d9673068207d7e16ca"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -832,8 +832,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/TongluApi.kt",
-      "bytes": 45651,
-      "sha256": "357ded11e7e9e2a06c5cb9ec93aa3c1810c76b56fedad6f714d7df5fff763cb8"
+      "bytes": 45952,
+      "sha256": "bbdf03a935df158beaf974e85382b5597ef0ca84107a13a5fc9e03c0ca1b49da"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/AppUpdates.kt",
@@ -1142,8 +1142,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/EnglishStudyScreen.kt",
-      "bytes": 57219,
-      "sha256": "b728dc536c44d0477579de5c2584ad2a77a0792912f524d4189b9c8c690522be"
+      "bytes": 57752,
+      "sha256": "8783b2a0d5b35092ac1efec14b93f2da9233cc19442e0578c378013a15aa89d0"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/exam/ExamCalendarScreen.kt",
@@ -1277,13 +1277,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishDestinationPager.kt",
-      "bytes": 5146,
-      "sha256": "e4181a50fcda403c0b58a18cf8026673e0b78fb7844904f7a5843dba09ea6d53"
+      "bytes": 5306,
+      "sha256": "bf45ad3d6737dc6f207af2a7a8b649f7d320629eeb8f85d201db391013fc199f"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishHubScreen.kt",
-      "bytes": 30607,
-      "sha256": "6ff4bb913464c2feb3dbdf67079e8ddb96454189111cdbf5e01900ee561f1988"
+      "bytes": 30605,
+      "sha256": "5dacd2bd7cc6886ab04a3fbda6be73b6260c6a2104cf03eecff813d2696915c0"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishPromptAudio.kt",
@@ -1312,8 +1312,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningHome.kt",
-      "bytes": 8748,
-      "sha256": "3ccf05fb9c888d609b2768fbed93d431d7f2527dc429ef742b60a4b687003237"
+      "bytes": 10283,
+      "sha256": "641a8e1a18cae18d5a4d0401d24cff6f74a67d2948259b6fa854595b88f0804c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningPlanPane.kt",
@@ -1322,8 +1322,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningScreen.kt",
-      "bytes": 31939,
-      "sha256": "c264b2be33bbaf306b594e51cc0c0ecd42a923608cbce7c6c70d7c6bb1f367be"
+      "bytes": 32074,
+      "sha256": "cf089a9b54f1a6d6e3322f9421ad2085bafedadef1d26c35b55e2cf9ece93ccb"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LibraryComponents.kt",
@@ -1477,8 +1477,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/FeedbackDialog.kt",
-      "bytes": 5368,
-      "sha256": "b47b008106b2cbe7c06d47db114037cea134063d0c86581af3b75fe0522d3eb8"
+      "bytes": 6260,
+      "sha256": "45d302c71a2ddf5489f472ef05e322ccd3d94a406f770769b1a62e11343701f3"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/MyLevelScreen.kt",
@@ -1492,8 +1492,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ProfileScreen.kt",
-      "bytes": 49957,
-      "sha256": "c8d2c89677e161ca7b92a1f5ab023823162a815a68e5083fd88b67f629b8c820"
+      "bytes": 49921,
+      "sha256": "25e1a5ef437f0fe2fae3d90e58cee229cdb3da1ef0af234c5ef1c3b4b8f1fa99"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ThemeModePicker.kt",
@@ -3057,8 +3057,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 1256,
-      "sha256": "5d321e1e287a82e56e5e005411f73d30176d37c862079d3aabaf9092b2e01c58"
+      "bytes": 1202,
+      "sha256": "8e010df13c780b132c4c147dbb2fafaeac89ce1b838573d94c7abe6f5eb9b928"
     },
     {
       "path": "content/intensive/provenance.json",

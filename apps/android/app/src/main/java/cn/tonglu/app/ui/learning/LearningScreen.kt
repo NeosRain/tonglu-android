@@ -342,8 +342,10 @@ internal fun LearningScreen(
             finished = recentProgress?.finished == true,
             onPersonal = { personalOpen = true }, onLibrary = { libraryOpen = true },
             onContinue = { lastArticleObj?.let(open) },
-            onEnglish = { dialog = LearningDialog.EnglishHub(route = "intensive") },
-            onWords = { dialog = LearningDialog.EnglishHub(route = "words") },
+            onEnglish = { dialog = LearningDialog.EnglishHub() },
+            subjects = data.sections.filter { it.parentId == null && !it.title.contains("英语") }
+                .map { it.id to it.title },
+            onSubject = { id -> focusPath = listOf(id); tab = 0; libraryOpen = true },
             onFocus = { cn.tonglu.app.ui.focus.PomodoroUi.open() },
             onExams = onOpenExamCalendar, onCompetitions = onOpenCompetitions,
         )
