@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "88b009dd53c3699fbc82b0741735905b6465d310",
+  "sourceCommit": "4c7b7a9051b93e483c9be7f08262f15124aa3f1c",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "8eab87e49e872e068d492c0a95ac5903057d95fddc4b72d9673068207d7e16ca"
+      "sha256": "25b414c4ab4993f532d1172064db1b9d8baf0e15f13738733184ba5d461370b4"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1277,8 +1277,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishDestinationPager.kt",
-      "bytes": 5306,
-      "sha256": "bf45ad3d6737dc6f207af2a7a8b649f7d320629eeb8f85d201db391013fc199f"
+      "bytes": 5260,
+      "sha256": "d8f8d192bb4822f4673476ae7bd0183360b0f50015fa00f5b2486f15cf9f2b74"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishHubScreen.kt",
@@ -1312,8 +1312,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningHome.kt",
-      "bytes": 10283,
-      "sha256": "641a8e1a18cae18d5a4d0401d24cff6f74a67d2948259b6fa854595b88f0804c"
+      "bytes": 10488,
+      "sha256": "06a6ebff2154a09542994817fe8b02bce0f775ed426a186e3c8826509746bf28"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningPlanPane.kt",
@@ -2441,6 +2441,11 @@
       "sha256": "dea904536cf3f50bfe11294550420750dcd4bd53b61347657ff82cf22a842e90"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/learning/LearningDestinationContrastTest.kt",
+      "bytes": 895,
+      "sha256": "09497a7ee92aa4458bcf9b614911d52e8e38f68435afe5e04905c07263c2a133"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/learning/QuestionBankCatalogTest.kt",
       "bytes": 5450,
       "sha256": "c4014ed671b0a4c2649787b0f91526ee0a156d757be4cd1ce72e738cf191229b"
@@ -3057,8 +3062,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 1522,
-      "sha256": "292efedd64338cd9579194c49b14f5dd0a410cc97f2bfcc6b703801a906a92e1"
+      "bytes": 1164,
+      "sha256": "7058890921fcb958912cc8170b8c9a024dcc015bef3ee0eec65636f4078fc765"
     },
     {
       "path": "content/intensive/provenance.json",

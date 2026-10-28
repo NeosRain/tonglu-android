@@ -22,9 +22,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.LearningArticle
 import cn.tonglu.app.ui.AppColors
-import cn.tonglu.app.ui.noticeBackground
-import cn.tonglu.app.ui.noticeForeground
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 
 /** 首页只负责分流；书库目录、导入和阅读仍使用同一份账号数据与原阅读器。 */
 @Composable
@@ -153,8 +152,8 @@ private fun BookDestination(title: String, icon: ImageVector, summary: String, d
     Surface(onClick = onClick, modifier = modifier.fillMaxHeight(), shape = RoundedCornerShape(24.dp),
         color = learningCardColor(AppColors.SurfaceOpaque)) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Surface(shape = RoundedCornerShape(16.dp), color = noticeBackground(learningDestinationTint(title))) {
-                Icon(icon, null, tint = noticeForeground(learningDestinationTint(title)), modifier = Modifier.padding(12.dp).size(28.dp))
+            Surface(shape = RoundedCornerShape(16.dp), color = learningDestinationBackground(learningDestinationTint(title), AppColors.SurfaceOpaque)) {
+                Icon(icon, null, tint = AppColors.TextPrimary, modifier = Modifier.padding(12.dp).size(28.dp))
             }
             Spacer(Modifier.height(6.dp))
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -169,8 +168,8 @@ private fun AuxiliaryDestination(title: String, icon: ImageVector, onClick: () -
     Surface(onClick = onClick, color = androidx.compose.ui.graphics.Color.Transparent) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Surface(shape = RoundedCornerShape(14.dp), color = noticeBackground(learningDestinationTint(title))) {
-                Icon(icon, null, tint = noticeForeground(learningDestinationTint(title)), modifier = Modifier.padding(10.dp).size(22.dp))
+            Surface(shape = RoundedCornerShape(14.dp), color = learningDestinationBackground(learningDestinationTint(title), AppColors.SurfaceOpaque)) {
+                Icon(icon, null, tint = AppColors.TextPrimary, modifier = Modifier.padding(10.dp).size(22.dp))
             }
             Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
             Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = AppColors.TextSecondary,
@@ -187,3 +186,7 @@ internal fun learningDestinationTint(title: String): Color = when {
     title.contains("竞赛") -> Color(0xFF2F6F4F)
     else -> Color(0xFFD14343)
 }
+
+/** The color is decorative; text always uses the application's primary ink. */
+internal fun learningDestinationBackground(ink: Color, surface: Color): Color =
+    ink.copy(alpha = 0.12f).compositeOver(surface)

@@ -19,8 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.ui.AppColors
-import cn.tonglu.app.ui.noticeBackground
-import cn.tonglu.app.ui.noticeForeground
 import kotlinx.coroutines.launch
 
 /** 同一横向入口中，精读优先；保留可见的下一张边缘与可点击页签。 */
@@ -39,14 +37,14 @@ internal fun EnglishDestinationPager(onReading: () -> Unit, onWords: () -> Unit)
         ) { page ->
             val reading = page == 0
             val ink = learningDestinationTint(if (reading) "精读" else "词")
-            val foreground = noticeForeground(ink)
+            val foreground = AppColors.TextPrimary
             Surface(
                 onClick = if (reading) onReading else onWords,
                 modifier = Modifier.fillMaxWidth().semantics {
                     contentDescription = if (reading) "英语精读，打开精读材料" else "英语单词卡，打开单词学习"
                 },
                 shape = RoundedCornerShape(28.dp),
-                color = noticeBackground(ink),
+                color = learningDestinationBackground(ink, AppColors.SurfaceOpaque),
                 contentColor = foreground,
             ) {
                 Column(
