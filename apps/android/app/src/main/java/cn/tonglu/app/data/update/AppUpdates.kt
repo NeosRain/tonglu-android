@@ -13,6 +13,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import okhttp3.OkHttpClient
+import okhttp3.Protocol
 import okhttp3.Request
 import java.io.File
 import java.security.MessageDigest
@@ -25,7 +26,13 @@ internal data class UpdateUiState(val checking: Boolean = false, val release: Up
 internal object AppUpdates {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val userAgent = "Tonglu/${BuildConfig.VERSION_NAME} (Android; app-update)"
-    private val client = OkHttpClient.Builder().callTimeout(8, TimeUnit.SECONDS).build()
+    private val client = OkHttpClient.Builder()
+        // These tiny manifests do not need multiplexing. Avoid mobile HTTP/2 streams
+        // stalling after headers while the same endpoint works over HTTP/1.1.
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS).build()
     private val mutable = MutableStateFlow(UpdateUiState(channel = UpdateChannel.saved(null, BuildConfig.VERSION_NAME)))
     val state = mutable.asStateFlow()
     private var restored = false
@@ -65,30 +72,37 @@ internal object AppUpdates {
         mutable.value = mutable.value.copy(checking = true, error = null, channel = selected)
         return scope.launch {
             try {
-                val candidates = selected.sources.mapNotNull { source ->
-                val text = client.newCall(Request.Builder().url(source.manifestUrl).header("User-Agent", userAgent).header("Cache-Control", "no-cache").build()).execute().use { response ->
-                    if (response.code == 404 && source == UpdateChannel.Preview) return@mapNotNull null
-                    check(response.isSuccessful) { "更新服务返回 ${response.code}" }
-                    val bytes = response.body.byteStream().use { it.readBytesLimited(65536) }
-                    bytes.toString(Charsets.UTF_8)
-                }
-                val candidate = parseUpdateRelease(text, source)
-                check(source.accepts(candidate.versionName)) { "正式通道包含预览版本" }
-                candidate
-                }
-                val release = candidates.maxByOrNull { it.versionCode } ?: error("暂无可用版本")
+                val result = checkUpdateManifests(
+                    selected, BuildConfig.VERSION_CODE.toLong(), BuildConfig.VERSION_NAME,
+                    fetch = fetch@{ source ->
+                        val text = client.newCall(Request.Builder().url(source.manifestUrl)
+                            .header("User-Agent", userAgent).header("Cache-Control", "no-cache").build())
+                            .execute().use { response ->
+                                if (response.code == 404 && source == UpdateChannel.Preview) return@fetch null
+                                check(response.isSuccessful) { "更新服务返回 ${response.code}" }
+                                response.body.byteStream().use { it.readBytesLimited(65536) }.toString(Charsets.UTF_8)
+                            }
+                        val candidate = parseUpdateRelease(text, source)
+                        check(source.accepts(candidate.versionName)) { "正式通道包含预览版本" }
+                        candidate
+                    },
+                    onFailure = { source, error -> Log.w("AppUpdates", "${source.key} 更新清单读取失败", error) },
+                )
+                val release = result.release
                 if (epoch != generation) return@launch
                 check(release.minSdk <= Build.VERSION.SDK_INT) { "新版本不支持当前 Android 版本" }
-                prefs(c).edit().putLong("checked.${selected.key}", System.currentTimeMillis()).putString("latest_manifest.${selected.key}", release.toJson()).apply()
+                val edit = prefs(c).edit().putString("latest_manifest.${selected.key}", release.toJson())
+                if (result.warning == null) edit.putLong("checked.${selected.key}", System.currentTimeMillis())
+                edit.apply()
                 mutable.value = if (mutable.value.ready && mutable.value.release?.versionCode == release.versionCode)
-                    mutable.value.copy(checking = false, error = null)
-                else UpdateUiState(release = release.takeIf { isNewerThanInstalled(it) }, channel = selected)
+                    mutable.value.copy(checking = false, error = result.warning)
+                else UpdateUiState(release = release.takeIf { isNewerThanInstalled(it) }, channel = selected, error = result.warning)
                 if (notify && isNewerThanInstalled(release)) notifyUpdate(c, release)
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 if (epoch != generation) return@launch
                 Log.w("AppUpdates", "检查更新失败", e)
-                mutable.value = mutable.value.copy(checking = false, error = e.message ?: "无法连接更新服务")
+                mutable.value = mutable.value.copy(checking = false, error = updateCheckError(e))
             }
         }.also { checkJob = it }
     }

@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "4c7b7a9051b93e483c9be7f08262f15124aa3f1c",
+  "sourceCommit": "d58292fc1a463756b18d5ec63dd589f912a8491f",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "25b414c4ab4993f532d1172064db1b9d8baf0e15f13738733184ba5d461370b4"
+      "sha256": "df95739f893f6e0f11f22a767d815cc0a2b77152d6df128e94a76303cf8c5b8e"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -837,8 +837,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/AppUpdates.kt",
-      "bytes": 16952,
-      "sha256": "89adc53f9a4c62ac54fc3c63422e2acb1a28ad84232bbfd5eed60a37b2e13d56"
+      "bytes": 17693,
+      "sha256": "3f844a35c1f6e1756fb9a299bca24efcc30d70eb6332609b63920e60ec29e3f2"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateApkCache.kt",
@@ -849,6 +849,11 @@
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateChannel.kt",
       "bytes": 767,
       "sha256": "2f3c51be28c53b388cf5f4c9f0a125160378447bb9110d1372f94edc38cabafa"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateManifestCheck.kt",
+      "bytes": 2203,
+      "sha256": "33150c4b183ef011bdbe3c90f26fdc6770216ac566fab9ad42bada13474fd729"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdatePolicy.kt",
@@ -2346,6 +2351,11 @@
       "sha256": "6dba909138af932e619b36866cf4f9ab4e2c8d0ff325ac7071b0cc85dd6b5e40"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdateManifestCheckTest.kt",
+      "bytes": 3208,
+      "sha256": "19773d95bcae889dac08d23270e3c56a71fc2efe0a0cafac321aecc887ee80c5"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdatePolicyTest.kt",
       "bytes": 1392,
       "sha256": "cb7f47401dfbb0b187c05ae7a1f0de49a2458595d9c7ee53097a92793c1370aa"
@@ -3062,8 +3072,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 1491,
-      "sha256": "6fcbe266464a4e722d68a88833288b651128b714b4e2b651fa2031b73bb4d65f"
+      "bytes": 747,
+      "sha256": "7585a73bcb0d4fbb1780fec88ffb35b40284310355faa6060d7a66e2a38cd2fb"
     },
     {
       "path": "content/intensive/provenance.json",
