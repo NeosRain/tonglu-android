@@ -39,8 +39,6 @@ internal fun LearningHome(
     onLibrary: () -> Unit,
     onContinue: () -> Unit,
     onEnglish: () -> Unit,
-    subjects: List<Pair<String, String>>,
-    onSubject: (String) -> Unit,
     onFocus: () -> Unit,
     onExams: () -> Unit,
     onCompetitions: () -> Unit,
@@ -92,14 +90,19 @@ internal fun LearningHome(
                 }
             }
         }
-        item("study-heading") { HomeSectionHeading("专业学习", "练习与专注") }
+        item("study-heading") { HomeSectionHeading("专业学习", "学科工具") }
         item("english") {
             Surface(shape = RoundedCornerShape(24.dp), color = AppColors.SurfaceOpaque) {
                 Column {
                     AuxiliaryDestination("英语", Icons.Outlined.Translate, onEnglish)
-                    subjects.forEach { (id, title) ->
-                        HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = AppColors.Divider)
-                        AuxiliaryDestination(title, Icons.AutoMirrored.Outlined.MenuBook) { onSubject(id) }
+                    HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = AppColors.Divider)
+                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Outlined.Calculate, null, tint = AppColors.TextSecondary)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("数学", style = MaterialTheme.typography.bodyMedium)
+                            Text("学科工具尚未开放", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+                        }
                     }
                 }
             }

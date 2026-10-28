@@ -49,6 +49,7 @@ import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.withContext
 import java.util.Calendar
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
@@ -84,9 +85,13 @@ internal fun EnglishStudyScreen(
     val context = LocalContext.current
     val repository = remember { EnglishRepository(context) }
     val scope = rememberCoroutineScope()
-    val settings by remember(owner) { repository.dao.settings(owner) }.collectAsStateWithLifecycle(initialValue = null)
+    val loadedSettings by produceState<Pair<Boolean, EnglishSettings?>>(false to null, owner) {
+        repository.dao.settings(owner).collect { value = true to it }
+    }
+    val settings = loadedSettings.second
     val effective = settings ?: EnglishSettings(owner)
     var catalog by remember { mutableStateOf<List<EnglishBook>>(emptyList()) }
+    var catalogReady by remember { mutableStateOf(false) }
     var imported by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var saving by remember { mutableStateOf(false) }
@@ -94,7 +99,8 @@ internal fun EnglishStudyScreen(
     var notice by remember { mutableStateOf<String?>(null) }
     // 带词进来、或带筛选进来时直接落在词表页，不然用户会看到一个空首页，不知道东西被带到哪去了
     val entryRoute = if (initialQuery.isNotBlank() || initialFilter != "all") "library" else "home"
-    var route by remember(owner) { mutableStateOf(entryRoute) }
+    var route by remember(owner) { mutableStateOf(if (startOnReady) "preparing" else entryRoute) }
+    var resumedSession by remember(owner) { mutableStateOf(false) }
     // 词库在云端：清单用这个拉，下载也用它（4MB 的词库，读超时给到 90 秒）
     val api = remember { ApiFactory.create(readTimeoutSeconds = 90L) }
     var downloaded by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -123,7 +129,7 @@ internal fun EnglishStudyScreen(
     var aiWord by remember { mutableStateOf<EnglishWord?>(null) }
     var aiSettingsOpen by remember { mutableStateOf(false) }
     var goalDraft by remember { mutableStateOf("") }
-    val book = catalog.firstOrNull { it.id == effective.bookId }
+    val book = if (loadedSettings.first) catalog.firstOrNull { it.id == effective.bookId } else null
     val dayStart = remember(clock) { Calendar.getInstance().apply {
         timeInMillis = clock; set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
@@ -180,11 +186,11 @@ internal fun EnglishStudyScreen(
         selfDrag = true,
         // 二级页里「返回」另有含义（内部返回）→ 不让 motion 接管，
         // 免得一次手势把整层关掉、或者反过来把层卡成透明。
-        backEnabled = (route == entryRoute || (directSessionExit && route == "practice")) && !saving,
+        backEnabled = (directSessionExit || route == entryRoute) && !saving,
     )
     fun back() {
         if (saving) return
-        if (directSessionExit && route == "practice") motion.requestClose()
+        if (directSessionExit) motion.requestClose()
         else if (route != entryRoute) { route = entryRoute; speech.stop() } else motion.requestClose()
     }
     /**
@@ -215,7 +221,10 @@ internal fun EnglishStudyScreen(
     }
     LaunchedEffect(Unit) {
         downloaded = EnglishBookStore.downloadedIds(context)
-        try { catalog = repository.catalog(api) } catch (_: Exception) { error = "词书目录读取失败，请重新打开。" }
+        try { catalog = repository.catalog(api) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { error = "词书目录读取失败，请重新打开。" }
+        finally { catalogReady = true }
         downloaded = EnglishBookStore.downloadedIds(context)
     }
     // 换到一本**已经下过**的词书时自动导入；没下过的不动 ——
@@ -233,6 +242,7 @@ internal fun EnglishStudyScreen(
     LaunchedEffect(book?.id) {
         try {
         val target = book ?: return@LaunchedEffect
+        if (entryRoute != "home") return@LaunchedEffect
         val saved = try { checkpoint.load() } catch (_: Exception) { null } ?: return@LaunchedEffect
         if (saved.bookId != target.id || saved.index >= saved.wordIds.size) { checkpoint.clear(); return@LaunchedEffect }
         try {
@@ -245,7 +255,7 @@ internal fun EnglishStudyScreen(
             mode = saved.mode
             sessionReview = saved.review
             route = "practice"
-            notice = "已恢复上次没答完的一组（${saved.index}/${words.size}），从第 ${saved.index + 1} 题继续。"
+            resumedSession = true
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (_: Exception) { checkpoint.clear() }
             } finally { checkpointReady = true }
@@ -290,17 +300,18 @@ internal fun EnglishStudyScreen(
                     if (needExample) repository.dao.newWordsWithExample(owner, selected.id, limit)
                     else repository.dao.newWords(owner, selected.id, limit)
                 }
-                if (words.isEmpty()) notice = if (review) "当前没有到期单词。"
+                if (words.isEmpty()) { route = "home"; notice = if (review) "当前没有到期单词。"
                     else if (needExample) "这本词书暂时没有可用的例句题，换个题型试试。"
                     else "这本词书的新词已学完，可以复习或换一本。"
-                else {
+                } else {
+                    resumedSession = false
                     session = words; index = 0; correctCount = 0; route = "practice"
                     sessionReview = review
                     // 断点从第 0 题就落盘（EF05）：之后每答一题刷新，退出/杀进程都能恢复。
                     persistCheckpoint()
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-            catch (cause: Exception) { notice = "无法开始学习：${cause.localizedMessage ?: "请重试"}" }
+            catch (cause: Exception) { route = "home"; notice = "无法开始学习：${cause.localizedMessage ?: "请重试"}" }
             finally { busy = false }
         }
     }
@@ -315,6 +326,10 @@ internal fun EnglishStudyScreen(
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (cause: Exception) { error = "读取复习任务失败：${cause.localizedMessage ?: "请重试"}" }
         }
+    }
+    LaunchedEffect(startOnReady, loadedSettings.first, catalogReady, book?.id, downloaded, busy) {
+        if (startOnReady && route == "preparing" && loadedSettings.first && catalogReady && !busy &&
+            (book == null || book.id !in downloaded)) route = "home"
     }
     fun saveGoal(goal: Int) {
         scope.launch {
@@ -347,10 +362,10 @@ internal fun EnglishStudyScreen(
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { back() }, enabled = !saving) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
-                    Text(if (route == "practice") "单词练习" else "英语学习", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+                    Text(if (directSessionExit) "单词卡" else if (route == "practice") "单词练习" else "英语学习", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
                     IconButton(onClick = { aboutOpen = true }) { Icon(Icons.Outlined.Info, "来源与许可") }
                 }
-                if (route != "practice" || mode != "cards") Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if ((route != "practice" || mode != "cards") && route != "preparing") Row(Modifier.fillMaxWidth().padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     listOf(Accent.British to "英音", Accent.American to "美音").forEach { (accent, label) ->
                         EnglishChip(pronunciationAccent == accent, onClick = {
                             pronunciationAccent = accent
@@ -368,7 +383,7 @@ internal fun EnglishStudyScreen(
                         }
                     }) { Text("试听") }
                 }
-                if (route != "practice") Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (route != "practice" && route != "preparing") Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf("home" to "学习", "library" to "词库", "stats" to "记录").forEach { (id, label) ->
                         EnglishChip(selected = route == id, onClick = { route = id; filter = "all"; limit = 100 }, label = { Text(label) })
                     }
@@ -382,8 +397,16 @@ internal fun EnglishStudyScreen(
                     Text(message, Modifier.weight(1f), color = MaterialTheme.colorScheme.error)
                     TextButton(onClick = { scope.launch { book?.let { importBook(it) } } }) { Text("重试") }
                 } }
+                if (resumedSession && route == "practice" && index < session.size) Text("继续上次 · 第 ${index + 1} 词",
+                    Modifier.padding(horizontal = 24.dp, vertical = 6.dp), style = MaterialTheme.typography.labelMedium, color = AppColors.TextSecondary)
                 AnimatedContent(route, modifier = Modifier.weight(1f).fillMaxWidth(), label = "english-route") { page ->
                     when (page) {
+                        "preparing" -> Column(Modifier.fillMaxSize().padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                            CircularProgressIndicator()
+                            Spacer(Modifier.height(16.dp))
+                            Text("正在准备单词卡…", color = AppColors.TextSecondary)
+                        }
                         "home" -> LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(18.dp), modifier = Modifier.fillMaxSize()) {
                             item { EnglishPanel {
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -487,7 +510,7 @@ internal fun EnglishStudyScreen(
                                 Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp))
                                 Text("这一组练完了", fontSize = 24.sp, modifier = Modifier.padding(top = 20.dp))
                                 Text("${session.size} 个单词 · $correctCount 次记住 / 答对", Modifier.padding(vertical = 12.dp))
-                                Button(onClick = { route = entryRoute; speech.stop() }) { Text("返回学习") }
+                                Button(onClick = { if (directSessionExit) motion.requestClose() else { route = entryRoute; speech.stop() } }) { Text(if (directSessionExit) "返回英语" else "返回学习") }
                             } else if (current != null) key(current.id) { EnglishPractice(current, mode, index + 1, session.size, saving, repository, owner,
                                 accent = pronunciationAccent, onPronounce = { accent ->
                                     pronunciationAccent = accent; speechPreference.save(owner, null, accent); speak(current)

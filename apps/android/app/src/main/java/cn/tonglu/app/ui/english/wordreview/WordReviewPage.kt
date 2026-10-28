@@ -33,7 +33,8 @@ internal fun WordReviewPage(word: EnglishWord, number: Int, total: Int, saving: 
     favorite: Boolean, accent: Accent, onPronounce: (Accent) -> Unit,
     onRead: (String, SpeechPurpose) -> Unit, onFavorite: () -> Unit,
     onAskAi: () -> Unit, onAnswer: (Boolean) -> Unit) {
-    var revealed by rememberSaveable(word.id) { mutableStateOf(false) }
+    var remembered by rememberSaveable(word.id) { mutableStateOf<Boolean?>(null) }
+    val revealed = remembered != null
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(start = 24.dp, end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -114,23 +115,30 @@ internal fun WordReviewPage(word: EnglishWord, number: Int, total: Int, saving: 
             } else item {
                 Column(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 40.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("先想一想，这个词是什么意思？", fontSize = 20.sp, lineHeight = 30.sp)
-                    Text("回想后展开释义，也可以直接选择记忆情况。", color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    Text("不认识就先看答案，看懂后再点下一词。", color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
         Surface(shadowElevation = 2.dp, color = MaterialTheme.colorScheme.surface) {
             Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { revealed = !revealed }, enabled = !saving, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (revealed) "收起释义" else "展开释义与例句")
-                }
+                if (!revealed) TextButton(onClick = { remembered = false }, enabled = !saving,
+                    modifier = Modifier.fillMaxWidth()) { Text("看答案") }
+                else Text(if (remembered == true) "认识 · 核对释义后继续" else "不认识 · 看懂释义后再继续",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, style = MaterialTheme.typography.labelLarge)
                 BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val firstLabel = if (revealed) { if (remembered == true) "改为不认识" else "改为认识" } else "不认识"
+                    val secondLabel = if (saving) "保存中…" else if (revealed) "下一词" else "认识"
+                    val firstAction: () -> Unit = { remembered = if (revealed) remembered != true else false }
+                    val secondAction: () -> Unit = {
+                        if (revealed) onAnswer(remembered == true) else remembered = true
+                    }
                     if (maxWidth < 280.dp || LocalDensity.current.fontScale > 1.5f) Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(onClick = { onAnswer(false) }, enabled = canGradeCard(saving), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text("忘记了") }
-                        Button(onClick = { onAnswer(true) }, enabled = canGradeCard(saving), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(if (saving) "保存中…" else "认识") }
+                        OutlinedButton(onClick = firstAction, enabled = canGradeCard(saving), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(firstLabel) }
+                        Button(onClick = secondAction, enabled = canGradeCard(saving), modifier = Modifier.fillMaxWidth().heightIn(min = 52.dp)) { Text(secondLabel) }
                     } else Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        OutlinedButton(onClick = { onAnswer(false) }, enabled = canGradeCard(saving), modifier = Modifier.weight(1f).heightIn(min = 54.dp)) { Text("忘记了") }
-                        Button(onClick = { onAnswer(true) }, enabled = canGradeCard(saving), modifier = Modifier.weight(1f).heightIn(min = 54.dp)) { Text(if (saving) "保存中…" else "认识") }
+                        OutlinedButton(onClick = firstAction, enabled = canGradeCard(saving), modifier = Modifier.weight(1f).heightIn(min = 54.dp)) { Text(firstLabel) }
+                        Button(onClick = secondAction, enabled = canGradeCard(saving), modifier = Modifier.weight(1f).heightIn(min = 54.dp)) { Text(secondLabel) }
                     }
                 }
             }
