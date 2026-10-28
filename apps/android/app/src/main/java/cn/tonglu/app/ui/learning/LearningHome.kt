@@ -36,6 +36,7 @@ internal fun LearningHome(
     onLibrary: () -> Unit,
     onContinue: () -> Unit,
     onEnglish: () -> Unit,
+    onWords: () -> Unit,
     onFocus: () -> Unit,
     onExams: () -> Unit,
     onCompetitions: () -> Unit,
@@ -89,21 +90,7 @@ internal fun LearningHome(
         }
         item("study-heading") { HomeSectionHeading("专业学习", "练习与专注") }
         item("english") {
-            Surface(onClick = onEnglish, shape = RoundedCornerShape(24.dp),
-                color = learningCardColor(AppColors.SurfaceOpaque)) {
-                Row(Modifier.fillMaxWidth().padding(20.dp), verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.primaryContainer) {
-                        Icon(Icons.Outlined.Translate, null, tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(14.dp).size(28.dp))
-                    }
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("英语", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                        Text("听 · 说 · 读 · 写", style = MaterialTheme.typography.bodyMedium, color = AppColors.TextSecondary)
-                    }
-                    Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = AppColors.TextSecondary)
-                }
-            }
+            EnglishDestinationPager(onReading = onEnglish, onWords = onWords)
         }
         item("focus") {
             Surface(onClick = onFocus, shape = RoundedCornerShape(22.dp),

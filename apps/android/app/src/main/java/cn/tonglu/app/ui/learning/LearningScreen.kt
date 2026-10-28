@@ -342,7 +342,8 @@ internal fun LearningScreen(
             finished = recentProgress?.finished == true,
             onPersonal = { personalOpen = true }, onLibrary = { libraryOpen = true },
             onContinue = { lastArticleObj?.let(open) },
-            onEnglish = { dialog = LearningDialog.EnglishHub() },
+            onEnglish = { dialog = LearningDialog.EnglishHub(route = "intensive") },
+            onWords = { dialog = LearningDialog.EnglishHub(route = "words") },
             onFocus = { cn.tonglu.app.ui.focus.PomodoroUi.open() },
             onExams = onOpenExamCalendar, onCompetitions = onOpenCompetitions,
         )

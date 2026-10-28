@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "0819966a0fc1e024663dc7ad26db9b91e1cab550",
+  "sourceCommit": "8bc1d3521384f7f775d9e104778eaa38a290704a",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "ac8b1de19e626f80c6356618b97d65f8597575424b8b6119588590966ac77b8e"
+      "sha256": "6a5e7646dfaf38f0f87f42e905ebf17f8566c5315d7c73d772426527083675ed"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1276,6 +1276,11 @@
       "sha256": "60de941fecbd81463c329f2b5e614cc18f2bf29e20b88814b8f5922feffe0161"
     },
     {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishDestinationPager.kt",
+      "bytes": 5146,
+      "sha256": "e4181a50fcda403c0b58a18cf8026673e0b78fb7844904f7a5843dba09ea6d53"
+    },
+    {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishHubScreen.kt",
       "bytes": 30607,
       "sha256": "6ff4bb913464c2feb3dbdf67079e8ddb96454189111cdbf5e01900ee561f1988"
@@ -1307,8 +1312,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningHome.kt",
-      "bytes": 9658,
-      "sha256": "adb176e8132550956b230205f933a9625fb74c43577e5a59251c56744bca6152"
+      "bytes": 8748,
+      "sha256": "3ccf05fb9c888d609b2768fbed93d431d7f2527dc429ef742b60a4b687003237"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningPlanPane.kt",
@@ -1317,8 +1322,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningScreen.kt",
-      "bytes": 31840,
-      "sha256": "8f597a9e9fb9d04a4fca803c07a4178039e66b963410e84db5395ad965a7615f"
+      "bytes": 31939,
+      "sha256": "c264b2be33bbaf306b594e51cc0c0ecd42a923608cbce7c6c70d7c6bb1f367be"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LibraryComponents.kt",
@@ -3052,8 +3057,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 2959,
-      "sha256": "72e9cb06431b61bc137380c779010380095be155cb38b12536398800ecb4df8e"
+      "bytes": 919,
+      "sha256": "17279606687582f56a103a60f2054afb3b02f39ce74c9d4b8f80b6a9ae6eee0c"
     },
     {
       "path": "content/intensive/provenance.json",
