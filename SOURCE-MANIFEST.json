@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "2100d7abafb22dbdc3c0736a9f62250f39abb44a",
+  "sourceCommit": "716b40b7b4806ec7d62c1c9063adb640a5f2a12f",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "618852e3cd7b34149385233c3abc1437fbcf9a703e523081e79c587fbbe68008"
+      "sha256": "53d68324d90935b0c3e97554432bccf211f35ed265c4aaed75d57f56fdfbd250"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -74,6 +74,11 @@
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.reading.ReadingAnalysisDatabase/1.json",
       "bytes": 3637,
       "sha256": "5146cba7a7af5a546713d0606f1e073894fa7a5bce2824a1172b13a2cba1abb0"
+    },
+    {
+      "path": "apps/android/app/schemas/cn.tonglu.app.data.english.reading.ReadingAnalysisDatabase/2.json",
+      "bytes": 8437,
+      "sha256": "bb402cfebf3fcc2441dbc3bf292021d29c0f0fccbbcc39e82c92afe63ed4ce34"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.local.AcademicDatabase/1.json",
@@ -377,8 +382,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/books/PersonalWordBookStore.kt",
-      "bytes": 6281,
-      "sha256": "136d34e71a5fd0cf48d0ce221722e45b60ecafe84a5aa9a2e62b4bf47aca9d0e"
+      "bytes": 8177,
+      "sha256": "f2e81c6164e4fa5a267bcfc325767e62d801370f6869d4ffc224f7377456d884"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/books/PersonalWordCollection.kt",
+      "bytes": 3442,
+      "sha256": "33a6463e65c0e88ec98a1d7c7bf52261da5a4d6e2632f09a798eea0cacade887"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/books/PhotoWordExtractor.kt",
@@ -436,6 +446,11 @@
       "sha256": "30b80892440fa3c83544bbb3616c83383d552abc3900f337922f5e76a2582b88"
     },
     {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/IntensiveStudyStore.kt",
+      "bytes": 5433,
+      "sha256": "f77b3e16f1fe07bd16871a55da74bfdcabc8618632c8125a558721a3e0c60f5a"
+    },
+    {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/intensive/RemoteCetCodec.kt",
       "bytes": 8239,
       "sha256": "e7aee4ce86251841f016c9dbc1d87b2f53a603a99d020cff74f051af5d109d34"
@@ -477,8 +492,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/reading/ReadingAnalysisStore.kt",
-      "bytes": 2943,
-      "sha256": "ab4177dc77255ca90144952b1705bdf2417d20916697c5e4154eb2c9b1f3fc3a"
+      "bytes": 5960,
+      "sha256": "d5f65cb28076b37e170289f77c3965e4445d0d59c9b93cc9547ebeee2e611006"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/english/reading/ReadingConversationStore.kt",
@@ -1052,18 +1067,23 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/books/PersonalBookImportScreen.kt",
-      "bytes": 17508,
-      "sha256": "33d014d12f8a1ab3fb8b33b42c7f20a6cd5680af4bed700166caad9b94168073"
+      "bytes": 17506,
+      "sha256": "008751b60c953c86222bb395ec71c399a32d044fd2b64ddc1e7f0f50d2c20204"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/books/PersonalBooksScreen.kt",
-      "bytes": 16513,
-      "sha256": "0a408f3db89cd991404ef4f2ba0ce811df0333dcb6c9bcf70292dbec9ed93aeb"
+      "bytes": 18288,
+      "sha256": "a59636000a9903569cf11a6f244a723b920b98529cc89fb6ff80030792a39932"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/books/PhotoWordScreen.kt",
       "bytes": 18930,
       "sha256": "242f8152e318b7a1abd6c91ff549543cb3aad25e03a79568b607931c1214edfc"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/books/WordCollectionActions.kt",
+      "bytes": 3992,
+      "sha256": "2f48bb301691a310ced7cbde2352d37b51d7a8380aa650a1f921165055793da4"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/contextword/ContextWordCard.kt",
@@ -1097,18 +1117,28 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReaderContent.kt",
-      "bytes": 28857,
-      "sha256": "154b730fe84f9a4c5701e993022314967373ca17856317d4743579e78eb830ef"
+      "bytes": 36500,
+      "sha256": "091a7afbefc319351d61fb95ebcec48a0286a452bf3ce3003ea950042154699a"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveReadingScreen.kt",
-      "bytes": 10191,
-      "sha256": "e9c7219ab60e6cfb819224d6d155072026ad0588add6cc398823f6fe7288fe45"
+      "bytes": 10237,
+      "sha256": "9a4fd25870383eaa8dd552446f7748d611444372aecea4c6681415e2d38cca62"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/IntensiveWordLookup.kt",
       "bytes": 3471,
       "sha256": "492810ef3f7d8a6a5104886e6f87861d0e03bdcd1dc26bf0d9bdc9835c2e2f74"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/ReadingHistoryScreen.kt",
+      "bytes": 7712,
+      "sha256": "ae32271ec93d6af58a0557800acb8b3cdd5298c45d5005ff7c238c24a98507f0"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/SentenceFavoriteAction.kt",
+      "bytes": 2108,
+      "sha256": "0c797dca3cc578de1205a96a7e95df08b5f09de1c3ef79a1db06df6e2bc5edfb"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/reading/ReadingConversationPane.kt",
@@ -1147,8 +1177,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/EnglishStudyScreen.kt",
-      "bytes": 59418,
-      "sha256": "0c26f5feee0d9019e87c4ace9202ba3ac09352064898a8bc5f4e9b12c544b562"
+      "bytes": 59435,
+      "sha256": "104b5135c8071a0edca76f247ff445c7a9ebb8cb187e09306361a005285354a3"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/exam/ExamCalendarScreen.kt",
@@ -1282,13 +1312,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishDestinationPager.kt",
-      "bytes": 5260,
-      "sha256": "d8f8d192bb4822f4673476ae7bd0183360b0f50015fa00f5b2486f15cf9f2b74"
+      "bytes": 4578,
+      "sha256": "079aef7e6355b67832b2351acb3014178b76aa2768bb116db91d7fd7bd3a9d77"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishHubScreen.kt",
-      "bytes": 30826,
-      "sha256": "72d86f0726beb18b1a1feb80822554677a90c08c658f29c0b73963ba70a93185"
+      "bytes": 31638,
+      "sha256": "ce08d51155d8b09cacb601362f69640cda34113aa78428f1109430cf25ffb05c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishPromptAudio.kt",
@@ -1362,8 +1392,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/ReadingWordCard.kt",
-      "bytes": 10790,
-      "sha256": "78d58524558c7b0bcc5dccb16e410d8396d6c4bd4967862aa09f35aadb79e7df"
+      "bytes": 11864,
+      "sha256": "0590069d1bf4318b08051baaaa9ca1d7a70e0b18ce984dce07fa1c3351c57480"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/ReadingWordCardState.kt",
@@ -2116,6 +2146,11 @@
       "sha256": "d4dba7cf17a199c4cce991f5eb37ded3e328c8398cddaad535a106ea5f9d518d"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/books/PersonalWordCollectionTest.kt",
+      "bytes": 2706,
+      "sha256": "1f8d801882d2d6b262ce4aae2326d243156a243379d889c03c366d279786e6d5"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/BundledBooksTest.kt",
       "bytes": 5296,
       "sha256": "bf7d4dfdea3062b1bfb849d3d71588f9c247b07c62cae1e9632ecbe34f4329d2"
@@ -2141,6 +2176,11 @@
       "sha256": "06773254fcad8515698b4f55994322514f17c89287d9e58b177c2ef2ccd480db"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/intensive/IntensiveStudyStoreTest.kt",
+      "bytes": 4906,
+      "sha256": "837d0aa246c80c01fcf03d09cc5115a2ee8883f2ee9d3c4418eabbf94fab2dec"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/intensive/RemoteCetCodecTest.kt",
       "bytes": 3948,
       "sha256": "bb6e3d9559696568b2461f2834c22b4fa74eaa1ed1918d881135b28a824ad724"
@@ -2162,8 +2202,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/reading/ReadingConversationStoreTest.kt",
-      "bytes": 11658,
-      "sha256": "03e44a3995bb63dc4477954acd610e7c589e5e12973452fc18a5759b7f108bc8"
+      "bytes": 12466,
+      "sha256": "65a613a7e7daff9e92b91c1e7896dd4b66da7b33a52d20b6d5ee476cdd66f7b8"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/english/TodayQueueRulesTest.kt",

@@ -49,7 +49,7 @@ fun PersonalBookImportScreen(owner: String, onClose: () -> Unit) {
     var notice by rememberSaveable(owner) { mutableStateOf<String?>(null) }
     var importing by remember(owner) { mutableStateOf(false) }
     var summary by rememberSaveable(owner) { mutableStateOf<String?>(null) }
-    // 目标书：下拉选择已有书，或输入新名现场建（≤3 本限制由 store 兜底）
+    // 目标书：下拉选择已有书，或输入新名现场建（数量上限由 store 兜底）
     var books by remember(owner) { mutableStateOf<List<Pair<String, String>>>(emptyList()) } // id→name
     var targetBookId by rememberSaveable(owner) { mutableStateOf<String?>(null) }
     var newBookName by rememberSaveable(owner) { mutableStateOf("") }

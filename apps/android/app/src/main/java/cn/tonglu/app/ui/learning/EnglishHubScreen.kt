@@ -51,6 +51,7 @@ import kotlinx.coroutines.flow.first
  * 复用原能力屏，不显示尚未实现的假入口。
  * 返回链：能力屏返回 → 回英语首页；英语首页返回 → 回学习页。
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun EnglishHubScreen(
     owner: String,
@@ -166,6 +167,8 @@ internal fun EnglishHubScreen(
     // 顺带的好处是 route 收回 "home" 时 Hub 的滚动位置原样保留（原本就是这么设计的）。
     val abilityScreen: (@Composable () -> Unit)? = when (route) {
         "today" -> { { EnglishStudyScreen(owner, startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
+        "wordSettings" -> { { EnglishStudyScreen(owner, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
+        "readingHistory" -> { { cn.tonglu.app.ui.english.intensive.ReadingHistoryScreen(owner, onClose = { route = "home" }) } }
         "words" -> { { EnglishStudyScreen(owner, initialQuery = "", startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
         // 单开一条「收藏」路由，而不是让用户自己进单词页再点「收藏」筛选 ——
         // 用户问过「收藏是干什么的、在哪看」，说明入口不可发现（2026-10-08）。
@@ -280,6 +283,13 @@ internal fun EnglishHubScreen(
                     item("english-destinations") {
                         EnglishDestinationPager(onReading = { route = "intensive" }, onWords = { route = "words" })
                     }
+                    item("word-tools") {
+                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = { route = "wordSettings" }) { Text("单词设置") }
+                            TextButton(onClick = { route = "myBooks" }) { Text("我的单词书") }
+                            TextButton(onClick = { route = "readingHistory" }) { Text("精读历史") }
+                        }
+                    }
                     item("reading") {
                         Text("继续阅读", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))
                         EnglishReadingCard(article = cardArticle, ratio = cardRatio, finished = cardFinished,
@@ -332,7 +342,7 @@ private fun EnglishAuxiliaryTools(onSelect: (String) -> Unit, onClose: () -> Uni
                 item { EnglishEntryCard(Icons.Outlined.Quiz, "题组与错题", "练习与复习", { onSelect("questions") }) }
                 item { EnglishEntryCard(Icons.Outlined.Translate, "词汇与查词", "辅助阅读时使用", { onSelect("words") }) }
                 item { EnglishEntryCard(Icons.Outlined.Bookmarks, "单词收藏", "回看收藏", { onSelect("favorites") }) }
-                item { EnglishEntryCard(Icons.Outlined.LocalLibrary, "我的书籍", "管理个人阅读材料", { onSelect("myBooks") }) }
+                item { EnglishEntryCard(Icons.Outlined.LocalLibrary, "我的单词书", "收藏、合并与导入词表", { onSelect("myBooks") }) }
                 item { EnglishEntryCard(Icons.Outlined.Widgets, "更多工具", "例句、计划与诊断", { onSelect("more") }) }
             }
         }

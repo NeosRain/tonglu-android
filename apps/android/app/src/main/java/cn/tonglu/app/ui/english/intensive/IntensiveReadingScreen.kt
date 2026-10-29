@@ -115,7 +115,7 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
                 Text("本套可读：" + rows.joinToString("、") { it.title },
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            item { Text("点文章后从标明的原卷来源读取，保存在本机供后续阅读。语法位置由 GPU 预分析，原文指纹一致后显示；译文在本机按需生成。",
+            item { Text("点文章后从标明的原卷来源读取，保存在本机供后续阅读。语法位置由 GPU 预分析，原文指纹一致后显示；译文和分析使用你配置的 AI，并按版本保存在本机历史。",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
             }
         }

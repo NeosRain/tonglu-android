@@ -23,8 +23,12 @@ data class PersonalBookWord(
     val addedAt: Long = System.currentTimeMillis(),
     val attempts: Int = 0,
     val correct: Int = 0,
+    val collectionTimes: Int = 1,
+    val encounters: List<WordEncounter>? = null,
 ) {
-    val key: String get() = normalize(lemma)
+    val key: String get() = normalize(lemma.orEmpty().ifBlank { surface.orEmpty() })
+    /** Gson reads absent primitive fields as zero in older files. */
+    val collectionCount: Int get() = collectionTimes.coerceAtLeast(1)
     companion object {
         fun normalize(value: String): String = Normalizer.normalize(value.trim(), Normalizer.Form.NFC)
             .lowercase(Locale.ROOT).replace(Regex("\\s+"), " ")
@@ -49,10 +53,33 @@ class PersonalWordBookStore(context: Context, private val owner: String) {
 
     suspend fun snapshot(): PersonalBooksSnapshot = withContext(Dispatchers.IO) { lock.withLock { read() } }
 
+    suspend fun count(lemma: String): Int = snapshot().books.sumOf { book ->
+        book.words.filter { it.key == PersonalBookWord.normalize(lemma) }.sumOf { it.collectionCount }
+    }
+    suspend fun collectedWord(lemmaOrSurface: String): PersonalBookWord? {
+        val key = PersonalBookWord.normalize(lemmaOrSurface)
+        val words = snapshot().books.flatMap { it.words }
+        return words.firstOrNull { it.key == key }
+            ?: words.firstOrNull { PersonalBookWord.normalize(it.surface) == key }
+    }
+
+    /** Initial add is idempotent. Only a separate explicit +1 records another encounter. */
+    suspend fun collect(word: PersonalBookWord, exam: String? = null, anotherEncounter: Boolean = false): String = change { old ->
+        collectWordInSnapshot(old, word, exam, anotherEncounter, MAX_BOOKS)
+    }
+
+    /** One atomic write replaces the selected books; cancel/failed writes keep every original. */
+    suspend fun merge(ids: Set<String>): PersonalWordBook = change { old ->
+        val sources = old.books.filter { it.id in ids }
+        require(ids.size >= 2 && sources.size == ids.size) { "请选择至少两本仍存在的词书" }
+        val target = sources.first().copy(words = mergeCollectedWords(sources.flatMap { it.words }))
+        old.copy(books = old.books.filterNot { it.id in ids } + target) to target
+    }
+
     suspend fun create(name: String): PersonalWordBook = change { old ->
         val clean = name.trim()
         require(clean.isNotBlank() && clean.length <= 40) { "词书名须为1–40字" }
-        require(old.books.size < MAX_BOOKS) { "最多创建3本个人词书，请先删除一本" }
+        require(old.books.size < MAX_BOOKS) { "最多创建${MAX_BOOKS}本个人词书，请先合并或删除一本" }
         require(old.books.none { it.name.equals(clean, true) }) { "已有同名词书" }
         val book = PersonalWordBook(UUID.randomUUID().toString(), clean)
         old.copy(books = old.books + book) to book
@@ -102,7 +129,7 @@ class PersonalWordBookStore(context: Context, private val owner: String) {
         if (!file.baseFile.exists() && !File(file.baseFile.path + ".bak").exists()) return PersonalBooksSnapshot(owner)
         val snapshot = file.openRead().bufferedReader().use { gson.fromJson(it, PersonalBooksSnapshot::class.java) }
         require(snapshot.owner == owner && snapshot.schema == 1) { "个人词书归属或格式不正确，未改动原数据" }
-        return snapshot
+        return snapshot.copy(books = snapshot.books.map { book -> book.copy(words = book.words.map { it.withCompatibleDefaults() }) })
     }
 
     private suspend fun <T> change(transform: (PersonalBooksSnapshot) -> Pair<PersonalBooksSnapshot, T>): T =
@@ -112,8 +139,11 @@ class PersonalWordBookStore(context: Context, private val owner: String) {
             val stream = file.startWrite()
             try { stream.write(gson.toJson(next).toByteArray(Charsets.UTF_8)); file.finishWrite(stream) }
             catch (error: Exception) { file.failWrite(stream); throw error }
+            changes.value = changes.value + 1
             result
         } }
 
-    companion object { const val MAX_BOOKS = 3; private val lock = Mutex() }
+    companion object { const val MAX_BOOKS = 30; private val lock = Mutex()
+        val changes = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    }
 }

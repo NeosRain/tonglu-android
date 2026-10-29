@@ -51,6 +51,7 @@ fun PersonalBooksScreen(owner: String, onClose: () -> Unit,
     var notice by rememberSaveable(owner) { mutableStateOf<String?>(null) }
     var selectedKeys by remember(owner) { mutableStateOf<Set<String>>(emptySet()) }
     var selectedBookIds by remember(owner) { mutableStateOf<Set<String>>(emptySet()) }
+    var confirmMergeBooks by rememberSaveable(owner) { mutableStateOf(false) }
     var confirmDeleteBooks by rememberSaveable(owner) { mutableStateOf(false) }
     var confirmRemoveWords by rememberSaveable(owner) { mutableStateOf(false) }
     var importOpen by rememberSaveable(owner) { mutableStateOf(false) }
@@ -103,7 +104,7 @@ fun PersonalBooksScreen(owner: String, onClose: () -> Unit,
         onDismissRequest = { back() },
         properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false, onBack = { back() }), color = AppColors.Canvas) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false, onBack = { back() }), color = AppColors.CanvasOpaque) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { back() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回上一级") }
@@ -133,13 +134,16 @@ fun PersonalBooksScreen(owner: String, onClose: () -> Unit,
                             }
                         }
                         else -> {
+                            if (selectedBookIds.size >= 2) TextButton(onClick = { confirmMergeBooks = true }) { Text("合并去重") }
                             if (selectedBookIds.isNotEmpty()) TextButton(onClick = { confirmDeleteBooks = true }) {
                                 Text("删除 ${selectedBookIds.size}")
                             }
-                            TextButton(onClick = { importOpen = true }) { Text("导入") }
-                            TextButton(onClick = { photoOpen = true }) { Text("拍照识词") }
-                            TextButton(onClick = { creating = true; notice = null }, enabled = books.size < PersonalWordBookStore.MAX_BOOKS) {
-                                Text("＋ 新建")
+                            if (selectedBookIds.isEmpty()) {
+                                TextButton(onClick = { importOpen = true }) { Text("导入") }
+                                TextButton(onClick = { photoOpen = true }) { Text("拍照识词") }
+                                TextButton(onClick = { creating = true; notice = null }, enabled = books.size < PersonalWordBookStore.MAX_BOOKS) {
+                                    Text("＋ 新建")
+                                }
                             }
                         }
                     }
@@ -162,6 +166,18 @@ fun PersonalBooksScreen(owner: String, onClose: () -> Unit,
             }
         }
     }
+
+    if (confirmMergeBooks) AlertDialog(onDismissRequest = { confirmMergeBooks = false },
+        title = { Text("合并词书并去重") },
+        text = { Text("将已选 ${selectedBookIds.size} 本合并到《${books.firstOrNull { it.id in selectedBookIds }?.name.orEmpty()}》。重复词保留一条，收藏次数和练习次数相加，来源记录保留。原来的多本词书将收为这一本。") },
+        confirmButton = { TextButton(onClick = { scope.launch {
+            try {
+                val result = store.merge(selectedBookIds)
+                confirmMergeBooks = false; selectedBookIds = emptySet(); openBookId = result.id; reload()
+            } catch (e: kotlinx.coroutines.CancellationException) { throw e }
+            catch (e: Exception) { confirmMergeBooks = false; notice = e.message ?: "合并失败，原词书已保留" }
+        } }) { Text("合并") } },
+        dismissButton = { TextButton(onClick = { confirmMergeBooks = false }) { Text("取消") } })
 
     if (confirmDeleteBooks) {
         AlertDialog(onDismissRequest = { confirmDeleteBooks = false }, title = { Text("删除词书") },
@@ -228,7 +244,7 @@ private fun BooksBody(books: List<PersonalWordBook>, selected: Set<String>,
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             Text(if (atLimit) "已达 ${PersonalWordBookStore.MAX_BOOKS} 本上限，删除一本后才能再建。"
-            else "长按可多选删除；点击书名进入词条。",
+            else "勾选可合并或删除；点击书名查看词条。",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         items(books, key = { it.id }) { book ->
@@ -252,6 +268,7 @@ private fun BooksBody(books: List<PersonalWordBook>, selected: Set<String>,
 @Composable
 private fun WordListBody(book: PersonalWordBook, selected: Set<String>,
     onToggle: (String) -> Unit, onSelectAll: () -> Unit) {
+    var byCount by remember(book.id) { mutableStateOf(true) }
     if (book.words.isEmpty()) {
         Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
             Text("这本词书还是空的。在精读里点词收藏到这本书即可加入。",
@@ -264,9 +281,10 @@ private fun WordListBody(book: PersonalWordBook, selected: Set<String>,
             TextButton(onClick = onSelectAll) {
                 Text(if (selected.size == book.words.size) "取消全选" else "全选")
             }
+            TextButton(onClick = { byCount = !byCount }) { Text(if (byCount) "收藏次数 ↓" else "加入顺序") }
         }
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)) {
-            items(book.words, key = { it.key }) { word ->
+            items(if (byCount) book.words.sortedWith(compareByDescending<PersonalBookWord> { it.collectionCount }.thenBy { it.key }) else book.words, key = { it.key }) { word ->
                 WordRow(word, checked = word.key in selected, onToggle = { onToggle(word.key) })
                 HorizontalDivider()
             }
@@ -280,6 +298,7 @@ private fun WordRow(word: PersonalBookWord, checked: Boolean, onToggle: () -> Un
         Checkbox(checked = checked, onCheckedChange = { onToggle() })
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(word.surface, fontWeight = FontWeight.Medium)
+            Text("收藏 ${word.collectionCount} 次", style = MaterialTheme.typography.labelMedium, color = AppColors.Accent)
             if (word.lemma.isNotBlank() && !word.lemma.equals(word.surface, true)) {
                 Text("原型 ${word.lemma}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

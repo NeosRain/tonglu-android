@@ -18,6 +18,12 @@ class ReadingConversationStoreTest {
 
     /** 只做内存存取的假 DAO；key 故意用 (owner, threadId) 二元组，与真实表的主键一致。 */
     private class FakeDao : ReadingAnalysisDao {
+        override suspend fun history(owner: String): List<StoredReadingHistory> = error("Conversation test must not query reading history")
+        override suspend fun historyCache(owner: String, inputKey: String): StoredReadingHistory? = error("Unexpected history cache")
+        override suspend fun saveHistory(value: StoredReadingHistory): Unit = error("Unexpected history write")
+        override suspend fun sentenceFavorites(owner: String): List<StoredReadingFavorite> = error("Unexpected sentence favorites")
+        override suspend fun favoriteSentence(value: StoredReadingFavorite): Unit = error("Unexpected sentence favorite write")
+        override suspend fun unfavoriteSentence(owner: String, articleKey: String, sentenceId: String): Unit = error("Unexpected sentence favorite delete")
         val conversations = LinkedHashMap<Pair<String, String>, StoredReadingConversation>()
         val analyses = LinkedHashMap<Pair<String, String>, StoredSentenceAnalysis>()
 

@@ -242,7 +242,7 @@ internal fun EnglishStudyScreen(
     LaunchedEffect(book?.id) {
         try {
         val target = book ?: return@LaunchedEffect
-        if (entryRoute != "home") return@LaunchedEffect
+        if (!startOnReady || entryRoute != "home") return@LaunchedEffect
         val saved = try { checkpoint.load() } catch (_: Exception) { null } ?: return@LaunchedEffect
         if (saved.bookId != target.id || saved.index >= saved.wordIds.size) { checkpoint.clear(); return@LaunchedEffect }
         try {

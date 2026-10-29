@@ -75,21 +75,10 @@ internal fun EnglishDestinationPager(onReading: () -> Unit, onWords: () -> Unit)
                 }
             }
         }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("精读", "单词卡").forEachIndexed { index, title ->
-                val active = pager.currentPage == index
-                Surface(
-                    onClick = { scope.launch { pager.animateScrollToPage(index) } },
-                    modifier = Modifier.semantics { selected = active; role = Role.Tab },
-                    shape = RoundedCornerShape(16.dp),
-                    color = if (active) AppColors.Accent else AppColors.ChipIdle,
-                    contentColor = if (active) AppColors.OnAccent else AppColors.TextSecondary,
-                ) {
-                    Box(Modifier.heightIn(min = 48.dp).padding(horizontal = 18.dp, vertical = 12.dp),
-                        contentAlignment = Alignment.Center) {
-                        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    }
-                }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            repeat(2) { index ->
+                Text(if (pager.currentPage == index) "●" else "○",
+                    Modifier.padding(horizontal = 4.dp), color = AppColors.TextSecondary, fontSize = 10.sp)
             }
         }
     }

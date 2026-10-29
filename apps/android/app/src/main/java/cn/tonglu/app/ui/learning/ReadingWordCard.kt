@@ -67,6 +67,9 @@ internal fun ReadingWordCardPanel(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("语境词卡", fontWeight = FontWeight.SemiBold, fontSize = 16.sp,
                     color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                cn.tonglu.app.ui.english.intensive.SentenceFavoriteAction(state.owner,
+                    selection.sentence.articleId + ":" + selection.sentence.revision,
+                    "${selection.sentence.start}:${selection.sentence.end}:${selection.sentence.hash}", selection.sentence.text)
                 TextButton(onClick = onClose) { Text("收起") }
             }
             WordPickSentence(selection, state.surface, onPickWord)
@@ -89,6 +92,15 @@ internal fun ReadingWordCardPanel(
                     color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
             }
 
+                    cn.tonglu.app.ui.english.books.WordCollectionActions(
+                        owner = state.owner,
+                        word = cn.tonglu.app.data.english.books.PersonalBookWord(
+                            surface = state.surface, lemma = state.lemma ?: state.surface,
+                            meaning = state.definition.orEmpty(), sentence = state.sentence,
+                            articleId = selection.sentence.articleId,
+                            sourcePosition = "${selection.sentence.start + state.hitStart}-${selection.sentence.start + state.hitEnd}"),
+                        revision = state.favorite, existingOnly = true,
+                        onCount = { if (!state.favoriteSaving) state.applyFavorite(it > 0) })
             when {
                 // 查询失败与「未收录」必须分开说：前者是坏了，后者是词书里真没有。
                 state.loadError != null -> Column(Modifier.padding(top = 10.dp)) {
@@ -134,6 +146,7 @@ internal fun ReadingWordCardPanel(
                         onAskAi = onAskAi,
                         onRequestAnalysis = onRequestAnalysis,
                     )
+
                     TextButton(onClick = onOpenAiSettings, modifier = Modifier.padding(top = 4.dp)) {
                         Text("AI 设置", fontSize = 12.sp)
                     }

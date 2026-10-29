@@ -16,6 +16,13 @@ import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Stop
+import androidx.compose.material.icons.outlined.Star
+import androidx.compose.material.icons.outlined.StarBorder
+import cn.tonglu.app.data.english.*
+import cn.tonglu.app.data.english.books.PersonalBookWord
+import cn.tonglu.app.data.english.reading.StoredReadingHistory
+import cn.tonglu.app.ui.EnglishAiSettingsDialog
+import cn.tonglu.app.ui.english.books.WordCollectionActions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -59,36 +66,51 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
     val entry = article.entry
     val dictionary=remember(owner) { IntensiveWordLookup(context,owner) }
     val sentences = remember(article) { article.paragraphs.flatMap { it.sentences } }
-    val translator = remember(owner) { CetLocalTranslator(context, owner) }
-    DisposableEffect(translator) { onDispose { translator.close() } }
+    val study = remember(owner) { IntensiveStudyStore(context, owner) }
+    val aiStore = remember { EnglishAiStore(context) }
+    var aiConfig by remember { mutableStateOf(aiStore.load()) }
+    var aiSettingsOpen by remember { mutableStateOf(false) }
+    var historyOpen by remember { mutableStateOf(false) }
+    var historySentence by remember { mutableStateOf<String?>(null) }
+    var records by remember(entry.progressKey, owner) { mutableStateOf<List<StoredReadingHistory>>(emptyList()) }
     val scope = rememberCoroutineScope()
     var translated by remember(article, owner) { mutableStateOf(sentences.mapNotNull { row ->
-        (row.translation.takeIf { it.isNotBlank() } ?: translator.cached(row.text))?.let { row.id to it }
+        row.translation.takeIf { it.isNotBlank() }?.let { row.id to it }
     }.toMap()) }
     var translationBusy by remember { mutableStateOf(false) }
     var translationError by remember { mutableStateOf<String?>(null) }
     var translationJob by remember { mutableStateOf<Job?>(null) }
-    var syntax by rememberSaveable(entry.progressKey) { mutableStateOf(true) }
+    val syntax = true
     val scheme = MaterialTheme.colorScheme
     val colors = remember(scheme) { listOf("主语", "谓语", "宾语", "定语", "状语", "补语", "从句").associateWith { readingRoleColor(it, scheme) } }
     fun translateRows(rows: List<IntensiveSentence>) {
         if (translationBusy) return
+        if (!aiConfig.ready()) { aiSettingsOpen = true; return }
         translationJob = scope.launch {
             translationBusy = true; translationError = null
             try {
                 for (row in rows) if (translated[row.id].isNullOrBlank()) {
-                    val value = translator.translate(row.text)
+                    val value = study.generate(entry.progressKey, entry.subtitle + " · " + entry.title, row.id, row.text, "translation", aiConfig).text
                     translated = translated + (row.id to value)
                 }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
-                android.util.Log.w("CetTranslation", "local translation failed", e)
-                translationError = "本机翻译暂未完成，请检查网络后重试；已生成的译文会保留。"
+                android.util.Log.w("CetTranslation", "AI translation failed", e)
+                translationError = "AI 翻译未完成：${e.message ?: "请检查网络与 AI 配置"}；已完成的译文已保存。"
             } finally { translationBusy = false }
         }
     }
+    LaunchedEffect(entry.progressKey, owner) {
+        try {
+            records = study.history().filter { it.articleKey == entry.progressKey }
+            val saved = records.filter { it.kind == "translation" }.groupBy { it.sentenceId }.mapValues { it.value.first().text }
+            translated = translated + saved
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { translationError = "历史译文读取失败，请从历史入口重试" }
+    }
     var showTranslation by rememberSaveable(entry.progressKey) { mutableStateOf(false) }
     var selectedId by rememberSaveable(entry.progressKey) { mutableStateOf<String?>(null) }
+    var selectedTokenId by rememberSaveable(entry.progressKey) { mutableIntStateOf(0) }
     var focusedId by rememberSaveable(entry.progressKey) { mutableStateOf<String?>(null) }
     var more by remember { mutableStateOf(false) }
     var settings by rememberSaveable { mutableStateOf(false) }
@@ -141,12 +163,14 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
                 TextButton(onClick={
                     showTranslation = !showTranslation
                     if (showTranslation) translateRows(sentences) else translationJob?.cancel()
-                }) { Text(if(showTranslation) "隐藏译文" else "Google 翻译") }
+                }) { Text(if(showTranslation) "隐藏译文" else "AI 译文") }
                 Spacer(Modifier.weight(1f))
                 IconButton(onClick={speech.stop()}) { Icon(Icons.Outlined.Stop,"停止朗读") }
                 Box {
                     IconButton(onClick={more=true}) { Icon(Icons.Outlined.MoreVert,"阅读更多操作") }
                     DropdownMenu(more,onDismissRequest={more=false}) {
+                        DropdownMenuItem(text={Text("历史")},onClick={more=false;historySentence=null;historyOpen=true})
+                        DropdownMenuItem(text={Text("AI 设置")},onClick={more=false;aiSettingsOpen=true})
                         DropdownMenuItem(text={Text("字体与声音")},onClick={more=false;settings=true})
                         if(article.answers.isNotEmpty()) DropdownMenuItem(text={Text("填空原题与答案")},onClick={more=false;original=true})
                         DropdownMenuItem(text={Text("材料与分析说明")},onClick={more=false;source=true})
@@ -157,12 +181,11 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
             Text("点句子看翻译与语法，点词可查释义。",Modifier.padding(top=12.dp),
                 style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { syntax = !syntax }) { Text(if (syntax) "语法分色：开" else "语法分色：关") }
                 listOf("主语", "谓语", "宾语").forEach { role -> Text(role, color = colors.getValue(role), fontSize = 12.sp) }
             }
-            if (showTranslation && article.entry.remote != null) Text("本机机器译文仅辅助理解，请结合原文核对。首次需下载语言模型，建议使用 Wi‑Fi。",
+            if (showTranslation && article.entry.remote != null) Text("AI 译文与分析会保存在本机历史中；相同输入可复用结果。",
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            if (translationBusy) Text("正在准备模型或本机翻译…", style = MaterialTheme.typography.bodySmall)
+            if (translationBusy) Text("正在生成 AI 译文…", style = MaterialTheme.typography.bodySmall)
             translationError?.let { Text(it, color = MaterialTheme.colorScheme.error)
                 TextButton(onClick = { translateRows(sentences) }) { Text("重试翻译") } }
             if(entry.qualityNotice.isNotBlank()) Text(entry.qualityNotice,Modifier.padding(top=8.dp),
@@ -194,7 +217,11 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
                 SelectionContainer {
                     ClickableText(annotated,style=MaterialTheme.typography.bodyLarge.copy(fontSize=fontSize.sp,lineHeight=(fontSize*1.7f).sp,
                         color=MaterialTheme.colorScheme.onSurface),onClick={ offset ->
-                        intensiveSentenceAt(paragraph,offset)?.let { speech.stop();focusedId=it.id;selectedId=it.id }
+                        ranges.firstOrNull { offset >= it.start && offset < it.end }?.let { range ->
+                            speech.stop(); focusedId = range.sentence.id; selectedId = range.sentence.id
+                            val local = offset - range.start
+                            selectedTokenId = range.sentence.tokens.firstOrNull { local >= it.start && local < it.end && it.pos != "标点" }?.id ?: 0
+                        }
                     })
                 }
                 val paragraphTranslation = paragraph.translation.takeIf { it.isNotBlank() }
@@ -202,7 +229,7 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
                 if(showTranslation && paragraphTranslation.isNotBlank()) {
                     Text(paragraphTranslation,fontSize=(fontSize-1).sp,lineHeight=(fontSize*1.6f).sp,
                         color=MaterialTheme.colorScheme.onSurfaceVariant,modifier=Modifier.padding(top=8.dp))
-                    if (entry.remote != null) GoogleTranslationAttribution()
+
                 }
             }
         }
@@ -220,12 +247,15 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
             key(selected.id) {
                 SentenceDetails(entry,selected,preferences,dictionary,{speak(selected.text)},
                     { speech.stop();onLookup(it) },Modifier.weight(1f), translation = translated[selected.id],
-                    translationBusy = translationBusy, onTranslate = { translateRows(listOf(selected)) })
+                    translationBusy = translationBusy, onTranslate = { translateRows(listOf(selected)) },
+                    owner = owner, study = study, aiConfig = aiConfig, initialTokenId = selectedTokenId,
+                    onAiSettings = { aiSettingsOpen = true },
+                    onHistory = { historySentence = selected.id; historyOpen = true })
             }
             Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=8.dp),horizontalArrangement=Arrangement.SpaceBetween) {
-                TextButton(modifier=Modifier.weight(1f),enabled=position>0,onClick={speech.stop();selectedId=sentences[position-1].id;focusedId=selectedId}) { Text("上一句") }
+                TextButton(modifier=Modifier.weight(1f),enabled=position>0,onClick={speech.stop();selectedTokenId=0;selectedId=sentences[position-1].id;focusedId=selectedId}) { Text("上一句") }
                 TextButton(modifier=Modifier.weight(1f),onClick={mark(selected)}) { Text(if(selected.id in read) "✓ 已读" else "标为已读") }
-                TextButton(modifier=Modifier.weight(1f),enabled=position<sentences.lastIndex,onClick={speech.stop();selectedId=sentences[position+1].id;focusedId=selectedId}) { Text("下一句") }
+                TextButton(modifier=Modifier.weight(1f),enabled=position<sentences.lastIndex,onClick={speech.stop();selectedTokenId=0;selectedId=sentences[position+1].id;focusedId=selectedId}) { Text("下一句") }
             }
         }
     }
@@ -263,37 +293,68 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
             } else {
                 item { Text(article.notice,lineHeight=26.sp) }
                 item { SelectionContainer { Text(article.license+"\n"+article.sourceUrl,style=MaterialTheme.typography.bodySmall) } }
-                item { Text(if (entry.remote != null) "句法：Stanza EWT GPU 预分析位置；译文：按需下载模型后在本机生成。原卷从标明来源读取，仅保存在应用私有缓存。"
+                item { Text(if (entry.remote != null) "句法：GPU 预分析位置，默认分色；AI 使用你配置的接口。原卷与个人学习历史只保存在本机。"
                     else "句法：Stanza EWT；翻译：opus-mt-en-zh。电脑 GPU 预计算，手机离线查看。",
                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                if (entry.remote != null) item {
-                    Text("Google Translate 本机机器翻译：原文及译文不发送至 Google；SDK 可能联网更新模型并发送运行和使用指标。Google 不对机器译文的准确性、可靠性或适用性作保证，请核对原文。",
-                        style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
-                    val uri = LocalUriHandler.current
-                    TextButton(onClick={uri.openUri("https://developers.google.com/ml-kit/terms")}) { Text("翻译条款与隐私") }
-                    TextButton(onClick={uri.openUri("https://cloud.google.com/translate")}) { Text("Google Translate 说明") }
-                }
+                item { Text("AI 请求由手机直接发送到你配置的服务，不经苔米厸中转。译文与点评按版本保存在本机；同源同配置同输入复用缓存。", style=MaterialTheme.typography.bodySmall) }
             }
         }
     }
-}
+    if (aiSettingsOpen) EnglishAiSettingsDialog(aiStore, aiConfig,
+        onSaved = { aiConfig = it }, onDismiss = { aiSettingsOpen = false })
+    if (historyOpen) ReadingHistoryScreen(owner, onClose = { historyOpen = false },
+        articleKey = entry.progressKey, sentenceId = historySentence)
 
-@Composable
-private fun GoogleTranslationAttribution() {
-    val image = if (MaterialTheme.colorScheme.surface.luminance() < .5f)
-        R.drawable.google_translate_white else R.drawable.google_translate_color
-    Image(painterResource(image), "powered by Google Translate",
-        Modifier.padding(top=8.dp).height(16.dp).aspectRatio(11f))
 }
 
 @Composable
 private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,preferences: SharedPreferences,
     dictionary: IntensiveWordLookup,play: ()->Unit,lookup: (String)->Unit,modifier: Modifier,
-    translation: String? = null, translationBusy: Boolean = false, onTranslate: () -> Unit = {}) {
-    var tokenId by rememberSaveable(sentence.id) { mutableIntStateOf(0) }
+    translation: String? = null, translationBusy: Boolean = false, onTranslate: () -> Unit = {},
+    owner: String, study: IntensiveStudyStore, aiConfig: EnglishAiConfig,
+    onAiSettings: () -> Unit, onHistory: () -> Unit, initialTokenId: Int = 0) {
+    val scope = rememberCoroutineScope()
+    var historyRows by remember(entry.progressKey, sentence.id) { mutableStateOf<List<StoredReadingHistory>>(emptyList()) }
+    var favorite by remember(entry.progressKey, sentence.id) { mutableStateOf(false) }
+    var saving by remember { mutableStateOf(false) }
+    var studyError by remember(sentence.id) { mutableStateOf<String?>(null) }
+    var aiResult by remember(sentence.id) { mutableStateOf<String?>(null) }
+    var savedNotice by remember(sentence.id) { mutableStateOf<String?>(null) }
+    suspend fun refreshRecords() {
+        historyRows = study.history().filter { it.articleKey == entry.progressKey && it.sentenceId == sentence.id }
+        aiResult = historyRows.firstOrNull { it.kind in setOf("analysis", "review") }?.text
+        favorite = study.favorites().any { it.articleKey == entry.progressKey && it.sentenceId == sentence.id }
+    }
+    fun analyze(kind: String, draft: String = "") {
+        if (!aiConfig.ready()) { onAiSettings(); return }
+        if (saving) return
+        scope.launch {
+            saving = true; studyError = null
+            try {
+                if (kind == "review") study.manual(entry.progressKey, entry.subtitle + " · " + entry.title, sentence.id, sentence.text, draft)
+                val result = study.generate(entry.progressKey, entry.subtitle + " · " + entry.title, sentence.id, sentence.text, kind, aiConfig, draft)
+                aiResult = result.text; refreshRecords()
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) { studyError = e.message ?: "AI 分析未完成，请重试" }
+            finally { saving = false }
+        }
+    }
+    var tokenId by rememberSaveable(sentence.id) { mutableIntStateOf(initialTokenId) }
     var reference by rememberSaveable(sentence.id) { mutableStateOf(true) }
     val noteKey=remember(entry.progressKey,sentence.id) { intensiveTranslationKey(entry,sentence) }
     var note by remember(noteKey) { mutableStateOf(preferences.getString(noteKey,"") ?: "") }
+    val studyChanges by IntensiveStudyStore.changes.collectAsState()
+    LaunchedEffect(noteKey, studyChanges) {
+        try {
+            refreshRecords()
+            // Preserve and import the old local draft instead of discarding existing work.
+            if (note.isNotBlank() && historyRows.none { it.kind == "manual" }) {
+                study.manual(entry.progressKey, entry.subtitle + " · " + entry.title, sentence.id, sentence.text, note)
+                refreshRecords()
+            }
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { studyError = "学习记录读取失败，请重试" }
+    }
     var writing by rememberSaveable(noteKey) { mutableStateOf(note.isNotBlank()) }
     val editorFocus=remember(noteKey) { FocusRequester() }
     val keyboard=LocalSoftwareKeyboardController.current
@@ -304,6 +365,7 @@ private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,pr
     var gloss by remember(sentence.id,tokenId) { mutableStateOf<IntensiveGlossResult?>(null) }
     var loading by remember(sentence.id,tokenId) { mutableStateOf(false) }
     val selectedToken=sentence.tokens.firstOrNull { it.id==tokenId }
+    var meaningDraft by remember(sentence.id, tokenId) { mutableStateOf("") }
     LaunchedEffect(sentence.id,tokenId,dictionary) {
         val token=selectedToken ?: return@LaunchedEffect
         if(!token.lemma.matches(Regex("[A-Za-z]+(?:['’\\-][A-Za-z]+)*"))) return@LaunchedEffect
@@ -337,6 +399,24 @@ private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,pr
                 TextButton(onClick=play) { Icon(Icons.AutoMirrored.Outlined.VolumeUp,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("听这一句") }
                 TextButton(onClick={reference=!reference}) { Text(if(reference) "隐藏参考译文" else "查看参考译文") }
             }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { if (!saving) scope.launch {
+                    saving = true
+                    val nextFavorite = !favorite
+                    try {
+                        study.favorite(entry.progressKey, entry.subtitle + " · " + entry.title, sentence.id, sentence.text, nextFavorite)
+                        favorite = nextFavorite
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { studyError = "句子收藏保存失败，请重试" }
+                    finally { saving = false }
+                } }, enabled = !saving) {
+                    Icon(if (favorite) Icons.Outlined.Star else Icons.Outlined.StarBorder,
+                        if (favorite) "已收藏这个句子" else "收藏这个句子",
+                        tint = if (favorite) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                TextButton(onClick = { analyze("analysis") }, enabled = !saving) { Text("AI 分析") }
+                TextButton(onClick = onHistory) { Text("历史 · ${historyRows.size}") }
+            }
         }
         sentence.tokens.firstOrNull { it.id==tokenId }?.let { token -> item {
             Surface(color=MaterialTheme.colorScheme.surfaceVariant,shape=RoundedCornerShape(14.dp)) {
@@ -360,19 +440,24 @@ private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,pr
                     if(!loading && gloss!=null && gloss?.gloss==null && gloss?.problem==null)
                         Text("本机词库暂未收录此词。",style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     gloss?.problem?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.error) }
+                    if (!loading && gloss?.gloss == null) OutlinedTextField(meaningDraft,
+                        onValueChange = { if (it.length <= 1000) meaningDraft = it }, label = { Text("填写释义后加入词书") }, modifier = Modifier.fillMaxWidth())
+                    WordCollectionActions(owner, PersonalBookWord(surface = token.text, lemma = token.lemma,
+                        meaning = gloss?.gloss?.chinese ?: meaningDraft, sentence = sentence.text,
+                        articleId = entry.id, sourcePosition = sentence.id + ":" + token.start + "-" + token.end), exam = entry.exam)
                 }
             }
         } }
         if(reference) item {
-            Text(if (entry.remote != null) "本机译文 · 机器结果请核对" else "参考译文",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             val value = translation?.takeIf { it.isNotBlank() } ?: sentence.translation
+            Text(if (entry.remote != null) (if (value.isNotBlank()) "AI 译文 · 已保存" else "AI 译文") else "参考译文",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             if (value.isNotBlank()) {
                 SelectionContainer { Text(value,fontSize=18.sp,lineHeight=29.sp,modifier=Modifier.padding(top=6.dp)) }
-                if (entry.remote != null) GoogleTranslationAttribution()
+
             }
             else {
-                Text("首次需下载语言模型，建议使用 Wi‑Fi。", style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = onTranslate, enabled = !translationBusy) { Text(if (translationBusy) "正在本机翻译…" else "使用 Google 翻译这句") }
+                Text("使用已配置的 AI 接口，生成结果会保存在历史中。", style = MaterialTheme.typography.bodySmall)
+                TextButton(onClick = onTranslate, enabled = !translationBusy) { Text(if (translationBusy) "正在 AI 翻译…" else "AI 翻译这句") }
             }
         }
         item {
@@ -385,12 +470,31 @@ private fun SentenceDetails(entry: IntensiveEntry,sentence: IntensiveSentence,pr
             } }
             Text("机器句法分析，需结合语境核对。",Modifier.padding(top=10.dp),style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant)
         }
+        if (saving) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
+        studyError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+        aiResult?.let { result -> item {
+            Text("AI 分析 · 已保存", style = MaterialTheme.typography.labelMedium)
+            SelectionContainer { Text(result, lineHeight = 28.sp) }
+        } }
         item {
             TextButton(onClick={writing=!writing;focusEditor=writing}) { Text(if(writing) "收起我的翻译" else "写我的翻译") }
             if(writing) OutlinedTextField(value=note,onValueChange={ next ->
                 if(next.length<=IntensiveTranslationLimit) { note=next;preferences.edit().putString(noteKey,next).apply() }
             },modifier=Modifier.fillMaxWidth().focusRequester(editorFocus),label={Text("我的翻译")},minLines=3,maxLines=7,
-                supportingText={Text("仅本机自动保存 · "+note.length+"/"+IntensiveTranslationLimit)})
+                supportingText={Text("草稿自动保存 · 保存译文后加入历史 · "+note.length+"/"+IntensiveTranslationLimit)})
+            if (writing) Row {
+                TextButton(onClick = { if (!saving) scope.launch {
+                    saving = true; studyError = null
+                    try {
+                        study.manual(entry.progressKey, entry.subtitle + " · " + entry.title, sentence.id, sentence.text, note)
+                        refreshRecords(); savedNotice = "这一版译文已保存到历史"
+                    } catch (e: CancellationException) { throw e }
+                    catch (e: Exception) { studyError = e.message ?: "译文未保存，请重试" }
+                    finally { saving = false }
+                } }, enabled = !saving && note.isNotBlank()) { Text("保存译文") }
+                TextButton(onClick = { analyze("review", note) }, enabled = !saving && note.isNotBlank()) { Text("AI 点评我的翻译") }
+            }
+            savedNotice?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) }
         }
     }
 }
