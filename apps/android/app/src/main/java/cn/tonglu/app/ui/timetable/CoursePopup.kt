@@ -110,8 +110,13 @@ internal fun CourseDetailDialog(selection: CourseSelection, onDelete: ((CourseDt
     onDismiss: () -> Unit) {
     val course = selection.course
     var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var showClassNotes by remember { mutableStateOf(false) }
+    var openingClassNotes by remember { mutableStateOf(false) }
     val accent = courseColor(course.name)
-    CoursePopup(selection.origin, onDismiss = { onDismiss(); afterClose?.invoke() }) { close ->
+    if (!showClassNotes) CoursePopup(selection.origin, onDismiss = {
+        if (openingClassNotes) { openingClassNotes = false; showClassNotes = true }
+        else { onDismiss(); afterClose?.invoke() }
+    }) { close ->
         Column(Modifier.fillMaxWidth().background(accent).padding(22.dp)) {
             Text(course.name, color = AppColors.OnAccent, fontSize = 22.sp, lineHeight = 29.sp,
                 fontWeight = FontWeight.SemiBold, maxLines = 4,
@@ -133,11 +138,13 @@ internal fun CourseDetailDialog(selection: CourseSelection, onDelete: ((CourseDt
             if (onDelete != null) TextButton(onClick = { afterClose = { onDelete(course) }; close() }) {
                 Text("删除课程", color = AppColors.Danger)
             }
+            TextButton(onClick = { openingClassNotes = true; close() }) { Text("课堂笔记", color = AppColors.Accent) }
             if (onEdit != null) TextButton(onClick={afterClose={onEdit(course)};close()}) { Text("编辑",color=AppColors.Accent) }
             Spacer(Modifier.weight(1f))
             TextButton(onClick = close) { Text("完成", color = AppColors.Accent) }
         }
     }
+    if (showClassNotes) ClassNotesDialog(course) { showClassNotes = false; onDismiss() }
 }
 
 @Composable

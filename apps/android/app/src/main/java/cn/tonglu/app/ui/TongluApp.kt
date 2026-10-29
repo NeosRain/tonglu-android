@@ -161,6 +161,7 @@ import cn.tonglu.app.data.ScoreBoard
 import cn.tonglu.app.data.PeriodTable
 import cn.tonglu.app.data.WeekSpec
 import cn.tonglu.app.data.ScheduleText
+import cn.tonglu.app.ui.timetable.CourseRecognitionActions
 import cn.tonglu.app.ui.glass.GlassTopBar
 import cn.tonglu.app.ui.glass.LiquidBottomTabs
 import cn.tonglu.app.ui.glass.LiquidBottomTab
@@ -482,7 +483,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
             settingsPrefs.edit().putBoolean("profile_sync_notice_shown", true).apply()
         },
         title = { Text("课表与成绩已默认开启同步") },
-        text = { Text("为了换机不丢数据，课表、成绩和学期设置会跟随苔米厸账号保存在应用服务器，本机变更后自动上传。\n\n· 只同步这三样。校园登录信息（Cookie）只留在本机，从不上传；示例数据也不会上传。\n· 同一门课两边都改过时，保留本机记录。\n· 不想要的话，随时可以在「我的」里关掉。") },
+        text = { Text("为了换机不丢数据，课表、成绩和学期设置会跟随苔米林账号保存在应用服务器，本机变更后自动上传。\n\n· 只同步这三样。校园登录信息（Cookie）只留在本机，从不上传；示例数据也不会上传。\n· 同一门课两边都改过时，保留本机记录。\n· 不想要的话，随时可以在「我的」里关掉。") },
         confirmButton = {
             TextButton(onClick = {
                 OverlayDismissGuard.arm()
@@ -1331,6 +1332,20 @@ private fun CourseDialog(
                 Modifier.heightIn(max = 430.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(9.dp),
             ) {
+                if (initial == null) {
+                    CourseRecognitionActions { draft ->
+                        draft.name?.let { name = it }
+                        draft.teacher?.let { teacher = it }
+                        draft.location?.let { location = it }
+                        draft.weekday?.let { weekday = it }
+                        draft.startPeriod?.let { start = it.toString() }
+                        draft.endPeriod?.let { end = it.toString() }
+                        draft.startWeek?.let { startWeek = it.toString() }
+                        draft.endWeek?.let { endWeek = it.toString() }
+                        draft.weekMode?.let { weekMode = it; customWeeks = "" }
+                        error = null
+                    }
+                }
                 MiuixTextField(name, { name = it.take(40) }, label = "课程名称", singleLine = true, modifier = Modifier.fillMaxWidth())
                 MiuixTextField(teacher, { teacher = it.take(20) }, label = "老师（可选）", singleLine = true, modifier = Modifier.fillMaxWidth())
                 MiuixTextField(location, { location = it.take(30) }, label = "教室（可选）", singleLine = true, modifier = Modifier.fillMaxWidth())

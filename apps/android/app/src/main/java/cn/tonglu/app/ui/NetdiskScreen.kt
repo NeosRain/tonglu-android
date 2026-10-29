@@ -976,7 +976,7 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            "对方点开链接、填 4 位提取码就能下 —— 不用装苔米厸、不用登录。" +
+                            "对方点开链接、填 4 位提取码就能下 —— 不用装苔米林、不用登录。" +
                                 "30 分钟内最多换 5 次下载链接，文件本身最长保留 24 小时。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

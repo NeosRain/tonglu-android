@@ -326,7 +326,7 @@ object BuiltinTts {
         if (!ensure(context, model)) return Result(false, outFile, 0, 0, "引擎未就绪：${lastError}")
         val tts = engine ?: return Result(false, outFile, 0, 0, "引擎未就绪")
         return try {
-            val text = if (model.lang.startsWith("zh")) "苔米厸离线语音自检，今天是二零二六年十月四日。"
+            val text = if (model.lang.startsWith("zh")) "苔米林离线语音自检，今天是二零二六年十月四日。"
             else "Taimi Forest offline speech self test, October fourth, twenty twenty six."
             val who = if (speakers > 1) 0 else 0
             val audio = tts.generate(text, who, 1.0f)

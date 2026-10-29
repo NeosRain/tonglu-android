@@ -62,7 +62,7 @@ private fun findClose(text: String, from: Int): Int {
  * 系统分享面板要发的正文。
  *
  * 🔴 **不发链接**：帖子没有对外可访问的 URL，编一个出来就是假链接。
- * 所以只发「分类 + 标题 + 摘要 + 出处」这一段纯文本；末尾如实写「来自苔米厸 App」。
+ * 所以只发「分类 + 标题 + 摘要 + 出处」这一段纯文本；末尾如实写「来自苔米林 App」。
  *
  * @param categoryName 已翻译好的分类名（`WALL` → `校园动态`）
  * @param truncated    摘要是否被截断（截断了才补省略号，否则短帖会多条尾巴）
@@ -76,7 +76,7 @@ internal fun shareText(categoryName: String, title: String?, excerpt: String, tr
         if (body.isNotBlank() && body != head) {
             append("\n\n").append(body)
         }
-        append("\n\n—— 来自苔米厸 App")
+        append("\n\n—— 来自苔米林 App")
     }
 }
 

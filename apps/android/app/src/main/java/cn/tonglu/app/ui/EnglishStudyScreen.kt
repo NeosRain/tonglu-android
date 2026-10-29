@@ -501,7 +501,7 @@ internal fun EnglishStudyScreen(
                                 Text(if (aiConfig.ready()) "AI 设置 · 已配置 ${aiConfig.model}" else "AI 设置 · 未填密钥") } }
                             item { OutlinedButton(onClick = { export.launch("english-learning-backup.json") }, modifier = Modifier.fillMaxWidth()) { Text("导出学习记录") } }
                             item { Text("收藏与答题记录保存在独立 SQLite 数据库，不依赖联网。旧校园词卡记录保留在原位置。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                            item { Text("AI 讲解用的是你自己填的接口，密钥只存本机、请求不经过苔米厸服务器；不配置也能离线背单词（导出文件里不含密钥）。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                            item { Text("AI 讲解用的是你自己填的接口，密钥只存本机、请求不经过苔米林服务器；不配置也能离线背单词（导出文件里不含密钥）。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                         "practice" -> {
                             val current = session.getOrNull(index)

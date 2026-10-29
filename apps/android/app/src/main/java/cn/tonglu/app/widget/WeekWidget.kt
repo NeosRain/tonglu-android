@@ -104,7 +104,7 @@ private fun WeekContent(context: Context, snapshot: TodayWidgetSource.WeekSnapsh
         }
         if (bands.isEmpty()) {
             Text("还没有课表", style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp))
-            Text("打开苔米厸导入课表", modifier = GlanceModifier.padding(top = 8.dp)
+            Text("打开苔米林导入课表", modifier = GlanceModifier.padding(top = 8.dp)
                 .clickable(actionStartActivity(widgetOpenAppIntent(context))),
                 style = TextStyle(color = WIDGET_ACCENT_PROVIDER, fontSize = 12.sp))
         } else {

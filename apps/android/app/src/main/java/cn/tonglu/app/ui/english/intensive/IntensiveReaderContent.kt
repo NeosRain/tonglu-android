@@ -296,7 +296,7 @@ internal fun IntensiveReader(article: IntensiveArticle, preferences: SharedPrefe
                 item { Text(if (entry.remote != null) "句法：GPU 预分析位置，默认分色；AI 使用你配置的接口。原卷与个人学习历史只保存在本机。"
                     else "句法：Stanza EWT；翻译：opus-mt-en-zh。电脑 GPU 预计算，手机离线查看。",
                     style=MaterialTheme.typography.bodySmall,color=MaterialTheme.colorScheme.onSurfaceVariant) }
-                item { Text("AI 请求由手机直接发送到你配置的服务，不经苔米厸中转。译文与点评按版本保存在本机；同源同配置同输入复用缓存。", style=MaterialTheme.typography.bodySmall) }
+                item { Text("AI 请求由手机直接发送到你配置的服务，不经苔米林中转。译文与点评按版本保存在本机；同源同配置同输入复用缓存。", style=MaterialTheme.typography.bodySmall) }
             }
         }
     }

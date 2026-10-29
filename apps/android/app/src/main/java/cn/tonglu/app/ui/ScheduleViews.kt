@@ -280,6 +280,7 @@ internal fun TodayClassesCard(
     val today = ScheduleText.todayWeekday()
     // 点今日课程行看这门课的详情（2026-10-10：与课表格子保持一致）
     var selectedCourse by remember { mutableStateOf<CourseSelection?>(null) }
+    var activeClassNotes by remember { mutableStateOf<CourseDto?>(null) }
     val holidayNow = remember { Holidays.holidayAt(System.currentTimeMillis()) }
     val todayCourses = remember(courses, today, week) { ScheduleBoard.ofDay(courses, today, week) }
     // 国定假期当天一律不上课（2026-10-05 用户报告）：当天课表**整体进入完成状态**，
@@ -407,7 +408,10 @@ internal fun TodayClassesCard(
                     isNext = course == nextCourse,
                     minutesToStart = (periodMinutes(course.startPeriod, start = true) ?: 0) - nowMinutes,
                     onLongPress = { onLongPressCourse(course) },
-                    onTap = { selectedCourse = CourseSelection(course, it) },
+                    onTap = {
+                        if (course == current) activeClassNotes = course
+                        else selectedCourse = CourseSelection(course, it)
+                    },
                 )
             }
             if (finishedCount > 0) {
@@ -443,6 +447,7 @@ internal fun TodayClassesCard(
         }
     }
     selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
+    activeClassNotes?.let { ClassNotesDialog(it) { activeClassNotes = null } }
 }
 
 @Composable
@@ -926,7 +931,8 @@ internal fun TimetableGrid(
     val groupsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> scheduleOverlapGroups(items) } }
     var overlapping by remember(courses) { mutableStateOf<CourseOverlapSelection?>(null) }
     val rowHeight = if (expanded) 76.dp else 56.dp
-    val timeColumnWidth = if (expanded) 30.dp else 20.dp
+    // Keep the period number and both bell times readable even in the compact home grid.
+    val timeColumnWidth = if (expanded) 48.dp else 42.dp
     val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
     // 列头日期与法定节假日都按「所选周」的周一算（此前锚死本周，切周后日期/休标不动）
     val weekStart = weekStartMillis
@@ -973,18 +979,16 @@ internal fun TimetableGrid(
             // 节次 + 作息时间
             Column(Modifier.width(timeColumnWidth)) {
                 (1..maxPeriod).forEach { period ->
+                    val slot = PeriodTable.slot(period)
                     Column(
                         Modifier.height(rowHeight),
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         MiuixText("$period", color = SvMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
-                        if (expanded) {
-                            MiuixText(
-                                PeriodTable.slot(period)?.start.orEmpty(),
-                                color = SvMuted.copy(alpha = 0.7f),
-                                fontSize = 7.sp,
-                            )
+                        if (slot != null) {
+                            MiuixText(slot.start, color = SvMuted, fontSize = 8.sp, maxLines = 1)
+                            MiuixText(slot.end, color = SvMuted.copy(alpha = 0.8f), fontSize = 8.sp, maxLines = 1)
                         }
                     }
                 }

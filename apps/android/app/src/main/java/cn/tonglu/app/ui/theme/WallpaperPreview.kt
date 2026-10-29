@@ -119,7 +119,7 @@ internal fun WallpaperPreviewDialog(onClose: () -> Unit) {
                 LazyColumn(Modifier.weight(1f).fillMaxWidth(),
                     contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     item {
-                        Text("苔米厸", color = AppColors.TextPrimary, style = MaterialTheme.typography.headlineMedium,
+                        Text("苔米林", color = AppColors.TextPrimary, style = MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold)
                         Text("课表、成绩与学习，清楚地放在一起", color = AppColors.TextSecondary,
                             style = MaterialTheme.typography.bodyMedium)

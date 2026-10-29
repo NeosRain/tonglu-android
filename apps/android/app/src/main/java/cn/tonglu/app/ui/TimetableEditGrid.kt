@@ -66,7 +66,7 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
     val scrollStep = with(density) { 8.dp.toPx() }
     DisposableEffect(Unit) { onDispose { latestDragging(false) } }
     BoxWithConstraints(modifier.fillMaxWidth()) {
-        val timeWidth = 38.dp
+        val timeWidth = 48.dp
         // Do not squeeze overlapping classes into unreadable strips. The header and grid scroll together.
         val laneCount = lanes.values.maxOfOrNull { it.second } ?: 1
         val readableWidth = 30.dp * laneCount * density.fontScale.coerceIn(1f, 1.6f)
@@ -111,12 +111,16 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                 Box(Modifier.fillMaxWidth().height(rowHeight * rows)) {
                     Column {
                         (1..rows).forEach { period ->
+                            val slot = PeriodTable.slot(period)
                             Row(Modifier.height(rowHeight)) {
                                 Column(Modifier.width(timeWidth).fillMaxHeight(),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center) {
                                     Text("$period", fontSize = 11.sp, color = AppColors.TextSecondary)
-                                    Text(PeriodTable.slot(period)?.start.orEmpty(), fontSize = 8.sp, color = AppColors.TextMuted)
+                                    if (slot != null) {
+                                        Text(slot.start, fontSize = 9.sp, maxLines = 1, color = AppColors.TextSecondary)
+                                        Text(slot.end, fontSize = 9.sp, maxLines = 1, color = AppColors.TextMuted)
+                                    }
                                 }
                                 (1..7).forEach {
                                     Box(Modifier.width(dayWidth).fillMaxHeight().padding(1.5.dp)

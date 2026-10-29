@@ -141,10 +141,10 @@ internal data class ThemeAccentPreset(val label: String, val argb: Int)
 
 /**
  * 酷安/B站风格的预设色：八个色相都压在白字 ≥4.5、深色底 ≥3.0 的区间里。
- * 默认「苔米厸蓝」就是 App 原来的品牌蓝，选中它不会改变默认观感。
+ * 默认「苔米林蓝」就是 App 原来的品牌蓝，选中它不会改变默认观感。
  */
 internal val themeAccentPresets = listOf(
-    ThemeAccentPreset("苔米厸蓝", 0xFF2563EB.toInt()),
+    ThemeAccentPreset("苔米林蓝", 0xFF2563EB.toInt()),
     ThemeAccentPreset("湖青", 0xFF0E7490.toInt()),
     ThemeAccentPreset("松绿", 0xFF15803D.toInt()),
     ThemeAccentPreset("鸢尾紫", 0xFF7C3AED.toInt()),

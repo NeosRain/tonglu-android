@@ -95,7 +95,7 @@ internal fun LaunchAnimationHost(ready: Boolean, owner: String?, content: @Compo
         }) {
             if (loaded) StartupScreen(artwork, progress = { progress.value }, notice = warning ?: if (played && !ready) "正在准备本机数据…" else null)
             else Box(Modifier.fillMaxSize().background(AppColors.Canvas), contentAlignment = Alignment.Center) {
-                Text("苔米厸", color = AppColors.TextPrimary)
+                Text("苔米林", color = AppColors.TextPrimary)
             }
             // 「跳过」全程在（不只在 ready 后）：完整播放要 1650ms，想快的人必须随时有出口，
             // 这是「动画不推迟能点」的落点。未 ready 时点它先停到终态并提示「正在准备本机数据…」。

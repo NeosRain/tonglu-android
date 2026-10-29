@@ -174,7 +174,7 @@ class WidgetPickerActivity : ComponentActivity() {
                 // Keep the visible Activity alive while OEM launchers create their confirmation UI.
                 awaitConfirmation()
             } else {
-                error = "桌面未接受请求，请长按桌面空白处，从小组件列表添加苔米厸。"
+                error = "桌面未接受请求，请长按桌面空白处，从小组件列表添加苔米林。"
                 requesting = false
                 status = null
                 token = null
@@ -183,7 +183,7 @@ class WidgetPickerActivity : ComponentActivity() {
             }
         } catch (bad: RuntimeException) {
             Log.w("WidgetPicker", "桌面未能添加小组件", bad)
-            error = "暂时无法添加，请从桌面的小组件列表添加苔米厸。"
+            error = "暂时无法添加，请从桌面的小组件列表添加苔米林。"
             requesting = false
             status = null
             token = null
@@ -204,7 +204,7 @@ class WidgetPickerActivity : ComponentActivity() {
         try { startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))) }
         catch (error: RuntimeException) {
             Log.w("WidgetPin", "应用设置不可用：${error.javaClass.simpleName}")
-            this.error = "请到系统设置的应用管理中打开苔米厸。"
+            this.error = "请到系统设置的应用管理中打开苔米林。"
         }
     }
 }
