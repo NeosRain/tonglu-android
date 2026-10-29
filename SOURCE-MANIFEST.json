@@ -3132,8 +3132,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 1110,
-      "sha256": "b62f32492bce05d4b3a84cd673a8a45192dda6267c006dc275fe1d2e5483f0d1"
+      "bytes": 849,
+      "sha256": "1d8b20315a63efa42153cd79ea6c6eb3be68e21f4194b474058a7a477837118b"
     },
     {
       "path": "content/intensive/provenance.json",
@@ -3207,8 +3207,8 @@
     },
     {
       "path": "docs/BRAND.md",
-      "bytes": 2546,
-      "sha256": "d56a8fe1cef7a3e211aecc1473dec662ffe09c130a588bfa490000a4599df045"
+      "bytes": 2838,
+      "sha256": "318b10cabfa25d9175a0175d62f4ea15ffdf9d620834379ca0378e1dcdb421a7"
     },
     {
       "path": "LICENSE",
@@ -3262,13 +3262,13 @@
     },
     {
       "path": "NOTICE",
-      "bytes": 784,
-      "sha256": "60161115a623c8cd668af3594317d08f1751651b208f5c0bdc1888225431b8ce"
+      "bytes": 770,
+      "sha256": "07588aa6f7c2991478d542e6ec2a339aa7f98b982f2dad991374b94c6a37edb8"
     },
     {
       "path": "README.md",
-      "bytes": 6265,
-      "sha256": "c3820fd61c68f14d8c08e3503510802c51204232a48d190da30819ad83a8c58e"
+      "bytes": 6211,
+      "sha256": "a0aae032ef5142a34df3bf0c47af137c442d673dabecdaebb911fb79d9144835"
     },
     {
       "path": "scripts/audit_resource_provenance.py",
