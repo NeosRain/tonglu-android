@@ -87,23 +87,31 @@ class DampedDragAnimation(
             latestTarget = value
             isDragging = true
             didDrag = false
-            // 胶囊就压在**当前选中**的 tab 上，所以能摸到它的手势 = 按的是当前页 → 轻反馈。
-            // 以前这里恒定 heavy：停在当前页连点，每一按都拉起完整透镜/模糊斜坡，
-            // 整块玻璃每帧重跑 blur + lens（实测 12 次按住点击烧掉 235 jiffies，是瞬间点击的 6 倍）。
-            // 真拖动时 onDrag 会调 activatePress()，透镜反馈一点不少。
+            // 整条底栏统一处理指针，子标签只保留无障碍点击。
+            down.consume()
             press(heavy = false)
             onDragStarted(down.position)
             var released = false
+            var pending = Offset.Zero
             try {
                 while (true) {
                     val event = awaitPointerEvent(PointerEventPass.Initial)
                     val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                    if (!change.pressed) { released = true; break }
-                    val delta = change.position - change.previousPosition
-                    if (delta != Offset.Zero) {
-                        if (!didDrag) { didDrag = true; activatePress() }
+                    if (!change.pressed) {
                         change.consume()
-                        onDrag(size, delta)
+                        released = true
+                        break
+                    }
+                    val delta = change.position - change.previousPosition
+                    pending += delta
+                    if (!didDrag && kotlin.math.abs(pending.x) > viewConfiguration.touchSlop) {
+                        didDrag = true
+                        activatePress()
+                    }
+                    if (delta != Offset.Zero) {
+                        change.consume()
+                        // 使用稳定底栏坐标，不累加移动胶囊自身坐标造成的偏差。
+                        onDrag(size, change.position)
                     }
                 }
             } finally {

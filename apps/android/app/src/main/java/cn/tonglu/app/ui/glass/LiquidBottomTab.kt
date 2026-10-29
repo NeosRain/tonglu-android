@@ -46,6 +46,8 @@ internal val LocalLiquidBottomTabScale =
 internal val LocalSelectTab =
     staticCompositionLocalOf<(Int) -> Unit> { {} }
 
+internal val LocalTabInputEnabled = staticCompositionLocalOf { true }
+
 /**
  * 「手指按住 / 松开」通道：把单个 tab 的按压状态上报给父组件，由父组件决定胶囊怎么变大。
  *
@@ -79,13 +81,15 @@ fun RowScope.LiquidBottomTab(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val scale = LocalLiquidBottomTabScale.current
+    val inputEnabled = LocalTabInputEnabled.current
     val selectTab = LocalSelectTab.current
     val pressTab = LocalPressTab.current
     val interactionSource = remember { MutableInteractionSource() }
 
     // 用交互流而不是 collectIsPressedAsState：后者的初始值 false 会在首次组合时
     // 多触发一次"松开"，把指示器刚滑出去的动画提前泄气
-    LaunchedEffect(interactionSource) {
+    LaunchedEffect(interactionSource, inputEnabled) {
+        if (!inputEnabled) return@LaunchedEffect
         interactionSource.interactions.collect { interaction ->
             when (interaction) {
                 is PressInteraction.Press -> pressTab(index, true)
@@ -98,7 +102,7 @@ fun RowScope.LiquidBottomTab(
     Column(
         modifier
             .clip(Capsule())
-            .clickable(
+            .then(if (inputEnabled) Modifier.clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 role = Role.Tab,
@@ -106,7 +110,7 @@ fun RowScope.LiquidBottomTab(
                     onClick()
                     selectTab(index)
                 }
-            )
+            ) else Modifier)
             .fillMaxHeight()
             .weight(1f)
             .graphicsLayer {

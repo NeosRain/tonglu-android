@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "716b40b7b4806ec7d62c1c9063adb640a5f2a12f",
+  "sourceCommit": "bcc16b8bfd0616f1e7a76ebf422e57552ea7b8bf",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "53d68324d90935b0c3e97554432bccf211f35ed265c4aaed75d57f56fdfbd250"
+      "sha256": "5eb95ba5344754fc411ad1199122e91bde95706efd92faa09e557c77316774aa"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1227,8 +1227,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/DampedDragAnimation.kt",
-      "bytes": 9496,
-      "sha256": "82981b55265900c506bf6f5a526e4e662bdb89ca256ee621048d2bbe12f59fca"
+      "bytes": 9580,
+      "sha256": "0f3ebc3e8cf0a6d8f1ffcbe90d2373bd486b6bd19bdbd666a1fd1384d471c99a"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/DragGestureInspector.kt",
@@ -1257,13 +1257,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/LiquidBottomTab.kt",
-      "bytes": 5049,
-      "sha256": "231147137124abd26125f02f56d7cbbae79547c403200709e2377032c62e0354"
+      "bytes": 5286,
+      "sha256": "83206927372218026b4d0d9a098b564e11042a06730c894482900f139a3050a1"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/LiquidBottomTabs.kt",
-      "bytes": 20827,
-      "sha256": "5995c24ad9b1791ac6feeab94d3bcaadfe2e1df070e594e5d1cededec9b82ca7"
+      "bytes": 21269,
+      "sha256": "45f2f9228eda88df2e0813cd48a55cd2bae90988367038b9d953ede071cc756c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/ScrollAutoHide.kt",
@@ -3112,8 +3112,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 1104,
-      "sha256": "c59ad9f6ab5255425802a8cf06ce45ac8e82650446f7ce045e5e631c63b3154c"
+      "bytes": 1110,
+      "sha256": "b62f32492bce05d4b3a84cd673a8a45192dda6267c006dc275fe1d2e5483f0d1"
     },
     {
       "path": "content/intensive/provenance.json",

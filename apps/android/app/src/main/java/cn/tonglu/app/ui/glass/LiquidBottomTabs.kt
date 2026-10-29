@@ -136,9 +136,10 @@ fun LiquidBottomTabs(
         // 槽位宽度 = （面板宽 - 左右各内缩）/ 数量。
         // 内缩量取 GlassTokens.BarCapsulePaddingHorizontalDp —— 胶囊和 tab 用的是同一套内缩，
         // 胶囊中心才对得准槽位中心，同时第 0 / 最后一个 tab 的胶囊不会贴到面板边。
+        val barWidth = constraints.maxWidth
         val capsulePaddingPx = with(density) { GlassTokens.BarCapsulePaddingHorizontalDp.dp.toPx() }
         val tabWidth = with(density) {
-            (constraints.maxWidth.toFloat() - capsulePaddingPx * 2f) / tabsCount
+            (barWidth.toFloat() - capsulePaddingPx * 2f) / tabsCount
         }
 
         // 指示器胶囊比单个槽位略宽（更饱满），但**中心仍对准槽位** ——
@@ -150,7 +151,7 @@ fun LiquidBottomTabs(
         // 拖拽时整条面板轻微位移（±4dp），松手弹回 —— 酷安式的边界回弹感
         val panelOffset by remember(density) {
             derivedStateOf {
-                val fraction = (offsetAnimation.value / constraints.maxWidth).fastCoerceIn(-1f, 1f)
+                val fraction = (offsetAnimation.value / barWidth).fastCoerceIn(-1f, 1f)
                 with(density) {
                     4f.dp.toPx() * fraction.sign * EaseOut.transform(abs(fraction))
                 }
@@ -165,7 +166,12 @@ fun LiquidBottomTabs(
                 visibilityThreshold = 0.001f,
                 initialScale = 1f,
                 pressedScale = GlassTokens.PressedScale,
-                onDragStarted = {},
+                onDragStarted = { position ->
+                    val physicalIndex = (position.x - capsulePaddingPx) / tabWidth - 0.5f
+                    val index = if (isLtr) physicalIndex else tabsCount - 1f - physicalIndex
+                    updateValue(index)
+                    press(heavy = index.fastRoundToInt() != latestSelectedIndex())
+                },
                 onDragCancelled = {
                     animateToValue(latestSelectedIndex().toFloat())
                     animationScope.launch { offsetAnimation.animateTo(0f, spring(1f, 300f, 0.5f)) }
@@ -182,14 +188,9 @@ fun LiquidBottomTabs(
                         )
                     }
                 },
-                onDrag = { _, dragAmount ->
-                    updateValue(
-                        (targetValue + dragAmount.x / tabWidth * if (isLtr) 1f else -1f)
-                            .fastCoerceIn(0f, (tabsCount - 1).toFloat())
-                    )
-                    animationScope.launch {
-                        offsetAnimation.snapTo(offsetAnimation.value + dragAmount.x)
-                    }
+                onDrag = { _, position ->
+                    val physicalIndex = (position.x - capsulePaddingPx) / tabWidth - 0.5f
+                    updateValue(if (isLtr) physicalIndex else tabsCount - 1f - physicalIndex)
                 }
             )
         }
@@ -245,6 +246,9 @@ fun LiquidBottomTabs(
             )
         }
 
+        // 手势坐标固定在整条底栏上；按下任何标签就把胶囊移到手指处。
+        // 不能挂在会平移、形变的胶囊上，否则其他标签只在松手点击后才移动。
+        Box(Modifier.fillMaxWidth().then(dampedDragAnimation.modifier), contentAlignment = Alignment.CenterStart) {
         // ---------- 第 1 层：底层玻璃面板 ----------
         CompositionLocalProvider(
             LocalSelectTab provides selectTab,
@@ -308,6 +312,7 @@ fun LiquidBottomTabs(
             LocalLiquidBottomTabScale provides {
                 lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
             },
+            LocalTabInputEnabled provides false,
             LocalSelectTab provides selectTab,
             LocalPressTab provides pressTab,
         ) {
@@ -339,16 +344,15 @@ fun LiquidBottomTabs(
             Modifier
                 .padding(horizontal = GlassTokens.BarCapsulePaddingHorizontalDp.dp)
                 .graphicsLayer {
-                    val panelScale = 1f + 16.dp.toPx() / constraints.maxWidth * dampedDragAnimation.pressProgress
+                    val panelScale = 1f + 16.dp.toPx() / barWidth * dampedDragAnimation.pressProgress
                     val center = if (isLtr) capsulePaddingPx + (dampedDragAnimation.value + 0.5f) * tabWidth
-                        else constraints.maxWidth - capsulePaddingPx - (dampedDragAnimation.value + 0.5f) * tabWidth
-                    val expansionOffset = (center - constraints.maxWidth / 2f) * (panelScale - 1f)
+                        else barWidth - capsulePaddingPx - (dampedDragAnimation.value + 0.5f) * tabWidth
+                    val expansionOffset = (center - barWidth / 2f) * (panelScale - 1f)
                     translationX =
                         if (isLtr) dampedDragAnimation.value * tabWidth - indicatorOverhang + panelOffset + expansionOffset
                         else size.width - (dampedDragAnimation.value + 1f) * tabWidth - indicatorOverhang + panelOffset + expansionOffset
                 }
                 .then(interactiveHighlight.gestureModifier)
-                .then(dampedDragAnimation.modifier) // 指示器面板拖拽
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(panelBackdrop, tabsBackdrop),
                     shape = { Capsule() },
@@ -395,6 +399,7 @@ fun LiquidBottomTabs(
                 .height(GlassTokens.BarContentHeightDp.dp)
                 .width(indicatorWidthDp)
         )
+        }
     }
 }
 
