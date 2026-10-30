@@ -116,10 +116,10 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                                 Column(Modifier.width(timeWidth).fillMaxHeight(),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center) {
-                                    Text("$period", fontSize = 11.sp, color = AppColors.TextSecondary)
+                                    Text("$period", fontSize = 11.sp, lineHeight = 13.sp, color = AppColors.TextSecondary)
                                     if (slot != null) {
-                                        Text(slot.start, fontSize = 9.sp, maxLines = 1, color = AppColors.TextSecondary)
-                                        Text(slot.end, fontSize = 9.sp, maxLines = 1, color = AppColors.TextMuted)
+                                        Text(slot.start, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, color = AppColors.TextSecondary)
+                                        Text(slot.end, fontSize = 9.sp, lineHeight = 11.sp, maxLines = 1, color = AppColors.TextMuted)
                                     }
                                 }
                                 (1..7).forEach {

@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "e590493d9761b2bced0ae3563f248ac57b0bc68d",
+  "sourceCommit": "e6a54c6111eb46e8ae124f17c126dbf85aac1c48",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "464803aa949649ebcdb1267da172a4c7393932b4f44cce03f26fa01b31ce7981"
+      "sha256": "369771bec8f1fd6b80a60cbf4aa0a8a2090bcb451b9f8345dd086a180c6e9a55"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1607,8 +1607,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ScheduleViews.kt",
-      "bytes": 68306,
-      "sha256": "a73fad692a8a5658a93cf574387b289c7119b256213ed60c3292f3e018cb5295"
+      "bytes": 68366,
+      "sha256": "b56ad25224d1909a77377f81d94b013fc5325ff4c6b59ffc9c60452c85691412"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ScoreImportScreen.kt",
@@ -1777,8 +1777,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TimetableEditGrid.kt",
-      "bytes": 13935,
-      "sha256": "d483a8c410ca41ca76004b9320c9826692753790021b0757469c62f3e3119ad3"
+      "bytes": 13995,
+      "sha256": "144f7fa15e14de917bb2133e3da9540e9d73985e871749913df23fad1a1ab6af"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TimetableMotion.kt",
@@ -3132,8 +3132,8 @@
     },
     {
       "path": "BUILD-VERIFICATION.md",
-      "bytes": 849,
-      "sha256": "1d8b20315a63efa42153cd79ea6c6eb3be68e21f4194b474058a7a477837118b"
+      "bytes": 486,
+      "sha256": "87c920c918eda24816ecd2ed67eb86bc75de2b615b78e6883f867adda0f72747"
     },
     {
       "path": "content/intensive/provenance.json",
@@ -3207,8 +3207,8 @@
     },
     {
       "path": "docs/BRAND.md",
-      "bytes": 2838,
-      "sha256": "318b10cabfa25d9175a0175d62f4ea15ffdf9d620834379ca0378e1dcdb421a7"
+      "bytes": 2623,
+      "sha256": "ab0a6ed2f9603a181f4c1c39188f6be7da98d94887cd87fc791bf2909c4cbc66"
     },
     {
       "path": "LICENSE",
@@ -3262,13 +3262,13 @@
     },
     {
       "path": "NOTICE",
-      "bytes": 770,
-      "sha256": "07588aa6f7c2991478d542e6ec2a339aa7f98b982f2dad991374b94c6a37edb8"
+      "bytes": 784,
+      "sha256": "604b627b83be879518433d01a1cf7d48f0e305c3869c1f557fb823116b476f9a"
     },
     {
       "path": "README.md",
-      "bytes": 6211,
-      "sha256": "a0aae032ef5142a34df3bf0c47af137c442d673dabecdaebb911fb79d9144835"
+      "bytes": 6262,
+      "sha256": "80ab9da6cde1bac66b06841c62fdb9c4f83ec8c3ff9c173c07557ebc2d3bfcea"
     },
     {
       "path": "scripts/audit_resource_provenance.py",

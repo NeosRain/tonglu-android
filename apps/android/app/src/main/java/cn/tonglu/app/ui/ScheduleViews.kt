@@ -985,10 +985,10 @@ internal fun TimetableGrid(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
-                        MiuixText("$period", color = SvMuted, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+                        MiuixText("$period", color = SvMuted, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Medium)
                         if (slot != null) {
-                            MiuixText(slot.start, color = SvMuted, fontSize = 8.sp, maxLines = 1)
-                            MiuixText(slot.end, color = SvMuted.copy(alpha = 0.8f), fontSize = 8.sp, maxLines = 1)
+                            MiuixText(slot.start, color = SvMuted, fontSize = 8.sp, lineHeight = 10.sp, maxLines = 1)
+                            MiuixText(slot.end, color = SvMuted.copy(alpha = 0.8f), fontSize = 8.sp, lineHeight = 10.sp, maxLines = 1)
                         }
                     }
                 }

@@ -38,7 +38,7 @@ Android Studio 可打开 `apps/android`。`local.properties`、构建缓存、�
 
 保留了两个 BSD-3-Clause 精简词书、原创练习题、阅读器/词库/精读代码、原生传输源码、测试、Room schema、原创品牌素材和相关工具。语音模型及角色声音实验不在仓库中。
 
-`scripts/gen_launcher_icons.py` 可用 Pillow 按内置几何图形重新生成薄荷色林字标资源。`scripts/intensive_reading.py` 和对应 Python 测试保留预处理、CUDA 分析、翻译、校验和打包逻辑；它不是 Android 构建的前置步骤，运行前需要自备有权使用的材料、CUDA PyTorch/Stanza/Transformers 环境和模型。外部输入放 `work/intensive-input/`，模型/中间结果放 `work/intensive-reading/`；不因脚本能处理某份真题就取得再分发权。个人文章仍可通过客户端原有导入流程使用。
+`scripts/gen_launcher_icons.py` 可用 Pillow 按内置几何图形重新生成薄荷色厸字标资源。`scripts/intensive_reading.py` 和对应 Python 测试保留预处理、CUDA 分析、翻译、校验和打包逻辑；它不是 Android 构建的前置步骤，运行前需要自备有权使用的材料、CUDA PyTorch/Stanza/Transformers 环境和模型。外部输入放 `work/intensive-input/`，模型/中间结果放 `work/intensive-reading/`；不因脚本能处理某份真题就取得再分发权。个人文章仍可通过客户端原有导入流程使用。
 
 `SOURCE-MANIFEST.json` 记录源码快照、逐文件指纹、资源排除和针对开源构建的明确改动。私有项目的历史、账号配置、部署日志和签名从未复制到本仓库。检查记录见 [BUILD-VERIFICATION.md](BUILD-VERIFICATION.md)。
 
