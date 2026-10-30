@@ -42,7 +42,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
-/** 胶囊直接跟随手指，弹簧仅用于按压形变与松手吸附。 */
+/** 按下滑向触点，拖动跟手，松手吸附。 */
 class DampedDragAnimation(
     private val animationScope: CoroutineScope,
     val initialValue: Float,
@@ -176,6 +176,16 @@ class DampedDragAnimation(
         positionJob = animationScope.launch {
             valueAnimation.snapTo(target)
             velocityAnimation.snapTo(trackedVelocity)
+        }
+    }
+
+    fun glideToPress(value: Float) {
+        val target = value.coerceIn(valueRange)
+        latestTarget = target
+        positionJob?.cancel()
+        // A tap needs travel from the selected tab to the finger; drag events take over immediately.
+        positionJob = animationScope.launch {
+            valueAnimation.animateTo(target, spring(0.9f, 550f, visibilityThreshold))
         }
     }
 

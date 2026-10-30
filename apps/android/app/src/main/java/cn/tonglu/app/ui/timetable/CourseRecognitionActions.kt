@@ -1,7 +1,13 @@
 package cn.tonglu.app.ui.timetable
 
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Bundle
+import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
+import android.speech.SpeechRecognizer
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -13,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,6 +47,9 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
     var source by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("可说出或粘贴一门课，也可选课表截图。识别后核对表单再保存。") }
     var busy by remember { mutableStateOf(false) }
+    var listening by remember { mutableStateOf(false) }
+    var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
+    DisposableEffect(recognizer) { onDispose { recognizer?.destroy() } }
 
     fun process(raw: String) {
         val input = raw.trim().take(3000)
@@ -64,11 +74,49 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
         }
     }
 
-    val voice = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == android.app.Activity.RESULT_OK) {
-            val heard = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
-            process(heard)
-        } else notice = "语音识别已取消；也可以直接在下面输入课程信息。"
+    fun startVoice() {
+        if (!SpeechRecognizer.isRecognitionAvailable(context)) {
+            notice = "手机没有可用的语音识别服务。可粘贴课程信息或识别课表截图。"
+            return
+        }
+        runCatching {
+            recognizer?.destroy()
+            val service = SpeechRecognizer.createSpeechRecognizer(context)
+            recognizer = service
+            service.setRecognitionListener(object : RecognitionListener {
+                override fun onReadyForSpeech(params: Bundle?) { notice = "正在听，请说出课程名、星期、节次、周次和教室。" }
+                override fun onBeginningOfSpeech() { notice = "正在识别课程信息…" }
+                override fun onRmsChanged(rmsdB: Float) = Unit
+                override fun onBufferReceived(buffer: ByteArray?) = Unit
+                override fun onEndOfSpeech() { notice = "正在整理识别结果…" }
+                override fun onError(error: Int) {
+                    listening = false
+                    recognizer = null
+                    notice = when (error) {
+                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "语音服务网络不可用，请检查连接，或用文字、截图加课。"
+                        SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "语音服务没有录音权限，请在系统设置中允许。"
+                        SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "没有听清课程信息，请重试或直接输入文字。"
+                        else -> "语音服务暂时不可用（错误 $error），可用文字或截图加课。"
+                    }
+                }
+                override fun onResults(results: Bundle?) {
+                    listening = false
+                    recognizer = null
+                    process(results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull().orEmpty())
+                }
+                override fun onPartialResults(partialResults: Bundle?) = Unit
+                override fun onEvent(eventType: Int, params: Bundle?) = Unit
+            })
+            listening = true
+            service.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
+                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+            })
+        }.onFailure { listening = false; recognizer = null; notice = "无法启动语音服务，可用文字或截图加课。" }
+    }
+    val voicePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startVoice() else notice = "需要录音权限才能语音识课；也可以输入文字或识别截图。"
     }
     val photo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) scope.launch {
@@ -90,20 +138,15 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
-                        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "说出课程名、星期、节次、周次和教室")
-                    }
-                    try { voice.launch(intent) }
-                    catch (_: Exception) { notice = "手机没有可用的语音识别服务，请输入文字或选图。" }
+                    if (listening) { recognizer?.cancel(); recognizer = null; listening = false; notice = "已停止听取。" }
+                    else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startVoice()
+                    else voicePermission.launch(Manifest.permission.RECORD_AUDIO)
                 }, enabled = !busy, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent),
-            ) { Text("语音说课") }
+            ) { Text(if (listening) "停止听取" else "语音说课") }
             Button(
                 onClick = { photo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                enabled = !busy, modifier = Modifier.weight(1f),
+                enabled = !busy && !listening, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent),
             ) { Text("识别截图") }
         }

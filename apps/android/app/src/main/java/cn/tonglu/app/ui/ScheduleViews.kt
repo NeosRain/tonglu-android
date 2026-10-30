@@ -446,8 +446,8 @@ internal fun TodayClassesCard(
             }
         }
     }
-    selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
-    activeClassNotes?.let { ClassNotesDialog(it) { activeClassNotes = null } }
+    selectedCourse?.let { CourseDetailDialog(it, relatedCourses = courses, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
+    activeClassNotes?.let { ClassNotesDialog(it, courses) { activeClassNotes = null } }
 }
 
 @Composable
@@ -730,7 +730,7 @@ internal fun TimetableCard(
             onLongPressCourse = onLongPressCourse,
             onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
         )
-        selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
+        selectedCourse?.let { CourseDetailDialog(it, relatedCourses = allCourses, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
         Spacer(Modifier.height(6.dp))
         // 拖拽把手：手势只认**小横条本体**（44dp 宽 + 纵向热区加宽到 44dp），
         // 横条左右两侧不响应 —— 2026-10-10 用户反馈：之前挂在 fillMaxWidth 的 Column 上，
@@ -850,7 +850,7 @@ internal fun FullscreenTimetableDialog(
                     onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
                     onRescheduleCourse = onRescheduleCourse,
                 )
-                selectedCourse?.let { CourseDetailDialog(it, onDelete = onLongPressCourse,onEdit=onEditCourse) { selectedCourse = null } }
+                selectedCourse?.let { CourseDetailDialog(it, relatedCourses = allCourses, onDelete = onLongPressCourse,onEdit=onEditCourse) { selectedCourse = null } }
                 if(managing) CourseManagementDialog(allCourses,onAdd,onEditCourse,onLongPressCourse,
                     onDetails={ selectedCourse=CourseSelection(it) },onClose={managing=false})
                 // 底部提示条：只留点击收起。

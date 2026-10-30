@@ -169,7 +169,7 @@ fun LiquidBottomTabs(
                 onDragStarted = { position ->
                     val physicalIndex = (position.x - capsulePaddingPx) / tabWidth - 0.5f
                     val index = if (isLtr) physicalIndex else tabsCount - 1f - physicalIndex
-                    updateValue(index)
+                    glideToPress(index)
                     press(heavy = index.fastRoundToInt() != latestSelectedIndex())
                 },
                 onDragCancelled = {

@@ -55,17 +55,34 @@ private fun scaledPhoto(file: File, maxSide: Int): android.graphics.Bitmap? {
     return BitmapFactory.decodeFile(file.path, BitmapFactory.Options().apply { inSampleSize = sample })
 }
 
-private class ClassNoteStore(context: Context, course: CourseDto) {
+/** Same subject/teacher can occupy several timetable cells with different imported IDs. */
+internal fun classNoteCourseKey(course: CourseDto): String =
+    "${course.name.trim().lowercase(Locale.ROOT)}\u0000${course.teacher.orEmpty().trim().lowercase(Locale.ROOT)}"
+
+private fun noteHash(value: String): String = java.security.MessageDigest.getInstance("SHA-256")
+    .digest(value.toByteArray(Charsets.UTF_8)).take(12).joinToString("") { "%02x".format(it) }
+
+private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses: List<CourseDto>) {
     private val root = File(context.filesDir, "class-notes").apply { mkdirs() }
-    private val prefix = java.security.MessageDigest.getInstance("SHA-256")
-        .digest(course.id.toString().toByteArray()).take(12).joinToString("") { "%02x".format(it) }
+    private val prefix = noteHash("course:${classNoteCourseKey(course)}")
+    // Read old per-cell files in place. Keeping originals avoids losing media or partial migration data.
+    private val legacyPrefixes = (relatedCourses.filter { classNoteCourseKey(it) == classNoteCourseKey(course) } + course)
+        .map { noteHash(it.id) }.toSet()
+    private val readablePrefixes = legacyPrefixes + prefix
     private val key = "$prefix-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}"
     private val file = File(root, "$key.json")
     private val draftFile = File(root, "$key.draft")
+    private val legacyDraftFiles = legacyPrefixes.map { File(root, "$it-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}.draft") }
     fun media(ext: String) = File(root, "$key-${UUID.randomUUID()}.$ext")
     fun mediaFile(name: String): File = File(root, name)
-    fun readDraft(): String = if (draftFile.exists()) draftFile.readText() else ""
-    fun saveDraft(value: String) { if (value.isBlank()) draftFile.delete() else draftFile.writeText(value) }
+    fun readDraft(): String = if (draftFile.exists()) draftFile.readText() else
+        legacyDraftFiles.firstOrNull { it.exists() }?.readText().orEmpty()
+    fun saveDraft(value: String) {
+        if (value.isBlank()) {
+            check(!draftFile.exists() || draftFile.delete())
+            legacyDraftFiles.forEach { check(!it.exists() || it.delete()) }
+        } else draftFile.writeText(value)
+    }
     private fun read(file: File): List<ClassNote> {
         if (!file.exists()) return emptyList()
         val rows = JSONArray(file.readText())
@@ -75,8 +92,8 @@ private class ClassNoteStore(context: Context, course: CourseDto) {
         } }
     }
     fun readAll(): List<ClassNote> = root.listFiles().orEmpty()
-        .filter { it.name.startsWith("$prefix-") && it.extension == "json" }
-        .flatMap(::read).sortedByDescending { it.time }
+        .filter { candidate -> candidate.extension == "json" && readablePrefixes.any { candidate.name.startsWith("$it-") } }
+        .flatMap(::read).distinctBy { it.id }.sortedByDescending { it.time }
     fun append(item: ClassNote) {
         val array = JSONArray()
         (listOf(item) + read(file)).forEach { row -> array.put(JSONObject().put("id", row.id).put("time", row.time)
@@ -88,12 +105,29 @@ private class ClassNoteStore(context: Context, course: CourseDto) {
             check(pending.delete())
         }
     }
+    fun replaceText(id: String, value: String) {
+        val target = root.listFiles().orEmpty().firstOrNull { candidate ->
+            candidate.extension == "json" && readablePrefixes.any { candidate.name.startsWith("$it-") } &&
+                read(candidate).any { it.id == id }
+        } ?: error("找不到原笔记，请返回后重试")
+        val rows = read(target).map { if (it.id == id) it.copy(text = value) else it }
+        val array = JSONArray()
+        rows.forEach { row -> array.put(JSONObject().put("id", row.id).put("time", row.time)
+            .put("text", row.text).put("image", row.image ?: "").put("audio", row.audio ?: "")) }
+        val pending = File(root, "${target.name}.pending")
+        pending.writeText(array.toString())
+        if (!pending.renameTo(target)) {
+            pending.copyTo(target, overwrite = true)
+            check(pending.delete())
+        }
+    }
 }
 
 @Composable
-internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
+internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto> = listOf(course), onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val store = remember(course.id) { ClassNoteStore(context, course) }
+    val relatedIds = relatedCourses.map { it.id }.sorted()
+    val store = remember(classNoteCourseKey(course), relatedIds) { ClassNoteStore(context, course, relatedCourses) }
     var error by remember { mutableStateOf<String?>(null) }
     var notes by remember(store) { mutableStateOf(runCatching { store.readAll() }.getOrElse { error = "读取笔记失败，请勿继续写入：${it.localizedMessage}"; emptyList() }) }
     var draft by remember(store) { mutableStateOf(runCatching { store.readDraft() }.getOrElse { error = "读取草稿失败：${it.localizedMessage}"; "" }) }
@@ -102,6 +136,7 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var pendingPhoto by remember { mutableStateOf<File?>(null) }
     var enlargedPhoto by remember { mutableStateOf<String?>(null) }
+    var editingNoteId by remember { mutableStateOf<String?>(null) }
     fun append(note: ClassNote): Boolean {
         if (error?.startsWith("读取笔记失败") == true) return false
         return runCatching { store.append(note); notes = store.readAll(); error = null }
@@ -110,8 +145,13 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
     fun saveDraft() {
         val content = draft.trim()
         if (content.isNotEmpty() && error?.startsWith("读取笔记失败") != true) {
-            if (append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), content, null, null))) {
+            val saved = editingNoteId?.let { id ->
+                runCatching { store.replaceText(id, content); notes = store.readAll(); error = null }
+                    .onFailure { error = "更新失败：${it.localizedMessage}" }.isSuccess
+            } ?: append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), content, null, null))
+            if (saved) {
                 draft = ""
+                editingNoteId = null
                 runCatching { store.saveDraft("") }.onFailure { error = "清理草稿失败：${it.localizedMessage}" }
             }
         }
@@ -160,7 +200,7 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
     DisposableEffect(Unit) { onDispose { recorder?.let { runCatching { it.stop(); it.release() } }; player?.release() } }
     LaunchedEffect(draft) { delay(700); runCatching { store.saveDraft(draft) }.onFailure { error = "草稿保存失败：${it.localizedMessage}" } }
     Dialog(onDismissRequest = { if (recorder != null) stopRecording(); saveDraft(); onDismiss() },
-        properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
             Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(horizontal = 18.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -172,7 +212,7 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
                 }
                 Text("课堂笔记", color = AppColors.TextPrimary, fontSize = 30.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
-                Text("按时间记录 · 退出自动保存", color = AppColors.TextSecondary,
+                Text(if (editingNoteId == null) "按时间记录 · 退出自动保存" else "正在编辑笔记 · 保存后覆盖原文字", color = AppColors.TextSecondary,
                     fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
                 error?.let { Text(it, color = AppColors.Danger, fontSize = 13.sp) }
                 LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(2),
@@ -181,6 +221,11 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
                     verticalItemSpacing = 12.dp) {
                     items(notes, key = { it.id }) { note ->
                         Surface(shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque,
+                            modifier = Modifier.clickable(enabled = note.text.isNotEmpty()) {
+                                if (draft.isNotBlank() && editingNoteId != note.id) saveDraft()
+                                editingNoteId = note.id
+                                draft = note.text
+                            },
                             contentColor = AppColors.TextPrimary) {
                             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             Text(SimpleDateFormat("MM月dd日 HH:mm", Locale.getDefault()).format(Date(note.time)),
@@ -202,7 +247,7 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
                     }
                 }
                 OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    placeholder = { Text("记下课堂重点…") }, maxLines = 4,
+                    placeholder = { Text("记下课堂重点…") }, minLines = 2, maxLines = 8,
                     shape = RoundedCornerShape(18.dp))
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -219,8 +264,9 @@ internal fun ClassNotesDialog(course: CourseDto, onDismiss: () -> Unit) {
                     }) { Icon(if (recorder == null) Icons.Outlined.Mic else Icons.Outlined.Stop,
                         if (recorder == null) "开始录音" else "结束录音",
                         tint = if (recorder == null) AppColors.Accent else AppColors.Danger) }
+                    if (editingNoteId != null) TextButton(onClick = { editingNoteId = null; draft = "" }) { Text("取消编辑") }
                     Button(onClick = { saveDraft() }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent,
-                        contentColor = AppColors.OnAccent)) { Text("保存") }
+                        contentColor = AppColors.OnAccent)) { Text(if (editingNoteId == null) "保存" else "更新") }
                 }
             }
         }

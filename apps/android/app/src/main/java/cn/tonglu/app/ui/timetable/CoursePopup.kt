@@ -105,7 +105,7 @@ internal fun CoursePopup(origin: Rect, onDismiss: () -> Unit, dismissEnabled: Bo
 }
 
 @Composable
-internal fun CourseDetailDialog(selection: CourseSelection, onDelete: ((CourseDto) -> Unit)? = null,
+internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List<CourseDto> = listOf(selection.course), onDelete: ((CourseDto) -> Unit)? = null,
     onEdit: ((CourseDto)->Unit)? = null,
     onDismiss: () -> Unit) {
     val course = selection.course
@@ -144,7 +144,7 @@ internal fun CourseDetailDialog(selection: CourseSelection, onDelete: ((CourseDt
             TextButton(onClick = close) { Text("完成", color = AppColors.Accent) }
         }
     }
-    if (showClassNotes) ClassNotesDialog(course) { showClassNotes = false; onDismiss() }
+    if (showClassNotes) ClassNotesDialog(course, relatedCourses) { showClassNotes = false; onDismiss() }
 }
 
 @Composable
