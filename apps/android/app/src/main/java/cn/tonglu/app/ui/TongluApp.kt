@@ -466,6 +466,8 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     val openQrLogin: () -> Unit = {
         if (state.session == null) viewModel.openLogin() else showQrLogin = true
     }
+    var showLaboratory by rememberSaveable { mutableStateOf(false) }
+    var labListeningMaterial by remember { mutableStateOf<String?>(null) }
     var showNotices by rememberSaveable { mutableStateOf(false) }
     /** 首页倒计时条目 → 详情弹窗（存 id 而不是对象：store 里的数据可能已经被改过） */
     var examDetailId by remember { mutableStateOf<String?>(null) }
@@ -628,6 +630,8 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         // 从考试详情「去备考」过来的：直接开英语中心的对应 route。
                         // 用完上层清回 null，
                         // 不清的话返回学习页会被立刻再拽进英语中心，出不去。
+                        openListeningMaterial = labListeningMaterial,
+                        onListeningMaterialOpened = { labListeningMaterial = null },
                         examStudyRoute = examStudyRoute,
                         onExamStudyRouteOpened = { examStudyRoute = null },
                     )
@@ -654,6 +658,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         onOpenAccountSettings = { showAccountSettings = true },
                         onOpenMyLevel = { showMyLevel = true },
                         onOpenNotices = { showNotices = true },
+                        onOpenLaboratory = { showLaboratory = true },
                         onOpenQrLogin = openQrLogin,
                         onLocalDataRestored = viewModel::reloadLocal,
                         scoreCount = state.scores.size,
@@ -988,6 +993,15 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 onToggleGrowth = { optOut -> viewModel.setGrowthOptOut(optOut) },
                 onClose = requestClose,
             )
+        }
+    }
+    if (showLaboratory) {
+        OverlayLayerHost(onClose = { closeLayer { showLaboratory = false } }) { requestClose ->
+            LaboratoryScreen(state, viewModel, requestClose, onOpenMaterial = { material ->
+                closeLayer { showLaboratory = false }
+                labListeningMaterial = material
+                tabNavigator.select(1)
+            })
         }
     }
     if (showNotices) {

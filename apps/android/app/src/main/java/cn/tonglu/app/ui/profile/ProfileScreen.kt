@@ -66,6 +66,7 @@ internal fun ProfileScreen(
     onOpenMyLevel: () -> Unit,
     /** 「我的消息」全屏层：信任等级变动、被处理内容、规则更新都走这里。 */
     onOpenNotices: () -> Unit,
+    onOpenLaboratory: () -> Unit,
     /** 「扫一扫登录电脑」全屏层（PC 扫码登录）。**登录后才显示** —— 扫码确认的是自己的账号。 */
     onOpenQrLogin: () -> Unit,
     /** 备份导入写回本机之后重新读一遍课表/成绩/学期，否则界面还是旧数据。 */
@@ -318,6 +319,18 @@ internal fun ProfileScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
         if (page == 0) {
+        item {
+            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+                Row(Modifier.fillMaxWidth().clickable(onClick = onOpenLaboratory), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("实验室", style = MaterialTheme.typography.titleMedium)
+                        Text("广场、社团与更多可选功能", color = Muted)
+                    }
+                    Text("进入", color = Accent)
+                }
+            }
+        }
+
         // —— 等级与消息（docs/plan/66）——
         // 未登录时不显示这两项：等级和信任等级都挂在账号上，没账号就是没有，
         // 显示一个「Lv1 新生」会让人以为等级是自动的、不用登录也有。
