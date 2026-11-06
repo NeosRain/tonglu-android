@@ -1,17 +1,17 @@
 {
-  "sourceCommit": "c16c7fb4024f43fc4c8e1d37b8d55081c642caaf",
+  "sourceCommit": "c5fd74d0f27321bee8d18f565c3df40f4549dd9a",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
     "apps/android/app/build.gradle.kts",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/home/HomeCards.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/map/CampusMapScreen.kt",
+    "apps/android/app/src/test/java/cn/tonglu/app/data/ExternalScheduleTest.kt",
     "apps/android/gradle/wrapper/gradle-wrapper.properties",
     "apps/android/gradlew",
     "scripts/intensive_reading.py",
     "scripts/tests/test_intensive_reading.py",
-    "scripts/tts_prepare_assets.py",
-    "apps/android/app/src/test/java/cn/tonglu/app/data/ExternalScheduleTest.kt"
+    "scripts/tts_prepare_assets.py"
   ],
   "excluded": [
     "backend, web, admin, deployment, private docs, signing material",
@@ -39,7 +39,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "bf19a3c903697cb48dddac8b5d943af8ec4fcb0e6911b39b6cb27333837faa50"
+      "sha256": "a857028a37f47cf62a7c8254e10f9bfaf7883464ee741accf171dfe684c6cc7a"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1773,8 +1773,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNotes.kt",
-      "bytes": 22971,
-      "sha256": "c43dc2a4c4df04794712f37a7abec2e58b153af9f30a104fc713081b03dc146e"
+      "bytes": 23229,
+      "sha256": "c16d967c33314b0a08974eb2b93388b14d395a69d90930cc0eed27c10cf8eb8f"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseCardContent.kt",

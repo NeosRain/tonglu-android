@@ -153,7 +153,9 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var pendingPhoto by remember { mutableStateOf<File?>(null) }
     var enlargedPhoto by remember { mutableStateOf<String?>(null) }
-    var editingNoteId by remember(store) { mutableStateOf<String?>(null) }
+    var editingNoteId by remember(store) {
+        mutableStateOf(notes.firstOrNull { draft.isNotBlank() && it.text.trim() == draft.trim() }?.id)
+    }
     var editorOpen by remember(store) { mutableStateOf(draft.isNotBlank()) }
     var headerHeight by remember { mutableIntStateOf(0) }
     var footerHeight by remember { mutableIntStateOf(0) }
@@ -168,7 +170,10 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     fun saveDraft(): Boolean {
         val content = draft.trim()
         if ((content.isNotEmpty() || editingNoteId != null) && error?.startsWith("读取笔记失败") != true) {
-            if (notes.any { it.id == editingNoteId && it.text == content }) return true
+            if (notes.any { it.id == editingNoteId && it.text == content }) {
+                return runCatching { store.saveDraft(""); error = null }
+                    .onFailure { error = "清理草稿失败：${it.localizedMessage}" }.isSuccess
+            }
             val targetId = editingNoteId ?: UUID.randomUUID().toString()
             val saved = editingNoteId?.let { id ->
                 runCatching { store.replaceText(id, content); notes = store.readAll(); error = null }
