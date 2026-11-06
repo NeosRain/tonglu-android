@@ -64,7 +64,7 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
 }
 
 @Composable
-private fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewModel: AppViewModel,
+internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewModel: AppViewModel,
     onClose: () -> Unit, onOpenMaterial: (String) -> Unit) {
     fun closeLayer(action: () -> Unit) { OverlayDismissGuard.arm(); action() }
     var detailPostId by remember { mutableStateOf<String?>(null) }

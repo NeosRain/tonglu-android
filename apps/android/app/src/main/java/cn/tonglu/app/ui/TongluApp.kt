@@ -48,6 +48,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -57,6 +59,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Forum
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
@@ -284,8 +288,21 @@ private fun TongluAppContent(viewModel: AppViewModel) {
 
     // initialPage 取自 ViewModel 而不是硬编码 0：进登录页时整棵主界面子树会被拆掉，
     // `rememberPagerState` 随之销毁，不这样接就永远落在「首页」（见 AppUiState.lastMainTab）。
-    // 旧五栏的 2/3/4 都落到「我的」，不能恢复到已隐藏的社区页。
-    val mainPager = rememberPagerState(initialPage = state.lastMainTab.coerceIn(0, 2), pageCount = { 3 })
+    val labContext = androidx.compose.ui.platform.LocalContext.current
+    val labPrefs = remember { labContext.getSharedPreferences("laboratory", 0) }
+    var labRevision by remember { mutableIntStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(labPrefs) {
+        val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> labRevision++ }
+        labPrefs.registerOnSharedPreferenceChangeListener(listener)
+        onDispose { labPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
+    }
+    val tabs = remember(labRevision) { buildList {
+        add("首页"); add("学习")
+        if (labPrefs.getBoolean("square", false)) add("广场")
+        if (labPrefs.getBoolean("clubs", false)) add("社团")
+        add("我的")
+    } }
+    val mainPager = rememberPagerState(initialPage = state.lastMainTab.coerceIn(0, tabs.lastIndex), pageCount = { tabs.size })
     val selectedTab = mainPager.currentPage
     var search by rememberSaveable { mutableStateOf("") }
     var aiRequest by rememberSaveable { mutableIntStateOf(0) }
@@ -296,9 +313,11 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     var showPeriodEditor by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val tabNavigator = remember(mainPager, scope) { MainTabNavigator(mainPager, scope) }
-    val tabs = remember { listOf("首页", "学习", "我的") }
-    val filledIcons = remember { listOf(Icons.Filled.Home, Icons.Filled.MenuBook, Icons.Filled.Person) }
-    val outlinedIcons = remember { listOf(Icons.Outlined.Home, Icons.Outlined.MenuBook, Icons.Outlined.PersonOutline) }
+    val filledIcons = tabs.map { when(it) {
+        "首页" -> Icons.Filled.Home; "学习" -> Icons.Filled.MenuBook
+        "广场" -> Icons.Filled.Forum; "社团" -> Icons.Filled.Groups; else -> Icons.Filled.Person
+    } }
+    val outlinedIcons = filledIcons
     val context = androidx.compose.ui.platform.LocalContext.current
     val settingsPrefs = remember { context.getSharedPreferences("tonglu_settings", android.content.Context.MODE_PRIVATE) }
     // 导入提示卡改成**设备级**状态（DataStore）。以前按 owner 存在 tonglu_settings 里，
@@ -570,10 +589,10 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 }
                 val topInset = if (useGlassNav) glassTopInset else 0.dp
                 HorizontalPager(state = mainPager, modifier = Modifier.weight(1f).fillMaxWidth(),
-                    beyondViewportPageCount = BEYOND_PAGES, key = { it }) { page ->
+                    beyondViewportPageCount = BEYOND_PAGES, key = { tabs[it] }) { page ->
                 Box(Modifier.fillMaxSize().graphicsLayer()) {
-                when (page) {
-                    0 -> CompositionLocalProvider(LocalCourseColors provides courseColors) { HomeScreen(
+                when (tabs[page]) {
+                    "首页" -> CompositionLocalProvider(LocalCourseColors provides courseColors) { HomeScreen(
                         state = state,
                         search = search,
                         onAdd = { editingCourse=null;courseSaveError=null;showCourseDialog = true },
@@ -596,7 +615,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         onOpenExam = { examDetailId = it.id },
                         onOpenCampusMap = { showCampusMap = true },
                     ) }
-                    1 -> LearningScreen(
+                    "学习" -> LearningScreen(
                         search = search,
                         onClearSearch = { search = "" },
                         owner = state.session?.userId ?: state.session?.username ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER,
@@ -635,6 +654,11 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         examStudyRoute = examStudyRoute,
                         onExamStudyRouteOpened = { examStudyRoute = null },
                     )
+                    "广场", "社团" -> LaboratoryCommunityScreen(
+                        if (tabs[page] == "广场") "square" else "clubs", state, viewModel,
+                        onClose = { tabNavigator.select(0) }, onOpenMaterial = { material ->
+                            labListeningMaterial = material; tabNavigator.select(1)
+                        })
                     else -> ProfileScreen(
                         state = state,
                         onLogin = viewModel::openLogin,
@@ -1076,13 +1100,15 @@ private fun CoolapkNavigationBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .wrapContentWidth(Alignment.CenterHorizontally)
+            .widthIn(max = (tabs.size * 72).dp)
             .navigationBarsPadding(),
         color = AppColors.SurfaceOpaque,
         shadowElevation = 12.dp,
     ) {
         Row(
             Modifier
-                .fillMaxWidth()
+                .width((tabs.size * 72).dp)
                 .height(54.dp)
                 .border(0.5.dp, themeColor(Color(0xFFEDEEF0), AppColors.Divider)),
             verticalAlignment = Alignment.CenterVertically,

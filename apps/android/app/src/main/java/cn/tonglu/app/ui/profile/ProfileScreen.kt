@@ -211,11 +211,18 @@ internal fun ProfileScreen(
     val headerScroll = remember(minimumHeader) {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y >= 0f) return Offset.Zero
                 val maximum = (headerFullHeight - minimumHeader).coerceAtLeast(0f)
                 val next = (headerHidden - available.y).coerceIn(0f, maximum)
                 val consumed = headerHidden - next
                 headerHidden = next
                 return Offset(0f, consumed)
+            }
+            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
+                if (available.y <= 0f) return Offset.Zero
+                val restored = minOf(headerHidden, available.y)
+                headerHidden -= restored
+                return Offset(0f, restored)
             }
         }
     }

@@ -29,7 +29,7 @@ data class CampusService(
 object CampusServices {
     const val PORTAL_URL = "https://bsdt.ldxy.cn/bsdt/home"
     const val JW_URL = "https://jw.liaodongu.edu.cn/jwapp/sys/homeapp/home/index.html?contextPath=/jwapp#/"
-    const val SC_URL = "https://sc.liaodongu.edu.cn/"
+    const val SC_URL = "https://10.2.41.124/ucenter/auth/caslogin"
     // 高校公开的跨校课平台名单：辽东学院超星单位码 16044。
     const val CHAOXING_URL = "https://lnldxy.fanya.chaoxing.com/"
     const val ELECTRICITY_PAYMENT_URL = "https://enjoy.abchina.com/jf-openweb/wechat/shareEpayItem?code=JF-EPAY2023031041857"
@@ -46,7 +46,7 @@ object CampusServices {
         ),
         CampusService("lib", "图书馆", "图书馆官网与资源导航", "https://ldxytsg.mh.chaoxing.com", "学习"),
         CampusService("teaching", "教育教学", "教务通知与教学信息", "https://liaodongjwc.mh.chaoxing.com", "学习"),
-        CampusService("sc", "双创平台", "项目申报、竞赛与学分认定", SC_URL, "竞赛", true),
+        CampusService("sc", "双创平台", "校园网或学校 VPN · 项目申报、竞赛与学分认定", SC_URL, "竞赛", true),
         CampusService("career", "就业网", "招聘信息与就业服务", "https://ldxy.bysjy.com.cn/", "就业"),
         CampusService("logistics", "后勤服务", "后勤通知与服务信息", "https://www.liaodongu.edu.cn/houqin", "服务"),
         CampusService("school", "学校官网", "学校通知与院系导航", "https://www.liaodongu.edu.cn/", "官网"),

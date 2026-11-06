@@ -45,7 +45,7 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var source by remember { mutableStateOf("") }
-    var notice by remember { mutableStateOf("可说出或粘贴一门课，也可选课表截图。识别后核对表单再保存。") }
+    var notice by remember { mutableStateOf("可说出或粘贴一门课的信息，识别后核对表单再保存。") }
     var busy by remember { mutableStateOf(false) }
     var listening by remember { mutableStateOf(false) }
     var recognizer by remember { mutableStateOf<SpeechRecognizer?>(null) }
@@ -76,7 +76,7 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
 
     fun startVoice() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
-            notice = "手机没有可用的语音识别服务。可粘贴课程信息或识别课表截图。"
+            notice = "手机没有可用的语音识别服务。可粘贴课程信息或手动填写。"
             return
         }
         runCatching {
@@ -93,10 +93,10 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
                     listening = false
                     recognizer = null
                     notice = when (error) {
-                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "语音服务网络不可用，请检查连接，或用文字、截图加课。"
+                        SpeechRecognizer.ERROR_NETWORK, SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "语音服务网络不可用，请检查连接，或用文字加课。"
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "语音服务没有录音权限，请在系统设置中允许。"
                         SpeechRecognizer.ERROR_NO_MATCH, SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "没有听清课程信息，请重试或直接输入文字。"
-                        else -> "语音服务暂时不可用（错误 $error），可用文字或截图加课。"
+                        else -> "语音服务暂时不可用（错误 $error），可用文字加课。"
                     }
                 }
                 override fun onResults(results: Bundle?) {
@@ -113,27 +113,11 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
                 putExtra(RecognizerIntent.EXTRA_LANGUAGE, "zh-CN")
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
             })
-        }.onFailure { listening = false; recognizer = null; notice = "无法启动语音服务，可用文字或截图加课。" }
+        }.onFailure { listening = false; recognizer = null; notice = "无法启动语音服务，可用文字加课。" }
     }
     val voicePermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startVoice() else notice = "需要录音权限才能语音识课；也可以输入文字或识别截图。"
+        if (granted) startVoice() else notice = "需要录音权限才能语音识课；也可以直接输入文字。"
     }
-    val photo = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        if (uri != null) scope.launch {
-            busy = true
-            try {
-                val recognized = withContext(Dispatchers.IO) { readCoursePhoto(context, uri) }
-                busy = false
-                process(recognized)
-            } catch (cancelled: CancellationException) {
-                throw cancelled
-            } catch (_: Exception) {
-                notice = "图片文字识别失败，请换一张清晰截图或手动填写。"
-                busy = false
-            }
-        }
-    }
-
     Column(verticalArrangement = Arrangement.spacedBy(7.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
@@ -144,11 +128,7 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
                 }, enabled = !busy, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent),
             ) { Text(if (listening) "停止听取" else "语音说课") }
-            Button(
-                onClick = { photo.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                enabled = !busy && !listening, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent),
-            ) { Text("识别截图") }
+
         }
         MiuixTextField(
             source, { source = it.take(3000) },
@@ -159,6 +139,6 @@ fun CourseRecognitionActions(onDraft: (CourseRecognitionDraft) -> Unit) {
             Button(onClick = { process(source) }, enabled = !busy) { Text(if (busy) "识别中…" else "识别文字") }
         }
         Text(notice, color = AppColors.TextSecondary)
-        Text("语音使用系统识别服务；照片在本机识字。已配置 AI 时，提取的文字会发往所选服务商，可能产生费用。", color = AppColors.TextSecondary)
+        Text("语音使用系统识别服务；已配置 AI 时，提取的文字会发往所选服务商，可能产生费用。", color = AppColors.TextSecondary)
     }
 }

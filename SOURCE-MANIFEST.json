@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "0cd81d666aee072c03ab2fa33a593add4ce4fe40",
+  "sourceCommit": "75d6d897068e4ed320846ba74a635c8a84debe73",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -39,7 +39,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "066acea9d785a74bcbde0d79ce60be3a884d1f67e9192ae1bc1d512bfffc95a8"
+      "sha256": "ea72245b94b5f2c8e317dea3e2b0d39a26d6281e1367d7dc3cbb55705eac3ed6"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -103,8 +103,8 @@
     },
     {
       "path": "apps/android/app/src/main/AndroidManifest.xml",
-      "bytes": 9633,
-      "sha256": "c7e8274c00569f05ae893855e49c37072725a0274d01ca30f46b0e3a6f1b3623"
+      "bytes": 9719,
+      "sha256": "bde777329eb1da8f129f8cb0de8dd4d4d5d6d479467f39b0875d1111bbbfb572"
     },
     {
       "path": "apps/android/app/src/main/artwork/README.md",
@@ -323,8 +323,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/CampusServices.kt",
-      "bytes": 5625,
-      "sha256": "8a044693bf2bdfdac411f74dcd08617807ab8017cedd0fd44d2b7104cc5f2f5a"
+      "bytes": 5664,
+      "sha256": "3be2b30264e7939d4b5b2127a9b75993c3cdcca1df01f67a4c09318b59dfa9f4"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/ClassOverLines.kt",
@@ -1043,8 +1043,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/clubs/ClubsScreen.kt",
-      "bytes": 18563,
-      "sha256": "09dc8b77c6c5807cc70f87a1d4debd0333cc4ee5dd325c91c8a2642dd2531d08"
+      "bytes": 18711,
+      "sha256": "067220a78e4c4474d6ab96de40a3dfb921a11a4b04d2239d366c4a87b61c08b6"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/clubs/ClubWorkspaceMotion.kt",
@@ -1308,8 +1308,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/LaboratoryScreen.kt",
-      "bytes": 15909,
-      "sha256": "dcf8363eb71c0b3b396e8a0d8a7d4402a8b39742d41deae41b66c063d801ad1c"
+      "bytes": 15910,
+      "sha256": "cbfdc649cc79930b8953e631ff1e23bf351b82dae04d96c72c30656f2ff898a4"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/BankOriginalAudio.kt",
@@ -1543,8 +1543,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ProfileScreen.kt",
-      "bytes": 50515,
-      "sha256": "6907c36aa17d5053ece239a2ab340890e0a28b8fe7bff66fcfed18ea71da019e"
+      "bytes": 50914,
+      "sha256": "351d61db31f07fba3948c3f402357e6325a89ae430c74a98ae80967b0027274c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ThemeModePicker.kt",
@@ -1768,8 +1768,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNotes.kt",
-      "bytes": 17729,
-      "sha256": "9b19ca8ade7e9e3bceda2ac30aaae488dfd31f7e4f8c1f1c7ab0ba0d3db8f3ff"
+      "bytes": 19455,
+      "sha256": "95752afc8300b9f4182e532562f7a210fb4a8c9eb530708e09a093ced5d0eec9"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseCardContent.kt",
@@ -1783,8 +1783,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseRecognitionActions.kt",
-      "bytes": 8746,
-      "sha256": "abf68e99c4e5bac7069c33b9616f01bc5eb6456269f07b4a9166de559bdb7e3a"
+      "bytes": 7673,
+      "sha256": "cb1b3d5f4fe35be99f6ff1a3446b577dcf154a26a249ad0a4c16a22f2e1cf2d5"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TimetableEditGrid.kt",
@@ -1803,8 +1803,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TongluApp.kt",
-      "bytes": 84981,
-      "sha256": "963648e2c679c15e5bc1447c20f2495147e42e6cd8ed59dbecc6ba405367badb"
+      "bytes": 86422,
+      "sha256": "3fbd966ad6f9996119264b64e31df0053f4bb6f2c51c732ff434b61d776523cd"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/UnderlayBackTransform.kt",

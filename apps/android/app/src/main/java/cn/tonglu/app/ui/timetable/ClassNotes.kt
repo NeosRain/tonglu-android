@@ -18,6 +18,13 @@ import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassPanelStyle
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import androidx.compose.ui.Alignment
+import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Stop
@@ -136,25 +143,30 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var pendingPhoto by remember { mutableStateOf<File?>(null) }
     var enlargedPhoto by remember { mutableStateOf<String?>(null) }
-    var editingNoteId by remember { mutableStateOf<String?>(null) }
+    var editingNoteId by remember(store) { mutableStateOf(notes.firstOrNull { it.text.isNotBlank() }?.id) }
+    LaunchedEffect(store) { if (draft.isBlank()) draft = notes.firstOrNull { it.id == editingNoteId }?.text.orEmpty() }
+    val backdrop = rememberLayerBackdrop()
     fun append(note: ClassNote): Boolean {
         if (error?.startsWith("读取笔记失败") == true) return false
         return runCatching { store.append(note); notes = store.readAll(); error = null }
             .onFailure { error = "保存失败：${it.localizedMessage}" }.isSuccess
     }
-    fun saveDraft() {
+    fun saveDraft(): Boolean {
         val content = draft.trim()
-        if (content.isNotEmpty() && error?.startsWith("读取笔记失败") != true) {
+        if ((content.isNotEmpty() || editingNoteId != null) && error?.startsWith("读取笔记失败") != true) {
+            if (notes.any { it.id == editingNoteId && it.text == content }) return true
+            val targetId = editingNoteId ?: UUID.randomUUID().toString()
             val saved = editingNoteId?.let { id ->
                 runCatching { store.replaceText(id, content); notes = store.readAll(); error = null }
                     .onFailure { error = "更新失败：${it.localizedMessage}" }.isSuccess
-            } ?: append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), content, null, null))
+            } ?: append(ClassNote(targetId, System.currentTimeMillis(), content, null, null))
             if (saved) {
-                draft = ""
-                editingNoteId = null
+                editingNoteId = targetId
                 runCatching { store.saveDraft("") }.onFailure { error = "清理草稿失败：${it.localizedMessage}" }
             }
+            return saved
         }
+        return content.isEmpty()
     }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
         val file = pendingPhoto
@@ -198,25 +210,18 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         audioFile = null
     }
     DisposableEffect(Unit) { onDispose { recorder?.let { runCatching { it.stop(); it.release() } }; player?.release() } }
-    LaunchedEffect(draft) { delay(700); runCatching { store.saveDraft(draft) }.onFailure { error = "草稿保存失败：${it.localizedMessage}" } }
-    Dialog(onDismissRequest = { if (recorder != null) stopRecording(); saveDraft(); onDismiss() },
+    LaunchedEffect(draft) {
+        delay(700)
+        if (draft.isNotBlank()) runCatching { store.saveDraft(draft); saveDraft() }
+            .onFailure { error = "自动保存失败：${it.localizedMessage}" }
+    }
+    Dialog(onDismissRequest = { if (recorder != null) stopRecording(); if (saveDraft()) onDismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
-            Column(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding().padding(horizontal = 18.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    IconButton(onClick = { if (recorder != null) stopRecording(); saveDraft(); onDismiss() }) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回")
-                    }
-                    Text(course.name, color = AppColors.TextSecondary, fontSize = 14.sp, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                }
-                Text("课堂笔记", color = AppColors.TextPrimary, fontSize = 30.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
-                Text(if (editingNoteId == null) "按时间记录 · 退出自动保存" else "正在编辑笔记 · 保存后覆盖原文字", color = AppColors.TextSecondary,
-                    fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 18.dp))
-                error?.let { Text(it, color = AppColors.Danger, fontSize = 13.sp) }
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
                 LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(2),
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier.fillMaxSize().layerBackdrop(backdrop).padding(horizontal = 18.dp),
+                    contentPadding = PaddingValues(top = 136.dp, bottom = 280.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalItemSpacing = 12.dp) {
                     items(notes, key = { it.id }) { note ->
@@ -246,27 +251,45 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                         } }
                     }
                 }
+                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(), style = GlassPanelStyle.Solid) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                    IconButton(onClick = { if (recorder != null) stopRecording(); if (saveDraft()) onDismiss() }) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回")
+                    }
+                    Text(course.name, color = AppColors.TextSecondary, fontSize = 14.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                }
+                Text("课堂笔记", color = AppColors.TextPrimary, fontSize = 24.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
+                Text("持续续写 · 自动保存到同一篇", color = AppColors.TextSecondary,
+                    fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+                error?.let { Text(it, color = AppColors.Danger, fontSize = 13.sp) }
+                }
+                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp), style = GlassPanelStyle.Solid) {
+                Column(Modifier.padding(horizontal = 14.dp)) {
+                    TextButton(onClick = { if (saveDraft()) { editingNoteId = null; draft = "" } }) { Icon(Icons.Outlined.Add, null); Text("新笔记") }
                 OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                     placeholder = { Text("记下课堂重点…") }, minLines = 2, maxLines = 8,
                     shape = RoundedCornerShape(18.dp))
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.SpaceEvenly,
+                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    IconButton(onClick = {
+                    FilledTonalButton(modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
                         saveDraft()
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
                             openCamera()
                         else cameraPermission.launch(Manifest.permission.CAMERA)
-                    }) { Icon(Icons.Outlined.CameraAlt, "拍照", tint = AppColors.Accent) }
-                    IconButton(onClick = {
+                    }) { Icon(Icons.Outlined.CameraAlt, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("拍照") }
+                    FilledTonalButton(modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
                         if (recorder != null) stopRecording()
                         else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
                         else micPermission.launch(Manifest.permission.RECORD_AUDIO)
                     }) { Icon(if (recorder == null) Icons.Outlined.Mic else Icons.Outlined.Stop,
                         if (recorder == null) "开始录音" else "结束录音",
-                        tint = if (recorder == null) AppColors.Accent else AppColors.Danger) }
-                    if (editingNoteId != null) TextButton(onClick = { editingNoteId = null; draft = "" }) { Text("取消编辑") }
-                    Button(onClick = { saveDraft() }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent,
-                        contentColor = AppColors.OnAccent)) { Text(if (editingNoteId == null) "保存" else "更新") }
+                        tint = if (recorder == null) AppColors.Accent else AppColors.Danger, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(if (recorder == null) "录音" else "停止") }
+                    Button(modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = { saveDraft() }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent,
+                        contentColor = AppColors.OnAccent)) { Icon(Icons.Outlined.Check, null, modifier = Modifier.size(18.dp)); Text("保存") }
+                }
+                }
                 }
             }
         }

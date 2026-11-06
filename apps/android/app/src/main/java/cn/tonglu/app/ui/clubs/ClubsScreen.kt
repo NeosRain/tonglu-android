@@ -22,6 +22,9 @@ import cn.tonglu.app.ui.SystemBackProgress
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.edgeSwipeBack
 
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.School
+import androidx.compose.material3.Icon
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -248,8 +251,7 @@ private fun MorphClubRow(club: ClubDetailTarget, selected: Boolean, active: Bool
             verticalAlignment = Alignment.CenterVertically) {
             Surface(color = if (selected && active) Accent.copy(alpha = .18f) else Accent.copy(alpha = .12f),
                 shape = CircleShape, modifier = Modifier.size(48.dp)) {
-                Box(contentAlignment = Alignment.Center) { Text(club.avatarLabel(), color = Accent,
-                    fontWeight = FontWeight.Bold, fontSize = 20.sp) }
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Outlined.School, contentDescription = "班级与社团", tint = Accent, modifier = Modifier.size(26.dp)) }
             }
             Row(Modifier.weight(1f).padding(start = 12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
