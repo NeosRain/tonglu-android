@@ -31,7 +31,7 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
         labFeatures.forEach { put(it.id, preferences.getBoolean(it.id, false)) }
     } }
     var module by rememberSaveable { mutableStateOf<String?>(null) }
-    Column(Modifier.fillMaxSize().background(AppColors.Canvas).safeDrawingPadding()
+    Column(Modifier.fillMaxSize().background(AppColors.CanvasOpaque).safeDrawingPadding()
         .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         TextButton(onClick = onClose) { Text("返回") }
         Text("实验室", style = MaterialTheme.typography.headlineSmall)
@@ -65,7 +65,7 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
 
 @Composable
 internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewModel: AppViewModel,
-    onClose: () -> Unit, onOpenMaterial: (String) -> Unit) {
+    onClose: () -> Unit, onOpenMaterial: (String) -> Unit, topInset: androidx.compose.ui.unit.Dp = 0.dp, mainSearch: String? = null) {
     fun closeLayer(action: () -> Unit) { OverlayDismissGuard.arm(); action() }
     var detailPostId by remember { mutableStateOf<String?>(null) }
     var reportTarget by remember { mutableStateOf<PostDto?>(null) }
@@ -81,6 +81,7 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
     var clubDraftDescription by rememberSaveable { mutableStateOf("") }
     var activeActivity by remember { mutableStateOf<ClubActivityDto?>(null) }
     var search by rememberSaveable { mutableStateOf("") }
+    val effectiveSearch = mainSearch ?: search
     val clubWorkspace = rememberClubWorkspaceState()
     val clubActivityActions = remember(viewModel) {
         ClubActivityActions(loadActivities = viewModel::clubActivities,
@@ -92,9 +93,9 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
         if (module == "square") viewModel.refreshPosts() else if (state.session != null) viewModel.refreshClubs()
     }
     DisposableEffect(Unit) { onDispose { viewModel.closePost() } }
-    Column(Modifier.fillMaxSize().background(AppColors.Canvas).safeDrawingPadding()) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onClose) { Text("返回实验室") }
+    Column(Modifier.fillMaxSize().background(AppColors.CanvasOpaque).padding(top = topInset).then(if (mainSearch != null) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (mainSearch == null) TextButton(onClick = onClose) { Text("返回实验室") }
             Text(if (module == "square") "广场" else "社团", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             TextButton(onClick = {
                 if (state.session == null) viewModel.openLogin()
@@ -104,22 +105,24 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
         if (module == "clubs" && clubWorkspace.target != null) ClubWorkspaceHeader(
             clubWorkspace, state.session != null, viewModel::joinClub,
             membership = state.clubMembership().of(clubWorkspace.target!!.id))
-        OutlinedTextField(value = search, onValueChange = { search = it },
+        if (mainSearch == null) TextField(value = search, onValueChange = { search = it },
             label = { Text(if (module == "square") "搜索帖子" else "搜索社团") },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true)
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true,
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+            colors = TextFieldDefaults.colors(focusedContainerColor = AppColors.ChipIdle, unfocusedContainerColor = AppColors.ChipIdle, focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
         if (module == "square" && state.session != null) Row {
             TextButton(onClick = { showMyPosts = true }) { Text("我的内容") }
             TextButton(onClick = { showFavorites = true }) { Text("我的收藏") }
         }
         Box(Modifier.weight(1f)) {
-            if (module == "square") SquareScreen(state, search, onRefresh = viewModel::refreshPosts,
+            if (module == "square") SquareScreen(state, effectiveSearch, onRefresh = viewModel::refreshPosts,
                 onReport = { reportTarget = it },
                 onOpen = { detailPostId = it.id; viewModel.openPost(it.id) }, onOpenPack = { openedPack = it })
             else if (state.session == null) Text("登录后查看和加入社团", Modifier.padding(24.dp))
             else {
                     ClubsScreen(
                         state,
-                        search,
+                        effectiveSearch,
                         topInset = 0.dp,
                         onJoin = viewModel::joinClub,
                         workspace = clubWorkspace,

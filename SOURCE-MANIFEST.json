@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "75d6d897068e4ed320846ba74a635c8a84debe73",
+  "sourceCommit": "c16c7fb4024f43fc4c8e1d37b8d55081c642caaf",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -39,7 +39,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "ea72245b94b5f2c8e317dea3e2b0d39a26d6281e1367d7dc3cbb55705eac3ed6"
+      "sha256": "bf19a3c903697cb48dddac8b5d943af8ec4fcb0e6911b39b6cb27333837faa50"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -88,8 +88,13 @@
     },
     {
       "path": "apps/android/app/src/debug/AndroidManifest.xml",
-      "bytes": 703,
-      "sha256": "2a2b4bdd9e1efc2a70f7592aacb28fa91ecd5abe2aa9e735bc63a6588de50325"
+      "bytes": 874,
+      "sha256": "d89e591b620f98dd82c82407cebabba60e195865455330cb1d58a282b3165ddc"
+    },
+    {
+      "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/ClassNotesPreviewActivity.kt",
+      "bytes": 2797,
+      "sha256": "a7c3b8fa9779456755e712fc41648476e31ef2649186761f277319c6a0788ec8"
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/CommentPreviewActivity.kt",
@@ -113,8 +118,8 @@
     },
     {
       "path": "apps/android/app/src/main/artwork/store-icon-512.png",
-      "bytes": 14212,
-      "sha256": "c8e312d4d5435f6a82c3db8194ade1aa585b67e3465c37cf7f3d80127ef2afd2"
+      "bytes": 18439,
+      "sha256": "bc36844fb4126acdc47f700785b669c02fc7f2bcdc0f0e88371744ea7a8ca5f9"
     },
     {
       "path": "apps/android/app/src/main/artwork/tomato-icon.png",
@@ -1258,8 +1263,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/GlassTopBar.kt",
-      "bytes": 5246,
-      "sha256": "3d25a8cd5163049403d225693c76e59faa4dc655455fe636bd7a7351859d2ade"
+      "bytes": 5564,
+      "sha256": "877fd7468e49713f77e93aeb154cb4fbdca6c0a45430da319d08b8fff17d057f"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/InteractiveHighlight.kt",
@@ -1308,8 +1313,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/LaboratoryScreen.kt",
-      "bytes": 15910,
-      "sha256": "cbfdc649cc79930b8953e631ff1e23bf351b82dae04d96c72c30656f2ff898a4"
+      "bytes": 16614,
+      "sha256": "d58729f5efceddc0536d47b74c350aa5f14f064a59f77c56834e51a718d073c3"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/BankOriginalAudio.kt",
@@ -1523,8 +1528,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/AccountSettingsScreen.kt",
-      "bytes": 12620,
-      "sha256": "0057ade292706e276c0ffff6591be956323d207aa8a812d500d9ca93c9bd9a39"
+      "bytes": 13352,
+      "sha256": "2149b9102fd5d09433a7b75f5050aebfd46153d7ffbb08dbcd400abf504c3218"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/FeedbackDialog.kt",
@@ -1543,8 +1548,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ProfileScreen.kt",
-      "bytes": 50914,
-      "sha256": "351d61db31f07fba3948c3f402357e6325a89ae430c74a98ae80967b0027274c"
+      "bytes": 46771,
+      "sha256": "e45edb5d13d876f4ccfe7b8dc096424e52b87ed9d6ac7118596c752eeacaa150"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ThemeModePicker.kt",
@@ -1718,8 +1723,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/StartupScreen.kt",
-      "bytes": 4866,
-      "sha256": "b81772462e0aad5650484ffe757d9045e872cd2a4326d795f76d8b58a8004145"
+      "bytes": 4853,
+      "sha256": "75da9823c34d165ed09ece4b66f1ef13d559280e72c72d2685204f3f2688f069"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/theme/ThemeAccent.kt",
@@ -1768,8 +1773,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNotes.kt",
-      "bytes": 19455,
-      "sha256": "95752afc8300b9f4182e532562f7a210fb4a8c9eb530708e09a093ced5d0eec9"
+      "bytes": 22971,
+      "sha256": "c43dc2a4c4df04794712f37a7abec2e58b153af9f30a104fc713081b03dc146e"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseCardContent.kt",
@@ -1803,8 +1808,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TongluApp.kt",
-      "bytes": 86422,
-      "sha256": "3fbd966ad6f9996119264b64e31df0053f4bb6f2c51c732ff434b61d776523cd"
+      "bytes": 86502,
+      "sha256": "59b1375881c96b69ac4de668a24eefe45235577fef7a9a5bb08e0ab7034d744f"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/UnderlayBackTransform.kt",
@@ -1934,17 +1939,17 @@
     {
       "path": "apps/android/app/src/main/res/drawable/ic_launcher_bg.xml",
       "bytes": 136,
-      "sha256": "3bfbc3d83e237a2f34abcceee8982ca711cdcd8c1b514a57bd51bc000be8bbab"
+      "sha256": "75ddd7b65651627d2937218c5ce5127caa14163ac0ddca8aacf89fe795c60e0d"
     },
     {
       "path": "apps/android/app/src/main/res/drawable/ic_launcher_foreground.xml",
-      "bytes": 668,
-      "sha256": "25721300894c36b6490f370b088e68abe86d123abaf70fc25e667d0fad9ec378"
+      "bytes": 661,
+      "sha256": "29a5041d32bdcbd0a115d4f8c900e17b89f48e7a5f1cdad1b9f5880ba29b7352"
     },
     {
       "path": "apps/android/app/src/main/res/drawable/ic_launcher_monochrome.xml",
-      "bytes": 668,
-      "sha256": "25721300894c36b6490f370b088e68abe86d123abaf70fc25e667d0fad9ec378"
+      "bytes": 661,
+      "sha256": "29a5041d32bdcbd0a115d4f8c900e17b89f48e7a5f1cdad1b9f5880ba29b7352"
     },
     {
       "path": "apps/android/app/src/main/res/drawable/ic_shortcut_widgets.xml",
@@ -1973,13 +1978,13 @@
     },
     {
       "path": "apps/android/app/src/main/res/drawable-nodpi/ic_brand_logo.png",
-      "bytes": 18986,
-      "sha256": "c5c7298b1531317630808b2078451f8f498ed84373abfed8ed341fef41d842c3"
+      "bytes": 23166,
+      "sha256": "6b90052e55ee7e1cc77c2892b56e8ec7678c64efdbd3ff2095d7669ddec9b37f"
     },
     {
       "path": "apps/android/app/src/main/res/drawable-nodpi/ic_launcher_portrait.png",
-      "bytes": 10130,
-      "sha256": "c88b130a3e3e7ab3af66b446d037f71da9990abbfd593fcd658607bcf37fd4b5"
+      "bytes": 12524,
+      "sha256": "83d3cc5ad8b435483698bb16fec7b083eb98ed8ea8b2772eb6e5a82564c4f334"
     },
     {
       "path": "apps/android/app/src/main/res/drawable-nodpi/tomato_complete.png",
@@ -2033,53 +2038,53 @@
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-hdpi/ic_launcher.png",
-      "bytes": 3610,
-      "sha256": "c89dac17ed3fcec66d736d23cbb02c608069d2659c94e058fae18fb9ed393da9"
+      "bytes": 3591,
+      "sha256": "49d91124915b25c3cac8f072062676cbc6a1a24d70cbad1ab002b69c221bece4"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-hdpi/ic_launcher_round.png",
-      "bytes": 4320,
-      "sha256": "761cc896f610bbcf5e36fcb07341524f80ddf5a60f8e3aa85c53c55b68ab42c3"
+      "bytes": 4180,
+      "sha256": "9b9ed4f37d4dadad27a060c57c846e0d03b3d9489e276a3f1e7c97d54cc9e86c"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-mdpi/ic_launcher.png",
-      "bytes": 2401,
-      "sha256": "19ec61470539b1303a4a598dedad4661817580938bc0f6a5f2c4e5c4a24887a2"
+      "bytes": 2514,
+      "sha256": "26622a1cbe69e2cfab8a9cf6e6106bddb77393bae8eaca2f88b75c69caaf9499"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-mdpi/ic_launcher_round.png",
-      "bytes": 2813,
-      "sha256": "3b0d9a3dbc6a2c7de2d5d3a0631f314412ebda813c68265f1d29e1bf34a8bceb"
+      "bytes": 2890,
+      "sha256": "27f9e4a8260580766eaa9ac85ed10d44121736e1c48dcc4c2258c259c2f90606"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-xhdpi/ic_launcher.png",
-      "bytes": 4621,
-      "sha256": "8cb3b85c8ac29f630945c61619d2656aec7394d442e04179f2969b4d62b1ca39"
+      "bytes": 4976,
+      "sha256": "1bc54a95716c66a43721405044ee3c078473870cf398c52238a86c5880f094ef"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-xhdpi/ic_launcher_round.png",
-      "bytes": 5658,
-      "sha256": "cb4f1c918111658bf2863cae98bf05829d618b7b09228ad7fa06ee2bc60fa379"
+      "bytes": 5905,
+      "sha256": "9f4cef7eb363b2613af3be2af31b007b501e0b630e34824c5673149802dd8319"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png",
-      "bytes": 6507,
-      "sha256": "8774dda1f344ec77fe3e456ee6c1864487200e76ce4d7dcc31bf6821852508cd"
+      "bytes": 6979,
+      "sha256": "b418dff4e7d7b4a6f3b3aace6de9b9ff3bf22e0907d04325ecf779a811569a83"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-xxhdpi/ic_launcher_round.png",
-      "bytes": 8000,
-      "sha256": "cad8d9dcaeb8ef5daeab6f3bae32ed21e3a90ac189f5452a6268cc6140d91b66"
+      "bytes": 8392,
+      "sha256": "f399fc384913602627a2777acd036b8864f8e14e363389f7f8b5e2f1062b4c0c"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png",
-      "bytes": 7834,
-      "sha256": "5fe606a147acb3756dd1a2b69592dc619892005e581bd3b48d26ea8755f78716"
+      "bytes": 8732,
+      "sha256": "f1fa8aba862162306a67df88b385744d6d57ae1e911111e7e9fb433ccdaf2430"
     },
     {
       "path": "apps/android/app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png",
-      "bytes": 9767,
-      "sha256": "0e985f251a89b94cc6441552294ede54e49ec79c0755d05573154ab8d2739377"
+      "bytes": 10548,
+      "sha256": "6f439cbfa666ba1254c61e92d842c84495cef632acd6eab77ade3936784802a7"
     },
     {
       "path": "apps/android/app/src/main/res/values/colors.xml",
@@ -3148,8 +3153,8 @@
     },
     {
       "path": "scripts/gen_launcher_icons.py",
-      "bytes": 3265,
-      "sha256": "2a7cb570a929f08574b6fa7021b2f032eebde9ccb010aa96adc4f45feb804af2"
+      "bytes": 3261,
+      "sha256": "de2b97875858568c6bc1d93786bffc8b99c7f0627f1d4e372664baeb5fcad117"
     },
     {
       "path": "scripts/intensive_reading.py",

@@ -192,52 +192,11 @@ internal fun ProfileScreen(
         text = { Text("把本机与云端两份记录合并后重新上传，用于换机恢复。示例数据和学校登录 Cookie 不会上传。同一门课两边都改过时保留本机记录。") },
         confirmButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false; onAcademicSync() }) { Text("开始同步") } },
         dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false }) { Text("取消") } })
-    // 🔴 左右滑动切换「常用/学习/外观/账号数据」（2026-10-14 用户拍板上 HorizontalPager）：
-    // 四组内容各成一个 page，手指拖动页面跟手移动、松手自动吸附 —— 之前的手势方案
-    // （detectHorizontalDragGestures 过阈值跳变 + graphicsLayer 滑入）没有跟手感，已删。
-    // 头部随上滑收起，保留分组切换行；每页独立 LazyColumn，滚动位置由
-    // Pager 分别保留（切回来还在原处）。tab 高亮跟随 currentPage（吸附完成后），
-    // 点 tab 走 animateScrollToPage 带动画过去；rememberPagerState 自带状态保存。
-    val pagerState = rememberPagerState { 4 }
-    var headerHidden by remember { mutableFloatStateOf(0f) }
-    var headerFullHeight by remember { mutableIntStateOf(0) }
-    var headerTabsHeight by remember { mutableIntStateOf(0) }
-    val statusInsetPx = with(LocalDensity.current) {
-        WindowInsets.statusBars.asPaddingValues().calculateTopPadding().toPx()
-    }
-    val minimumHeader = with(LocalDensity.current) {
-        (if (headerTabsHeight > 0) headerTabsHeight.toFloat() else 40.dp.toPx()) + statusInsetPx
-    }
-    val headerScroll = remember(minimumHeader) {
-        object : NestedScrollConnection {
-            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
-                if (available.y >= 0f) return Offset.Zero
-                val maximum = (headerFullHeight - minimumHeader).coerceAtLeast(0f)
-                val next = (headerHidden - available.y).coerceIn(0f, maximum)
-                val consumed = headerHidden - next
-                headerHidden = next
-                return Offset(0f, consumed)
-            }
-            override fun onPostScroll(consumed: Offset, available: Offset, source: NestedScrollSource): Offset {
-                if (available.y <= 0f) return Offset.Zero
-                val restored = minOf(headerHidden, available.y)
-                headerHidden -= restored
-                return Offset(0f, restored)
-            }
-        }
-    }
-    Column(Modifier.fillMaxSize().nestedScroll(headerScroll)) {
-        Column(
-            Modifier.clipToBounds().drawWithContent {
-                clipRect(top = statusInsetPx) { this@drawWithContent.drawContent() }
-            }.layout { measurable, constraints ->
-                val measured = measurable.measure(constraints)
-                val hidden = headerHidden.coerceAtMost((measured.height - minimumHeader).coerceAtLeast(0f)).roundToInt()
-                layout(measured.width, measured.height - hidden) { measured.placeRelative(0, -hidden) }
-            }.onSizeChanged { headerFullHeight = it.height }
-                .padding(start = 18.dp, end = 18.dp, top = 18.dp + topInset),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+    LazyColumn(Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = topInset + 18.dp, bottom = 116.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text("我的", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f))
@@ -295,37 +254,9 @@ internal fun ProfileScreen(
                 Text("反馈与建议 →", color = Accent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("不用登录，直接告诉我们哪里需要改进", color = Muted, style = MaterialTheme.typography.bodySmall)
             }
-            Row(
-                Modifier.fillMaxWidth().onSizeChanged { headerTabsHeight = it.height },
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                listOf("常用", "学习", "外观", "账号数据").forEachIndexed { index, name ->
-                    Surface(
-                        color = if (pagerState.currentPage == index) Accent else AppColors.ChipIdle,
-                        shape = RoundedCornerShape(16.dp),
-                        modifier = Modifier.weight(1f).clickable {
-                            scope.launch { pagerState.animateScrollToPage(index) }
-                        },
-                    ) {
-                        Text(name, color = if (pagerState.currentPage == index) AppColors.OnAccent else AppColors.TextSecondary,
-                            style = MaterialTheme.typography.labelLarge,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 9.dp))
-                    }
-                }
             }
         }
-        // 分组与内容固定留出间距，四页滚动时卡片也不会贴住分组选项。
-        HorizontalPager(state = pagerState, verticalAlignment = Alignment.Top,
-            modifier = Modifier.weight(1f).padding(top = 16.dp)) { page ->
-        // ⚠️ 四组内容从原单一 LazyColumn 平移进来，缩进保持原样（selectedGroup → page）。
-        // 每个 page 一个独立 LazyColumn：底部 116dp 依旧给玻璃底栏留位。
-        LazyColumn(
-            modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 116.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-        if (page == 0) {
+        item { Text("常用", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item {
             MiuixCard(insideMargin = PaddingValues(16.dp)) {
                 Row(Modifier.fillMaxWidth().clickable(onClick = onOpenLaboratory), verticalAlignment = Alignment.CenterVertically) {
@@ -423,8 +354,7 @@ internal fun ProfileScreen(
                 }
             }
         }
-        }
-        if (page == 1) {
+        item { Text("学习", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item {
             // 考试倒计时开关（`docs/plan/54` M2）。关掉 = 首页不留任何入口（连引导卡都不留），
             // 但**已加入的备考一条都不删**，再打开就回来 —— 关显示 ≠ 删数据。
@@ -601,8 +531,7 @@ internal fun ProfileScreen(
                 }) { Text("发一条测试通知", color = Accent) }
             }
         }
-        }
-        if (page == 2) {
+        item { Text("外观", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item {
             MiuixCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
                 Text("外观", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -645,8 +574,7 @@ internal fun ProfileScreen(
                 Spacer(Modifier.height(8.dp))
             }
         }
-        }
-        if (page == 3) {
+        item { Text("账号与数据", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         if (session != null) item {
             MiuixCard(insideMargin = PaddingValues(16.dp)) {
                 Row(
@@ -734,8 +662,6 @@ internal fun ProfileScreen(
                 OutlinedButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth()) { Text("退出登录") }
             }
             Text("苔米林为非官方项目，与辽东学院及学校平台无隶属关系。", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        }        }
-        }
         }
     }
 

@@ -26,6 +26,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -75,6 +78,7 @@ fun GlassTopBar(
     content: @Composable RowScope.() -> Unit,
 ) {
     // 同底栏：口径统一在 GlassTokens.DarkGlass，不单独读系统夜间
+    val statusHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isLight = !GlassTokens.DarkGlass
     val containerColor = if (isLight) GlassTokens.ContainerLight else GlassTokens.ContainerDark
 
@@ -85,7 +89,7 @@ fun GlassTopBar(
                 shape = { RoundedCornerShape(0.dp) },
                 effects = {
                     vibrancy()
-                    blur(GlassTokens.BlurDp.dp.toPx())
+                    blur(24.dp.toPx())
                 },
                 // 与底栏同一套常驻光影，两条栏才是「同一块玻璃」
                 highlight = { Highlight.Default.copy(alpha = GlassTokens.RestHighlightAlpha) },
@@ -97,7 +101,8 @@ fun GlassTopBar(
                     )
                 },
                 onDrawSurface = {
-                    drawRect(containerColor.copy(alpha = GlassTokens.ContainerAlpha))
+                    drawRect(containerColor.copy(alpha = 0.72f))
+                    drawRect(containerColor.copy(alpha = 0.96f), size = Size(size.width, statusHeight.toPx()))
                 }
             )
             .fillMaxWidth()

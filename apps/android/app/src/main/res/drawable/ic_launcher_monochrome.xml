@@ -4,8 +4,8 @@
     <group android:scaleX="0.56" android:scaleY="0.56"
         android:translateX="18.16" android:translateY="18.16">
         <path android:fillColor="#00000000"
-            android:strokeColor="#0B4A3D" android:strokeWidth="8"
+            android:strokeColor="#155E4A" android:strokeWidth="8"
             android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M43,29 L43,95 M84,29 L84,95 M23,49 L104,49 M43,58 L24,81 M43,58 L61,80 M84,58 L66,80 M84,58 L103,81 M43,95 L63,91 L84,95" />
+            android:pathData="M42,30 L42,96 M24,50 L57,50 M42,56 L22,84 M42,58 L59,77 M83,28 L83,98 M69,50 L105,50 M83,56 L63,87 M83,56 L107,87" />
     </group>
 </vector>

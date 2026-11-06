@@ -6,5 +6,6 @@
         <!-- 英语精读浮层走查入口；同样只在 debug 变体存在，内存夹具、不联网。 -->
         <activity android:name=".ui.english.reading.ReadingDeepDivePreviewActivity" android:exported="true"
             android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.ClassNotesPreviewActivity" android:exported="true" android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

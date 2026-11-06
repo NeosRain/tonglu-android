@@ -80,7 +80,7 @@ private fun DrawScope.drawWordmark(ink: Color, reveal: Float) {
     if (reveal <= 0f || size.width <= 0f || size.height <= 0f) return
     val text = AppBrand.CHINESE_NAME
     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = ink.toArgb()
+        color = ink.copy(alpha = reveal.coerceIn(0f, 1f)).toArgb()
         textAlign = android.graphics.Paint.Align.CENTER
         typeface = android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL)
         textSize = size.height * .85f
@@ -88,7 +88,7 @@ private fun DrawScope.drawWordmark(ink: Color, reveal: Float) {
     paint.textSize *= minOf(1f, size.width * .98f / paint.measureText(text))
     val metrics = paint.fontMetrics
     val baseline = (size.height - metrics.ascent - metrics.descent) / 2f
-    clipRect(right = size.width * reveal.coerceIn(0f, 1f)) {
+    run {
         drawIntoCanvas {
             it.nativeCanvas.drawText(text, size.width / 2f, baseline, paint)
         }

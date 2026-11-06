@@ -302,7 +302,10 @@ private fun TongluAppContent(viewModel: AppViewModel) {
         if (labPrefs.getBoolean("clubs", false)) add("社团")
         add("我的")
     } }
-    val mainPager = rememberPagerState(initialPage = state.lastMainTab.coerceIn(0, tabs.lastIndex), pageCount = { tabs.size })
+    var selectedDestination by rememberSaveable { mutableStateOf(tabs.getOrElse(state.lastMainTab) { "首页" }) }
+    val mainPager = androidx.compose.runtime.key(tabs) {
+        rememberPagerState(initialPage = tabs.indexOf(selectedDestination).coerceAtLeast(0), pageCount = { tabs.size })
+    }
     val selectedTab = mainPager.currentPage
     var search by rememberSaveable { mutableStateOf("") }
     var aiRequest by rememberSaveable { mutableIntStateOf(0) }
@@ -384,7 +387,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     val glassTopInset = GlassTokens.TopBarInsetDp.dp +
         WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding()
     // 换页时把底栏放出来：否则从"收起"状态切到新页面，看着像这页没有底栏
-    LaunchedEffect(selectedTab) { barAutoHide.show(); viewModel.rememberMainTab(selectedTab) }
+    LaunchedEffect(selectedTab, tabs) { selectedDestination = tabs[selectedTab]; barAutoHide.show(); viewModel.rememberMainTab(selectedTab) }
     // 跨天 / 跨周后重算当前教学周。放在这里而不是首页：首页在 Pager 里离屏两页就被销毁，
     // 靠它兜不住（用户在其他页待到周一再回首页，正好躲过刷新）。
     // refreshWeek() 内部值没变就不写状态，所以这只是每 30 秒一次日历运算，不是持续开销。
@@ -588,6 +591,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     }
                 }
                 val topInset = if (useGlassNav) glassTopInset else 0.dp
+                androidx.compose.runtime.key(tabs) {
                 HorizontalPager(state = mainPager, modifier = Modifier.weight(1f).fillMaxWidth(),
                     beyondViewportPageCount = BEYOND_PAGES, key = { tabs[it] }) { page ->
                 Box(Modifier.fillMaxSize().graphicsLayer()) {
@@ -658,7 +662,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         if (tabs[page] == "广场") "square" else "clubs", state, viewModel,
                         onClose = { tabNavigator.select(0) }, onOpenMaterial = { material ->
                             labListeningMaterial = material; tabNavigator.select(1)
-                        })
+                        }, topInset = topInset, mainSearch = search)
                     else -> ProfileScreen(
                         state = state,
                         onLogin = viewModel::openLogin,
@@ -730,6 +734,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 }
                 }
                 }
+                }
             }
             if (useGlassNav) {
                 // 顶栏玻璃条：必须做成叠加层。如果放在上面的 Column 里，它采样到的是自己所在的那层，
@@ -737,10 +742,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 GlassTopBar(
                     backdrop = liquidBackdrop,
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .graphicsLayer {
-                            translationY = -glassTopInset.toPx() * barAutoHide.hiddenFraction.coerceIn(0f, 1f)
-                        },
+                        .align(Alignment.TopCenter),
                 ) {
                     // 返回穿透冷却期：整条顶栏这一小会儿点不动（见 OverlayDismissGuard）。
                     // 判一次、传给三个控件，而不是各自去读 —— 免得出现「搜索框解禁了、头像还没有」的错位。
@@ -1233,7 +1235,7 @@ private fun SearchField(
      */
     enabled: Boolean = true,
 ) {
-    val hint = "搜索课表、文章"
+    val hint = "搜索当前页面"
     // 聚焦时把占位文案收掉，否则光标会压在第一个字上
     var focused by remember { mutableStateOf(false) }
     // 同顶栏/底栏：App 强制浅色（MainActivity 写死 lightColorScheme），
@@ -1243,15 +1245,15 @@ private fun SearchField(
     val shape = RoundedCornerShape(GlassTokens.SearchCornerDp.dp)
     // 玻璃模式下搜索框是**自己一块磨砂玻璃**：底色调实到能看清字，
     // 再叠一层 blur + 折射 + 光影。老版本只铺 alpha=0.12 的浅色，近乎全透 → 看不清。
-    val glassSurface = if (dark) Color(0xFF15171C).copy(alpha = GlassTokens.SearchSurfaceAlpha)
-        else AppColors.Surface.copy(alpha = GlassTokens.SearchSurfaceAlpha)
+    val glassSurface = if (dark) Color(0xFF15171C).copy(alpha = 0.52f)
+        else AppColors.Surface.copy(alpha = 0.52f)
     val decor: Modifier = if (onGlass && backdrop != null) {
         Modifier.drawBackdrop(
             backdrop = backdrop,
             shape = { shape },
             effects = {
                 vibrancy()
-                blur(GlassTokens.SearchBlurDp.dp.toPx())
+                blur(24.dp.toPx())
                 lens(GlassTokens.SearchLensRadiusDp.dp.toPx(), GlassTokens.SearchLensAmountDp.dp.toPx(),
                     chromaticAberration = GlassTokens.ChromaticAberration)
             },

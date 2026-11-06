@@ -144,9 +144,17 @@ internal fun AccountSettingsScreen(
                     // ---- 昵称 ----
                     MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                         Text("昵称", fontWeight = FontWeight.SemiBold)
-                        OutlinedTextField(
+                        TextField(
                             name, { name = it },
                             singleLine = true,
+                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = AppColors.ChipIdle,
+                                unfocusedContainerColor = AppColors.ChipIdle,
+                                focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                errorIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent),
                             label = { Text("2~24 个字符") },
                             isError = name.trim().isNotEmpty() && name.trim().length !in 2..24,
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

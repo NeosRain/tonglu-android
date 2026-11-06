@@ -31,6 +31,16 @@ import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -143,8 +153,12 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var pendingPhoto by remember { mutableStateOf<File?>(null) }
     var enlargedPhoto by remember { mutableStateOf<String?>(null) }
-    var editingNoteId by remember(store) { mutableStateOf(notes.firstOrNull { it.text.isNotBlank() }?.id) }
-    LaunchedEffect(store) { if (draft.isBlank()) draft = notes.firstOrNull { it.id == editingNoteId }?.text.orEmpty() }
+    var editingNoteId by remember(store) { mutableStateOf<String?>(null) }
+    var editorOpen by remember(store) { mutableStateOf(draft.isNotBlank()) }
+    var headerHeight by remember { mutableIntStateOf(0) }
+    var footerHeight by remember { mutableIntStateOf(0) }
+    val headerInset = with(LocalDensity.current) { headerHeight.toDp() }
+    val footerInset = with(LocalDensity.current) { footerHeight.toDp() }
     val backdrop = rememberLayerBackdrop()
     fun append(note: ClassNote): Boolean {
         if (error?.startsWith("读取笔记失败") == true) return false
@@ -215,27 +229,51 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         if (draft.isNotBlank()) runCatching { store.saveDraft(draft); saveDraft() }
             .onFailure { error = "自动保存失败：${it.localizedMessage}" }
     }
-    Dialog(onDismissRequest = { if (recorder != null) stopRecording(); if (saveDraft()) onDismiss() },
+    Dialog(onDismissRequest = { if (recorder != null) stopRecording(); if (saveDraft()) { if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" } else onDismiss() } },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        val dialogView = LocalView.current
+        DisposableEffect(dialogView, AppTheme.darkState) {
+            val window = (dialogView.parent as? DialogWindowProvider)?.window
+            val controller = window?.let { WindowCompat.getInsetsController(it, dialogView) }
+            val oldStatus = controller?.isAppearanceLightStatusBars
+            val oldNavigation = controller?.isAppearanceLightNavigationBars
+            controller?.isAppearanceLightStatusBars = !AppTheme.darkState
+            controller?.isAppearanceLightNavigationBars = !AppTheme.darkState
+            onDispose {
+                if (oldStatus != null) controller.isAppearanceLightStatusBars = oldStatus
+                if (oldNavigation != null) controller.isAppearanceLightNavigationBars = oldNavigation
+            }
+        }
         Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
+                androidx.compose.animation.Crossfade(targetState = editorOpen,
+                    modifier = Modifier.fillMaxSize().layerBackdrop(backdrop), label = "class-note-editor") { editing ->
+                    if (editing) {
+                        BasicTextField(value = draft, onValueChange = { draft = it },
+                            modifier = Modifier.fillMaxSize().padding(top = headerInset + 16.dp, bottom = footerInset + 16.dp)
+                                .padding(horizontal = 24.dp).verticalScroll(rememberScrollState()),
+                            textStyle = TextStyle(color = AppColors.TextPrimary, fontSize = 20.sp, lineHeight = 32.sp),
+                            cursorBrush = SolidColor(AppColors.Accent),
+                            decorationBox = { field -> Box { if (draft.isEmpty()) Text("开始写这篇笔记…", color = AppColors.TextMuted, fontSize = 20.sp); field() } })
+                    } else {
                 LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(2),
-                    modifier = Modifier.fillMaxSize().layerBackdrop(backdrop).padding(horizontal = 18.dp),
-                    contentPadding = PaddingValues(top = 136.dp, bottom = 280.dp),
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
+                    contentPadding = PaddingValues(top = headerInset + 12.dp, bottom = footerInset + 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalItemSpacing = 12.dp) {
                     items(notes, key = { it.id }) { note ->
                         Surface(shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque,
-                            modifier = Modifier.clickable(enabled = note.text.isNotEmpty()) {
+                            modifier = Modifier.clickable {
                                 if (draft.isNotBlank() && editingNoteId != note.id) saveDraft()
                                 editingNoteId = note.id
                                 draft = note.text
+                                editorOpen = true
                             },
                             contentColor = AppColors.TextPrimary) {
                             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             Text(SimpleDateFormat("MM月dd日 HH:mm", Locale.getDefault()).format(Date(note.time)),
                                 fontSize = 11.sp, color = AppColors.TextSecondary)
-                            if (note.text.isNotEmpty()) Text(note.text, fontSize = 16.sp, lineHeight = 24.sp)
+                            if (note.text.isNotEmpty()) Text(note.text, fontSize = 16.sp, lineHeight = 24.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
                             note.image?.let { name ->
                                 val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 700) }
                                 if (bitmap != null) Image(bitmap.asImageBitmap(), "课堂照片",
@@ -251,35 +289,42 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                         } }
                     }
                 }
-                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth(), style = GlassPanelStyle.Solid) {
+                    }
+                }
+                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { headerHeight = it.height }, style = GlassPanelStyle.Solid.copy(surfaceAlpha = 0.72f, blurDp = 24f)) {
+                Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    IconButton(onClick = { if (recorder != null) stopRecording(); if (saveDraft()) onDismiss() }) {
+                    IconButton(onClick = { if (recorder != null) stopRecording(); if (saveDraft()) { if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" } else onDismiss() } }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回")
                     }
                     Text(course.name, color = AppColors.TextSecondary, fontSize = 14.sp, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 }
-                Text("课堂笔记", color = AppColors.TextPrimary, fontSize = 24.sp,
+                Text(if (editorOpen) "编辑笔记" else "课堂笔记", color = AppColors.TextPrimary, fontSize = 24.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
                 Text("持续续写 · 自动保存到同一篇", color = AppColors.TextSecondary,
                     fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
                 error?.let { Text(it, color = AppColors.Danger, fontSize = 13.sp) }
                 }
-                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp), style = GlassPanelStyle.Solid) {
+                }
+                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp).onSizeChanged { footerHeight = it.height }, style = GlassPanelStyle.Solid) {
                 Column(Modifier.padding(horizontal = 14.dp)) {
-                    TextButton(onClick = { if (saveDraft()) { editingNoteId = null; draft = "" } }) { Icon(Icons.Outlined.Add, null); Text("新笔记") }
-                OutlinedTextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    placeholder = { Text("记下课堂重点…") }, minLines = 2, maxLines = 8,
-                    shape = RoundedCornerShape(18.dp))
+                    TextButton(onClick = { if (saveDraft()) { editingNoteId = null; draft = ""; editorOpen = true } }) { Icon(Icons.Outlined.Add, null); Text("新笔记") }
+                if (!editorOpen) {
+                TextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    placeholder = { Text("记下课堂重点…") }, minLines = 1, maxLines = 3,
+                    shape = RoundedCornerShape(18.dp),
+                    colors = TextFieldDefaults.colors(focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
+                }
                 Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    FilledTonalButton(modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
+                    FilledTonalButton(colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppColors.ChipIdle, contentColor = AppColors.TextPrimary), modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
                         saveDraft()
                         if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
                             openCamera()
                         else cameraPermission.launch(Manifest.permission.CAMERA)
                     }) { Icon(Icons.Outlined.CameraAlt, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("拍照") }
-                    FilledTonalButton(modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
+                    FilledTonalButton(colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppColors.ChipIdle, contentColor = AppColors.TextPrimary), modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
                         if (recorder != null) stopRecording()
                         else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
                         else micPermission.launch(Manifest.permission.RECORD_AUDIO)
