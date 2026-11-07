@@ -399,4 +399,22 @@ object BuiltinTts {
         stop()
         worker.execute { synchronized(this) { releaseEngine(); audioCache.evictAll() } }
     }
+
+    /** Clear disposable audio and idle native models on their owning thread, preserving active speech. */
+    fun trimMemory(): java.util.concurrent.CompletableFuture<Boolean> {
+        val result = java.util.concurrent.CompletableFuture<Boolean>()
+        worker.execute {
+            try {
+                synchronized(this) {
+                    audioCache.evictAll()
+                    if (clients == 0) releaseEngine()
+                }
+                result.complete(true)
+            } catch (e: Exception) {
+                Log.e(TAG, "Memory cleanup failed", e)
+                result.complete(false)
+            }
+        }
+        return result
+    }
 }

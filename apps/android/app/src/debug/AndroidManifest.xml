@@ -1,5 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application>
+        <activity android:name=".MemoryProtocolProbeActivity" android:exported="true" />
         <!-- 仅debug变体存在；内存示例，不接登录或网络。 -->
         <activity android:name=".ui.CommentPreviewActivity" android:exported="true"
             android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />

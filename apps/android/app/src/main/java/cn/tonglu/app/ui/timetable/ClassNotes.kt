@@ -107,6 +107,15 @@ private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses
     private val key = "$prefix-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}"
     private val file = File(root, "$key.json")
     private val draftFile = File(root, "$key.draft")
+    private val resumeFile = File(root, "$prefix.resume")
+    fun takeResumeId(): String? = if (resumeFile.exists()) resumeFile.readText().also { check(resumeFile.delete()) } else null
+    fun checkpoint(id: String?) {
+        if (id == null) { check(!resumeFile.exists() || resumeFile.delete()); return }
+        val atomic = android.util.AtomicFile(resumeFile)
+        val output = atomic.startWrite()
+        try { output.write(id.toByteArray(Charsets.UTF_8)); atomic.finishWrite(output) }
+        catch (e: Exception) { atomic.failWrite(output); throw e }
+    }
     private val legacyDraftFiles = legacyPrefixes.map { File(root, "$it-${SimpleDateFormat("yyyyMMdd", Locale.US).format(Date())}.draft") }
     fun media(ext: String) = File(root, "$key-${UUID.randomUUID()}.$ext")
     fun mediaFile(name: String): File = File(root, name)
@@ -174,7 +183,11 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     val store = remember(classNoteCourseKey(course), relatedIds) { ClassNoteStore(context, course, relatedCourses) }
     var error by remember { mutableStateOf<String?>(null) }
     var notes by remember(store) { mutableStateOf(runCatching { store.readAll() }.getOrElse { error = "读取笔记失败，请勿继续写入：${it.localizedMessage}"; emptyList() }) }
-    var draft by remember(store) { mutableStateOf(runCatching { store.readDraft() }.getOrElse { error = "读取草稿失败：${it.localizedMessage}"; "" }) }
+    val resumedId = remember(store) {
+        runCatching { store.takeResumeId() }.onFailure { error = "恢复编辑位置失败：${it.localizedMessage}" }.getOrNull()
+            ?.takeIf { id -> notes.any { it.id == id } }
+    }
+    var draft by remember(store) { mutableStateOf(runCatching { store.readDraft().ifBlank { notes.firstOrNull { it.id == resumedId }?.text.orEmpty() } }.getOrElse { error = "读取草稿失败：${it.localizedMessage}"; "" }) }
     var query by remember { mutableStateOf("") }
     var mediaFilter by remember { mutableIntStateOf(0) }
     var attachmentMenu by remember { mutableStateOf(false) }
@@ -194,9 +207,9 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     var pendingPhoto by remember { mutableStateOf<File?>(null) }
     var enlargedPhoto by remember { mutableStateOf<String?>(null) }
     var editingNoteId by remember(store) {
-        mutableStateOf(notes.firstOrNull { draft.isNotBlank() && it.text.trim() == draft.trim() }?.id)
+        mutableStateOf(resumedId ?: notes.firstOrNull { draft.isNotBlank() && it.text.trim() == draft.trim() }?.id)
     }
-    var editorOpen by remember(store) { mutableStateOf(draft.isNotBlank()) }
+    var editorOpen by remember(store) { mutableStateOf(draft.isNotBlank() || resumedId != null) }
     var morphNoteId by remember(store) { mutableStateOf(editingNoteId) }
     val gridState = rememberLazyStaggeredGridState()
     var headerHeight by remember { mutableIntStateOf(0) }
@@ -317,14 +330,36 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) startRecording() else error = "需要麦克风权限才能录音"
     }
-    fun stopRecording() {
-        val mr = recorder ?: return
+    fun stopRecording(): Boolean {
+        val mr = recorder ?: return true
         recorder = null
-        runCatching {
-            mr.stop(); mr.release()
-            audioFile?.let { if (!saveMedia(it, false, recordingTarget)) it.delete() }
-        }.onFailure { mr.release(); audioFile?.delete(); error = "录音太短或保存失败" }
+        var stopped = false
+        val saved = runCatching {
+            mr.stop(); stopped = true
+            audioFile?.let { check(saveMedia(it, false, recordingTarget)) { error ?: "录音保存失败" } }
+        }.onFailure {
+            if (!stopped) audioFile?.delete()
+            error = "录音太短或保存失败：${it.localizedMessage}"
+        }
+        runCatching { mr.release() }.onFailure { android.util.Log.w("TaimiNotes", "Recorder release failed", it) }
         audioFile = null
+        return saved.isSuccess
+    }
+    val memoryHandler = rememberUpdatedState<(Boolean) -> Boolean> { kill ->
+        if (!kill) true
+        else {
+            val recordingSaved = stopRecording()
+            player?.release(); player = null
+            val textSaved = saveDraft()
+            val checkpointSaved = runCatching { store.checkpoint(if (editorOpen) editingNoteId else null) }
+                .onFailure { error = "保存编辑位置失败：${it.localizedMessage}" }.isSuccess
+            recordingSaved && textSaved && checkpointSaved && !importing &&
+                error?.startsWith("读取笔记失败") != true
+        }
+    }
+    DisposableEffect(store) {
+        val registration = cn.tonglu.app.data.memory.FairMemory.register { memoryHandler.value(it) }
+        onDispose { registration.close() }
     }
     DisposableEffect(Unit) { onDispose { recorder?.let { runCatching { it.stop(); it.release() } }; player?.release() } }
     LaunchedEffect(draft) {

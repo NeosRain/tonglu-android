@@ -1,12 +1,11 @@
 {
-  "sourceCommit": "0b28f30d67f682b0e352442423a5f0d546a7d67b",
+  "sourceCommit": "516abf7ab9afa8b1dc6ca00d30dba1c13d284ae8",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
     "apps/android/app/build.gradle.kts",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/home/HomeCards.kt",
     "apps/android/app/src/main/java/cn/tonglu/app/ui/map/CampusMapScreen.kt",
-    "apps/android/app/src/test/java/cn/tonglu/app/data/ExternalScheduleTest.kt",
     "apps/android/gradle/wrapper/gradle-wrapper.properties",
     "apps/android/gradlew",
     "scripts/intensive_reading.py",
@@ -39,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "047db4787d3df53e0e47282991cb71b9de6be7f240a213be9710926c69427f69"
+      "sha256": "c622b54f3104415ebfca8cb3dfd314dd9cefd281ec98b7917187706065f40c9f"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -88,8 +87,13 @@
     },
     {
       "path": "apps/android/app/src/debug/AndroidManifest.xml",
-      "bytes": 874,
-      "sha256": "d89e591b620f98dd82c82407cebabba60e195865455330cb1d58a282b3165ddc"
+      "bytes": 964,
+      "sha256": "67694133805c024cdb1010a6cb80e44295dac565092fbefc6fb1c65e13eb0395"
+    },
+    {
+      "path": "apps/android/app/src/debug/java/cn/tonglu/app/MemoryProtocolProbeActivity.kt",
+      "bytes": 2944,
+      "sha256": "8b3e2b34cacc22bc3e11ab9a2d33672423e6ddb0c9621af43041f8b33de669d3"
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/ClassNotesPreviewActivity.kt",
@@ -108,8 +112,8 @@
     },
     {
       "path": "apps/android/app/src/main/AndroidManifest.xml",
-      "bytes": 9719,
-      "sha256": "bde777329eb1da8f129f8cb0de8dd4d4d5d6d479467f39b0875d1111bbbfb572"
+      "bytes": 9761,
+      "sha256": "40ac457642325a90f8f99243a48d574a99a81f8ba0b39ca96219fc42c6f67558"
     },
     {
       "path": "apps/android/app/src/main/artwork/README.md",
@@ -652,6 +656,16 @@
       "sha256": "753f08299459161d2f4f28563def3b71a7c3e9d3e55813e77553404c35d4306d"
     },
     {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/memory/FairMemory.kt",
+      "bytes": 4459,
+      "sha256": "421dad77f427f1dd479206651052d4bd63923e2c27381a51acb0bcd6584d1372"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/memory/MemoryRequest.kt",
+      "bytes": 1285,
+      "sha256": "bd7625b8cea0ac0cb3e2f6d5ba7061761eca9d93e0e67b90329318f39cd9f405"
+    },
+    {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/NetdiskCloud.kt",
       "bytes": 11086,
       "sha256": "28fd796c11f8e146b7fb586ba7f16d6960d088500e3edfcec4ecc80c12baac8c"
@@ -798,8 +812,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/speech/BuiltinTts.kt",
-      "bytes": 20245,
-      "sha256": "b0d8672e129652323b060cb09766f044b970fd7c133fc942b5483d93d970caf3"
+      "bytes": 20929,
+      "sha256": "963f4bf7892ba2d76402e6b5e09794d8fc641d55b35c80dadf2604dfb3cb15c3"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/speech/CloudEnglish.kt",
@@ -930,6 +944,11 @@
       "path": "apps/android/app/src/main/java/cn/tonglu/app/notify/PomodoroReminder.kt",
       "bytes": 7480,
       "sha256": "f22a93bcb285ba0b26dc1e2246445732c732516bbea5b8f232aa3e75b246df80"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/TaimiApplication.kt",
+      "bytes": 239,
+      "sha256": "fd082839794af7467d8b32357d5b32291cd852af921738a3a06ac9d6a35a4d42"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/transfer/LocalSendController.kt",
@@ -1773,8 +1792,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNotes.kt",
-      "bytes": 33432,
-      "sha256": "daf5b4055163ee3d1008fe35d22b167841c4ce2aed7ba408338d527fcf22bc1e"
+      "bytes": 35444,
+      "sha256": "ef2f7836d61fb303e47b6d40371f0daf77b27757595b9ddef9bce571408bd00a"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseCardContent.kt",
@@ -2223,8 +2242,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/ExternalScheduleTest.kt",
-      "bytes": 4388,
-      "sha256": "49fa718ef8414c6a90a8fe357b55d427e48d442558e753cd3ad0089403b51fd3"
+      "bytes": 4451,
+      "sha256": "2dc15295861b50b4f4ea70f6d3a189bf174baa564a294d4ea8a7fb259de891c6"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/listening/AudioRangeTest.kt",
@@ -2250,6 +2269,11 @@
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/listening/QuestionKeyMigrationTest.kt",
       "bytes": 7212,
       "sha256": "b3ab1c92b8f1dd30db2319200d1087e9f9c07bb40d374afc1aec54bb86956735"
+    },
+    {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/memory/MemoryRequestTest.kt",
+      "bytes": 2779,
+      "sha256": "ed0b00b02b4932846d74048a270bed8f8f3b01370a852cbde9f0ac479afc00a2"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/PersonalBackupTest.kt",
@@ -2988,8 +3012,8 @@
     },
     {
       "path": "apps/android/settings.gradle.kts",
-      "bytes": 665,
-      "sha256": "82279adf460acb6a26a56ffc4893b674ecfe4ab2c026656a4f95aa16e4ba4c0a"
+      "bytes": 823,
+      "sha256": "79943c2b1d227055fcddc90189f832516a1de7688f55dd0299e7e3090ecc1fbb"
     },
     {
       "path": "BUILD-VERIFICATION.md",
