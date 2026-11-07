@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "c5fd74d0f27321bee8d18f565c3df40f4549dd9a",
+  "sourceCommit": "0b28f30d67f682b0e352442423a5f0d546a7d67b",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -39,7 +39,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "a857028a37f47cf62a7c8254e10f9bfaf7883464ee741accf171dfe684c6cc7a"
+      "sha256": "047db4787d3df53e0e47282991cb71b9de6be7f240a213be9710926c69427f69"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1773,8 +1773,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNotes.kt",
-      "bytes": 23229,
-      "sha256": "c16d967c33314b0a08974eb2b93388b14d395a69d90930cc0eed27c10cf8eb8f"
+      "bytes": 33432,
+      "sha256": "daf5b4055163ee3d1008fe35d22b167841c4ce2aed7ba408338d527fcf22bc1e"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseCardContent.kt",

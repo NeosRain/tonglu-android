@@ -7,13 +7,24 @@ import android.graphics.BitmapFactory
 import android.media.MediaRecorder
 import android.media.MediaPlayer
 import android.os.Build
+import android.net.Uri
+import android.media.MediaMetadataRetriever
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import androidx.compose.material.icons.outlined.AttachFile
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.staggeredgrid.LazyVerticalStaggeredGrid
 import androidx.compose.foundation.lazy.staggeredgrid.StaggeredGridCells
+import androidx.compose.foundation.lazy.staggeredgrid.rememberLazyStaggeredGridState
 import androidx.compose.foundation.lazy.staggeredgrid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -62,7 +73,14 @@ import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
-private data class ClassNote(val id: String, val time: Long, val text: String, val image: String?, val audio: String?)
+private data class ClassNote(val id: String, val time: Long, val text: String, val image: String?, val audio: String?,
+    val extraImages: List<String> = emptyList(), val extraAudio: List<String> = emptyList()) {
+    val images get() = listOfNotNull(image) + extraImages
+    val recordings get() = listOfNotNull(audio) + extraAudio
+}
+private fun JSONObject.mediaNames(key: String): List<String> = optJSONArray(key)?.let { array ->
+    (0 until array.length()).map { array.getString(it) }
+}.orEmpty()
 
 private fun scaledPhoto(file: File, maxSide: Int): android.graphics.Bitmap? {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -105,7 +123,7 @@ private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses
         val rows = JSONArray(file.readText())
         return (0 until rows.length()).map { i -> rows.getJSONObject(i).let {
             ClassNote(it.getString("id"), it.getLong("time"), it.optString("text"),
-                it.optString("image").takeIf(String::isNotBlank), it.optString("audio").takeIf(String::isNotBlank))
+                it.optString("image").takeIf(String::isNotBlank), it.optString("audio").takeIf(String::isNotBlank), it.mediaNames("extraImages"), it.mediaNames("extraAudio"))
         } }
     }
     fun readAll(): List<ClassNote> = root.listFiles().orEmpty()
@@ -114,7 +132,7 @@ private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses
     fun append(item: ClassNote) {
         val array = JSONArray()
         (listOf(item) + read(file)).forEach { row -> array.put(JSONObject().put("id", row.id).put("time", row.time)
-            .put("text", row.text).put("image", row.image ?: "").put("audio", row.audio ?: "")) }
+            .put("text", row.text).put("image", row.image ?: "").put("audio", row.audio ?: "").put("extraImages", JSONArray(row.extraImages)).put("extraAudio", JSONArray(row.extraAudio))) }
         val pending = File(root, "$key.pending")
         pending.writeText(array.toString())
         if (!pending.renameTo(file)) {
@@ -122,15 +140,23 @@ private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses
             check(pending.delete())
         }
     }
-    fun replaceText(id: String, value: String) {
+    fun replaceText(id: String, value: String) = update(id) { it.copy(text = value) }
+    fun attach(id: String, name: String, image: Boolean) = update(id) {
+        if (image) {
+            if (it.image == null) it.copy(image = name) else it.copy(extraImages = it.extraImages + name)
+        } else {
+            if (it.audio == null) it.copy(audio = name) else it.copy(extraAudio = it.extraAudio + name)
+        }
+    }
+    private fun update(id: String, transform: (ClassNote) -> ClassNote) {
         val target = root.listFiles().orEmpty().firstOrNull { candidate ->
             candidate.extension == "json" && readablePrefixes.any { candidate.name.startsWith("$it-") } &&
                 read(candidate).any { it.id == id }
         } ?: error("找不到原笔记，请返回后重试")
-        val rows = read(target).map { if (it.id == id) it.copy(text = value) else it }
+        val rows = read(target).map { if (it.id == id) transform(it) else it }
         val array = JSONArray()
         rows.forEach { row -> array.put(JSONObject().put("id", row.id).put("time", row.time)
-            .put("text", row.text).put("image", row.image ?: "").put("audio", row.audio ?: "")) }
+            .put("text", row.text).put("image", row.image ?: "").put("audio", row.audio ?: "").put("extraImages", JSONArray(row.extraImages)).put("extraAudio", JSONArray(row.extraAudio))) }
         val pending = File(root, "${target.name}.pending")
         pending.writeText(array.toString())
         if (!pending.renameTo(target)) {
@@ -140,6 +166,7 @@ private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses
     }
 }
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto> = listOf(course), onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -148,6 +175,19 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     var error by remember { mutableStateOf<String?>(null) }
     var notes by remember(store) { mutableStateOf(runCatching { store.readAll() }.getOrElse { error = "读取笔记失败，请勿继续写入：${it.localizedMessage}"; emptyList() }) }
     var draft by remember(store) { mutableStateOf(runCatching { store.readDraft() }.getOrElse { error = "读取草稿失败：${it.localizedMessage}"; "" }) }
+    var query by remember { mutableStateOf("") }
+    var mediaFilter by remember { mutableIntStateOf(0) }
+    var attachmentMenu by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var importing by remember { mutableStateOf(false) }
+    val visibleNotes = notes.filter { note ->
+        (query.isBlank() || note.text.contains(query.trim(), ignoreCase = true)) && when (mediaFilter) {
+            1 -> note.images.isNotEmpty()
+            2 -> note.recordings.isNotEmpty()
+            3 -> note.text.isNotBlank()
+            else -> true
+        }
+    }
     var recorder by remember { mutableStateOf<MediaRecorder?>(null) }
     var audioFile by remember { mutableStateOf<File?>(null) }
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -157,9 +197,13 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         mutableStateOf(notes.firstOrNull { draft.isNotBlank() && it.text.trim() == draft.trim() }?.id)
     }
     var editorOpen by remember(store) { mutableStateOf(draft.isNotBlank()) }
+    var morphNoteId by remember(store) { mutableStateOf(editingNoteId) }
+    val gridState = rememberLazyStaggeredGridState()
     var headerHeight by remember { mutableIntStateOf(0) }
+    var listHeaderHeight by remember { mutableIntStateOf(0) }
     var footerHeight by remember { mutableIntStateOf(0) }
     val headerInset = with(LocalDensity.current) { headerHeight.toDp() }
+    val listHeaderInset = with(LocalDensity.current) { listHeaderHeight.toDp() }
     val footerInset = with(LocalDensity.current) { footerHeight.toDp() }
     val backdrop = rememberLayerBackdrop()
     fun append(note: ClassNote): Boolean {
@@ -187,15 +231,68 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         }
         return content.isEmpty()
     }
+    var recordingTarget by remember { mutableStateOf<String?>(null) }
+    var cameraTarget by remember { mutableStateOf<String?>(null) }
+    fun mediaTarget(): String? {
+        if (!editorOpen) return null
+        if (!saveDraft()) throw IllegalStateException(error ?: "请先保存当前笔记")
+        if (editingNoteId == null) {
+            val id = UUID.randomUUID().toString()
+            check(append(ClassNote(id, System.currentTimeMillis(), draft.trim(), null, null))) { error ?: "创建笔记失败" }
+            editingNoteId = id
+        }
+        return editingNoteId
+    }
+    fun saveMedia(file: File, image: Boolean, target: String?): Boolean {
+        if (target == null) return append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), "",
+            if (image) file.name else null, if (image) null else file.name))
+        return runCatching { store.attach(target, file.name, image); notes = store.readAll(); error = null }
+            .onFailure { error = "附件保存失败：${it.localizedMessage}" }.isSuccess
+    }
+    fun importAttachment(uri: Uri?, image: Boolean) {
+        if (uri == null || importing || !saveDraft()) return
+        val target = runCatching { mediaTarget() }.getOrElse { error = "导入失败：${it.localizedMessage}"; return }
+        importing = true
+        scope.launch {
+            try {
+                val file = withContext(Dispatchers.IO) {
+                    val target = store.media(if (image) "image" else "audio")
+                    try {
+                        checkNotNull(context.contentResolver.openInputStream(uri)) { "无法读取所选文件" }.use { input ->
+                            target.outputStream().use { input.copyTo(it) }
+                        }
+                        if (image) {
+                            val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            BitmapFactory.decodeFile(target.path, bounds)
+                            require(bounds.outWidth > 0 && bounds.outHeight > 0) { "所选文件不是可读取的图片" }
+                        } else {
+                            val metadata = MediaMetadataRetriever()
+                            try {
+                                metadata.setDataSource(target.path)
+                                require(metadata.extractMetadata(MediaMetadataRetriever.METADATA_KEY_HAS_AUDIO) == "yes") { "所选文件没有音轨" }
+                            } finally { metadata.release() }
+                        }
+                        target
+                    } catch (failure: Exception) { target.delete(); throw failure }
+                }
+                if (!saveMedia(file, image, target)) file.delete()
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) { error = "导入失败：${failure.localizedMessage}" }
+            finally { importing = false }
+        }
+    }
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { importAttachment(it, true) }
+    val audioPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { importAttachment(it, false) }
     val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { captured ->
         val file = pendingPhoto
         pendingPhoto = null
         if (captured && file != null && file.length() > 0) {
-            if (!append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), "", file.name, null))) file.delete()
+            if (!saveMedia(file, true, cameraTarget)) file.delete()
         } else file?.delete()
     }
     fun openCamera() {
         runCatching {
+            cameraTarget = mediaTarget()
             val file = store.media("jpg")
             pendingPhoto = file
             camera.launch(FileProvider.getUriForFile(context, "${context.packageName}.updates", file))
@@ -207,6 +304,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     }
     fun startRecording() {
         runCatching {
+            recordingTarget = mediaTarget()
             val file = store.media("m4a")
             val mr = if (Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()
             mr.setAudioSource(MediaRecorder.AudioSource.MIC)
@@ -224,7 +322,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         recorder = null
         runCatching {
             mr.stop(); mr.release()
-            audioFile?.let { append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), "", null, it.name)) }
+            audioFile?.let { if (!saveMedia(it, false, recordingTarget)) it.delete() }
         }.onFailure { mr.release(); audioFile?.delete(); error = "录音太短或保存失败" }
         audioFile = null
     }
@@ -237,6 +335,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     Dialog(onDismissRequest = { if (recorder != null) stopRecording(); if (saveDraft()) { if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" } else onDismiss() } },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val dialogView = LocalView.current
+        val imeShowing = WindowInsets.ime.getBottom(LocalDensity.current) > 0
         DisposableEffect(dialogView, AppTheme.darkState) {
             val window = (dialogView.parent as? DialogWindowProvider)?.window
             val controller = window?.let { WindowCompat.getInsetsController(it, dialogView) }
@@ -251,25 +350,57 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         }
         Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
-                androidx.compose.animation.Crossfade(targetState = editorOpen,
-                    modifier = Modifier.fillMaxSize().layerBackdrop(backdrop), label = "class-note-editor") { editing ->
+                SharedTransitionLayout(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+                AnimatedContent(targetState = editorOpen,
+                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(220)) },
+                    modifier = Modifier.fillMaxSize(), label = "class-note-editor") { editing ->
                     if (editing) {
-                        BasicTextField(value = draft, onValueChange = { draft = it },
-                            modifier = Modifier.fillMaxSize().padding(top = headerInset + 16.dp, bottom = footerInset + 16.dp)
-                                .padding(horizontal = 24.dp).verticalScroll(rememberScrollState()),
-                            textStyle = TextStyle(color = AppColors.TextPrimary, fontSize = 20.sp, lineHeight = 32.sp),
-                            cursorBrush = SolidColor(AppColors.Accent),
-                            decorationBox = { field -> Box { if (draft.isEmpty()) Text("开始写这篇笔记…", color = AppColors.TextMuted, fontSize = 20.sp); field() } })
+                        Column(Modifier.fillMaxSize().sharedBounds(
+                            rememberSharedContentState(key = "note-${morphNoteId ?: "new"}"),
+                            animatedVisibilityScope = this@AnimatedContent,
+                            boundsTransform = { _, _ -> tween(380) })
+                            .background(AppColors.CanvasOpaque)
+                            // Reserve the floating controls in the IME scroll viewport so the caret cannot hide behind them.
+                            .padding(bottom = if (imeShowing) footerInset + 24.dp else 0.dp)
+                            .padding(horizontal = 24.dp).verticalScroll(rememberScrollState())
+                            .padding(top = headerInset + 16.dp, bottom = if (imeShowing) 16.dp else footerInset + 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            val current = notes.firstOrNull { it.id == (if (editorOpen) editingNoteId else morphNoteId) }
+                            val shownDraft = if (editorOpen) draft else current?.text.orEmpty()
+                            current?.let { Text(SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.getDefault()).format(Date(it.time)),
+                                color = AppColors.TextSecondary, fontSize = 12.sp) }
+                            BasicTextField(value = shownDraft, onValueChange = { draft = it }, readOnly = !editorOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp),
+                                textStyle = TextStyle(color = AppColors.TextPrimary, fontSize = 20.sp, lineHeight = 32.sp),
+                                cursorBrush = SolidColor(AppColors.Accent),
+                                decorationBox = { field -> Box { if (shownDraft.isEmpty()) Text("开始写这篇笔记…", color = AppColors.TextMuted, fontSize = 20.sp); field() } })
+                            current?.images?.forEach { name ->
+                                val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 1000) }
+                                if (bitmap != null) Image(bitmap.asImageBitmap(), "笔记图片",
+                                    Modifier.fillMaxWidth().heightIn(max = 360.dp).aspectRatio(bitmap.width.toFloat() / bitmap.height).clickable { enlargedPhoto = name }, contentScale = ContentScale.Fit)
+                            }
+                            current?.recordings?.forEachIndexed { index, name ->
+                                TextButton(onClick = {
+                                    runCatching {
+                                        player?.release()
+                                        player = MediaPlayer().apply { setDataSource(store.mediaFile(name).absolutePath); prepare(); start() }
+                                    }.onFailure { error = "播放失败：${it.localizedMessage}" }
+                                }) { Text("▶ 录音 ${index + 1}", color = AppColors.Accent) }
+                            }
+                        }
                     } else {
-                LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(2),
+                LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(2), state = gridState,
                     modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-                    contentPadding = PaddingValues(top = headerInset + 12.dp, bottom = footerInset + 12.dp),
+                    contentPadding = PaddingValues(top = listHeaderInset + 12.dp, bottom = footerInset + 12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalItemSpacing = 12.dp) {
-                    items(notes, key = { it.id }) { note ->
+                    items(visibleNotes, key = { it.id }) { note ->
                         Surface(shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque,
-                            modifier = Modifier.clickable {
-                                if (draft.isNotBlank() && editingNoteId != note.id) saveDraft()
+                            modifier = Modifier.sharedBounds(
+                                rememberSharedContentState(key = "note-${note.id}"),
+                                animatedVisibilityScope = this@AnimatedContent,
+                                boundsTransform = { _, _ -> tween(380) }).clickable {
+                                if (draft.isNotBlank() && editingNoteId != note.id && !saveDraft()) return@clickable
+                                morphNoteId = note.id
                                 editingNoteId = note.id
                                 draft = note.text
                                 editorOpen = true
@@ -279,13 +410,13 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             Text(SimpleDateFormat("MM月dd日 HH:mm", Locale.getDefault()).format(Date(note.time)),
                                 fontSize = 11.sp, color = AppColors.TextSecondary)
                             if (note.text.isNotEmpty()) Text(note.text, fontSize = 16.sp, lineHeight = 24.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
-                            note.image?.let { name ->
+                            note.images.take(1).forEach { name ->
                                 val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 700) }
                                 if (bitmap != null) Image(bitmap.asImageBitmap(), "课堂照片",
                                     Modifier.fillMaxWidth().height(140.dp).clickable { enlargedPhoto = name },
                                     contentScale = ContentScale.Crop)
                             }
-                            note.audio?.let { name -> TextButton(onClick = {
+                            note.recordings.take(1).forEach { name -> TextButton(onClick = {
                                 runCatching {
                                     player?.release()
                                     player = MediaPlayer().apply { setDataSource(store.mediaFile(name).absolutePath); prepare(); start() }
@@ -296,7 +427,8 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                 }
                     }
                 }
-                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { headerHeight = it.height }, style = GlassPanelStyle.Solid.copy(surfaceAlpha = 0.72f, blurDp = 24f)) {
+                }
+                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { headerHeight = it.height; if (!editorOpen) listHeaderHeight = it.height }, style = GlassPanelStyle.Solid.copy(surfaceAlpha = 0.72f, blurDp = 24f)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                     IconButton(onClick = { if (recorder != null) stopRecording(); if (saveDraft()) { if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" } else onDismiss() } }) {
@@ -305,41 +437,65 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                     Text(course.name, color = AppColors.TextSecondary, fontSize = 14.sp, maxLines = 1,
                         overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
                 }
-                Text(if (editorOpen) "编辑笔记" else "课堂笔记", color = AppColors.TextPrimary, fontSize = 24.sp,
-                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 10.dp))
-                Text("持续续写 · 自动保存到同一篇", color = AppColors.TextSecondary,
-                    fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+                if (!editorOpen) Text("课堂笔记", color = AppColors.TextPrimary, fontSize = 28.sp,
+                    fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
+                if (!editorOpen) {
+                    TextField(query, { query = it }, modifier = Modifier.fillMaxWidth(), singleLine = true,
+                        placeholder = { Text("搜索笔记") }, shape = RoundedCornerShape(20.dp),
+                        colors = TextFieldDefaults.colors(focusedContainerColor = AppColors.ChipIdle, unfocusedContainerColor = AppColors.ChipIdle,
+                            focusedTextColor = AppColors.TextPrimary, unfocusedTextColor = AppColors.TextPrimary,
+                            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("全部", "图片", "录音", "文字").forEachIndexed { index, label ->
+                            FilterChip(selected = mediaFilter == index, onClick = { mediaFilter = index }, label = { Text(label) },
+                                shape = RoundedCornerShape(20.dp), border = null,
+                                colors = FilterChipDefaults.filterChipColors(containerColor = AppColors.ChipIdle,
+                                    labelColor = AppColors.TextSecondary, selectedContainerColor = AppColors.Accent, selectedLabelColor = AppColors.OnAccent))
+                        }
+                    }
+                    if (visibleNotes.isEmpty()) Text(if (notes.isEmpty()) "还没有笔记，点击下方＋开始记录" else "没有匹配的笔记",
+                        color = AppColors.TextSecondary, fontSize = 13.sp)
+                }
+                if (importing) LinearProgressIndicator(Modifier.fillMaxWidth())
                 error?.let { Text(it, color = AppColors.Danger, fontSize = 13.sp) }
                 }
                 }
-                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(12.dp).onSizeChanged { footerHeight = it.height }, style = GlassPanelStyle.Solid) {
-                Column(Modifier.padding(horizontal = 14.dp)) {
-                    TextButton(onClick = { if (saveDraft()) { editingNoteId = null; draft = ""; editorOpen = true } }) { Icon(Icons.Outlined.Add, null); Text("新笔记") }
-                if (!editorOpen) {
-                TextField(draft, { draft = it }, modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    placeholder = { Text("记下课堂重点…") }, minLines = 1, maxLines = 3,
-                    shape = RoundedCornerShape(18.dp),
-                    colors = TextFieldDefaults.colors(focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
-                }
-                Row(Modifier.fillMaxWidth().padding(vertical = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp),
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    FilledTonalButton(colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppColors.ChipIdle, contentColor = AppColors.TextPrimary), modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
-                        saveDraft()
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED)
-                            openCamera()
-                        else cameraPermission.launch(Manifest.permission.CAMERA)
-                    }) { Icon(Icons.Outlined.CameraAlt, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text("拍照") }
-                    FilledTonalButton(colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppColors.ChipIdle, contentColor = AppColors.TextPrimary), modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = {
-                        if (recorder != null) stopRecording()
-                        else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
-                        else micPermission.launch(Manifest.permission.RECORD_AUDIO)
-                    }) { Icon(if (recorder == null) Icons.Outlined.Mic else Icons.Outlined.Stop,
-                        if (recorder == null) "开始录音" else "结束录音",
-                        tint = if (recorder == null) AppColors.Accent else AppColors.Danger, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(4.dp)); Text(if (recorder == null) "录音" else "停止") }
-                    Button(modifier = Modifier.weight(1f), contentPadding = PaddingValues(6.dp), onClick = { saveDraft() }, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent,
-                        contentColor = AppColors.OnAccent)) { Icon(Icons.Outlined.Check, null, modifier = Modifier.size(18.dp)); Text("保存") }
-                }
-                }
+                GlassActionPanel(backdrop,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(12.dp).widthIn(max = 300.dp)
+                        .onSizeChanged { footerHeight = it.height },
+                    shape = RoundedCornerShape(32.dp), style = GlassPanelStyle.Solid.copy(surfaceAlpha = 0.72f, blurDp = 24f)) {
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            IconButton(enabled = !importing, onClick = { attachmentMenu = true }) {
+                                Icon(Icons.Outlined.AttachFile, "添加附件")
+                            }
+                            DropdownMenu(expanded = attachmentMenu, onDismissRequest = { attachmentMenu = false }, containerColor = AppColors.SurfaceOpaque) {
+                                DropdownMenuItem(text = { Text("导入图片") }, onClick = { attachmentMenu = false; imagePicker.launch(arrayOf("image/*")) })
+                                DropdownMenuItem(text = { Text("导入音频") }, onClick = { attachmentMenu = false; audioPicker.launch(arrayOf("audio/*")) })
+                                DropdownMenuItem(text = { Text("拍照") }, onClick = {
+                                    attachmentMenu = false
+                                    if (saveDraft()) {
+                                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) openCamera()
+                                        else cameraPermission.launch(Manifest.permission.CAMERA)
+                                    }
+                                })
+                            }
+                        }
+                        IconButton(onClick = {
+                            if (recorder != null) stopRecording()
+                            else if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) startRecording()
+                            else micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                        }) { Icon(if (recorder == null) Icons.Outlined.Mic else Icons.Outlined.Stop,
+                            if (recorder == null) "开始录音" else "结束录音", tint = AppColors.Danger) }
+                        IconButton(enabled = !importing && recorder == null, onClick = { if (saveDraft()) { morphNoteId = null; editingNoteId = null; draft = ""; editorOpen = true } }) {
+                            Icon(Icons.Outlined.Add, "新建笔记")
+                        }
+                        if (editorOpen) IconButton(onClick = { saveDraft() }) {
+                            Icon(Icons.Outlined.Check, "保存笔记", tint = AppColors.Accent)
+                        }
+                    }
                 }
             }
         }
