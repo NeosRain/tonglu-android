@@ -38,6 +38,8 @@ import cn.tonglu.app.ui.english.books.PersonalBooksScreen
 import cn.tonglu.app.ui.english.books.toLearningArticle
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
+import cn.tonglu.app.ui.OverlayEnter
+import cn.tonglu.app.ui.LocalOverlayEnter
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
 import cn.tonglu.app.ui.listening.ListeningScreen
@@ -49,7 +51,7 @@ import kotlinx.coroutines.flow.first
  *
  * 首页以四六级精读、继续阅读和个人文章为主，单词等能力收进「学习工具」。
  * 复用原能力屏，不显示尚未实现的假入口。
- * 返回链：能力屏返回 → 回英语首页；英语首页返回 → 回学习页。
+ * 返回链沿实际来源逐级返回；静态工具祖先保留在子窗口下面，英语首页返回学习页。
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -77,7 +79,9 @@ internal fun EnglishHubScreen(
     // route: "home" = 英语首页；"words" = 单词；"favorites" = 我的收藏（单词页带收藏筛选进来）；
     // "listening" = 听说；"voice" = 声音设置；
     // "questions" = 独立题库（B4）；"daily" = 每日例句（B5）；"plan" = 学习计划（B5）。
-    var route by rememberSaveable(owner) { mutableStateOf(initialRoute) }
+    var routePath by rememberSaveable(owner, initialRoute) { mutableStateOf(englishHubStart(initialRoute)) }
+    val route = routePath.last()
+    fun navigate(destination: String) { routePath = englishHubOpen(routePath, destination) }
     // 阅读器只覆盖当前英语页面；保留 Hub 和能力屏的来源、滚动及输入状态。
     val context = androidx.compose.ui.platform.LocalContext.current
     val hubStore = remember(owner) { ReadingStore(context, owner) }
@@ -101,12 +105,8 @@ internal fun EnglishHubScreen(
     // 以前是冒泡给 LearningDialogs 换成顶层 English 层，那会把整个 Hub 卸载（FINDINGS #6）。
     var lookupQuery by remember(owner) { mutableStateOf<String?>(null) }
 
-    // 🔴 查词子层**只在能力屏存在时才被渲染**（见函数末尾的 `if (abilityScreen != null)`），
-    //    但 `lookupQuery` 不会跟着 route 走 —— 一旦它非空而能力屏已经关掉，就会留下一个
-    //    「看不见、却还活着」的子层：下次进能力屏它先冒出来，并且**先吃掉返回**，
-    //    表现就是用户报的「点了返回退到英语界面后，既退不出去、也点不进去」。
-    //    所以 route 一回到首页就把这个子层状态清掉，别让它跨层残留。
-    LaunchedEffect(route) { if (route == "home") lookupQuery = null }
+    // A lookup belongs to its current capability; never carry it into a different route.
+    LaunchedEffect(route) { lookupQuery = null }
 
     // 计划生成要用「真实的题组名与词书名」，不能拿「任务1/任务2」占位。
     // 这里异步取一次本机清单 —— 取不到就传空，模板会退化成不带名字的通用任务（而不是崩）。
@@ -116,22 +116,24 @@ internal fun EnglishHubScreen(
     var diagnosisError by remember(owner) { mutableStateOf<String?>(null) }
     LaunchedEffect(owner) {
         try {
-            diagnosisBanks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            val banks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 cn.tonglu.app.data.question.QuestionBankStore.banks(context)
             }
+            diagnosisBanks = banks
+            planBankTitles = banks.map { it.title }
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
         catch (cause: Exception) { diagnosisError = "题组读取失败：${cause.localizedMessage ?: "请重新进入"}" }
-    }
-    LaunchedEffect(owner) {
-        planBankTitles = runCatching {
-            cn.tonglu.app.data.question.QuestionBankStore.banks(context).map { it.title }
-        }.getOrDefault(emptyList())
-        planBookName = runCatching {
-            val repository = cn.tonglu.app.data.english.EnglishRepository(context)
-            val settings = repository.dao.settings(owner).first()
-            val id = settings?.bookId ?: "kylebing-cet4"
-            cn.tonglu.app.data.english.EnglishBookStore.catalog(context, null).firstOrNull { it.id == id }?.name
-        }.getOrNull()
+        try {
+            planBookName = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                val repository = cn.tonglu.app.data.english.EnglishRepository(context)
+                val settings = repository.dao.settings(owner).first()
+                val id = settings?.bookId ?: "kylebing-cet4"
+                cn.tonglu.app.data.english.EnglishBookStore.catalog(context, null).firstOrNull { it.id == id }?.name
+            }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (cause: Exception) {
+            diagnosisError = listOfNotNull(diagnosisError, "词书读取失败：${cause.localizedMessage ?: "请重新进入"}").joinToString("；")
+        }
     }
 
     // 主动作卡的数据：优先用本次在 Hub 内打开/读完的那篇，其次才是外层传入的最近阅读。
@@ -155,55 +157,48 @@ internal fun EnglishHubScreen(
     }
     val cardFinished = hubReading?.finished == true || storedProgress?.finished == true
 
-    // 处在能力屏时，**Hub 照常画在下面**，能力屏叠在它上面（见函数末尾）。
-    //
-    // 2026-10-08 改了这里：原来写的是
-    //     if (abilityScreen != null) { abilityScreen(); …; return }
-    // —— 能力屏一开，Hub 首页**整个不组合**，于是能力屏往右滑时底下什么都没有，
-    // 用户看到的是主题底色，报「无法显示上一页」。那和第 2 项（TongluApp 的提前 return）
-    // 是**同一个病**，只是发生在 Dialog 这一层。
-    //
-    // 现在 Hub 一直组合着，能力屏是它**上面**的一层：滑开就能看见 Hub。
-    // 顺带的好处是 route 收回 "home" 时 Hub 的滚动位置原样保留（原本就是这么设计的）。
-    val abilityScreen: (@Composable () -> Unit)? = when (route) {
-        "today" -> { { EnglishStudyScreen(owner, startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
-        "wordSettings" -> { { EnglishStudyScreen(owner, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
-        "readingHistory" -> { { cn.tonglu.app.ui.english.intensive.ReadingHistoryScreen(owner, onClose = { route = "home" }) } }
-        "words" -> { { EnglishStudyScreen(owner, initialQuery = "", startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = { route = "home" }) } }
+    // Keep the hub and tool ancestors mounted so returning reveals the actual source and its scroll position.
+    fun abilityScreen(screenRoute: String): (@Composable () -> Unit)? {
+        val back = { routePath = englishHubBack(routePath, screenRoute) }
+        return when (screenRoute) {
+        "today" -> { { EnglishStudyScreen(owner, startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = back) } }
+        "wordSettings" -> { { EnglishStudyScreen(owner, onWordLearned = onWordLearned, onClose = back) } }
+        "readingHistory" -> { { cn.tonglu.app.ui.english.intensive.ReadingHistoryScreen(owner, onClose = back) } }
+        "words" -> { { EnglishStudyScreen(owner, initialQuery = "", startOnReady = true, directSessionExit = true, onWordLearned = onWordLearned, onClose = back) } }
         // 单开一条「收藏」路由，而不是让用户自己进单词页再点「收藏」筛选 ——
         // 用户问过「收藏是干什么的、在哪看」，说明入口不可发现（2026-10-08）。
         "favorites" -> { {
             EnglishStudyScreen(owner, initialQuery = "", initialFilter = "favorites",
-                onWordLearned = onWordLearned, onClose = { route = "home" })
+                onWordLearned = onWordLearned, onClose = back)
         } }
         "listening" -> { {
-            ListeningScreen(owner, onClose = { route = "home" },
+            ListeningScreen(owner, onClose = back,
                 onLookupWord = { word -> lookupQuery = word },
                 initialMaterialId = initialMaterialId)
         } }
-        "voice" -> { { VoiceSettingsScreen(owner, onClose = { route = "home" }) } }
-        "tools" -> { { EnglishAuxiliaryTools(onSelect = { route = it }, onClose = { route = "home" }) } }
+        "voice" -> { { VoiceSettingsScreen(owner, onClose = back) } }
+        "tools" -> { { EnglishAuxiliaryTools(onSelect = { navigate(it) }, onClose = back) } }
         "questions" -> { {
-            QuestionBankScreen(owner, onClose = { route = "home" }, onPracticeChanged = onPracticeChanged)
+            QuestionBankScreen(owner, onClose = back, onPracticeChanged = onPracticeChanged)
         } }
         // 今日卡的第四个入口（plan §5 第 2 条）：直达「只练错题」。
         // 以前只能 做题 → 选题组 → 组内右上角，三级里才找得到 = 等于没有入口。
         "wrong" -> { {
-            QuestionBankScreen(owner, onClose = { route = "home" },
+            QuestionBankScreen(owner, onClose = back,
                 onPracticeChanged = onPracticeChanged, wrongReview = true)
         } }
         "daily" -> { {
-            DailySentencePane(owner, onClose = { route = "home" },
+            DailySentencePane(owner, onClose = back,
                 onLookupWord = { word -> lookupQuery = word })
         } }
         "plan" -> { {
             LearningPlanPane(owner, bankTitles = planBankTitles, bookName = planBookName,
-                onClose = { route = "home" })
+                onClose = back)
         } }
         "diagnosis" -> { {
             VocabDiagnosisPane(banks = diagnosisBanks,
                 store = cn.tonglu.app.data.listening.PracticeStore.of(context, owner),
-                onExit = { route = "home" }, onAnswered = onPracticeChanged)
+                onExit = back, onAnswered = onPracticeChanged)
         } }
         // §4 入口改造（2026-10-13）：专项能力不再平铺在首页，收进这一屏。
         // 首页只留「一条主线（继续读文章）+ 今日词汇 + 三个次级入口」——
@@ -211,15 +206,15 @@ internal fun EnglishHubScreen(
         "more" -> { {
             EnglishMoreToolsPane(
                 diagnosisProblem = diagnosisError,
-                onDaily = { route = "daily" },
-                onPlan = { route = "plan" },
-                onDiagnosis = { route = "diagnosis" },
-                onClose = { route = "home" })
+                onDaily = { navigate("daily") },
+                onPlan = { navigate("plan") },
+                onDiagnosis = { navigate("diagnosis") },
+                onClose = back)
         } }
         // 「我的精读文章」（2026-10-13）：用户自己添加卷子里的四级/六级阅读文章。
         // 精读链路（查词/加入今日/收藏/恢复）复用已验过的部分，这里只管文章的增删与打开。
         "myReading" -> { {
-            MyReadingScreen(owner, onClose = { route = "home" }, onOpen = openArticle,
+            MyReadingScreen(owner, onClose = back, onOpen = openArticle,
                 reader = { article, close ->
                     // 自建文章读完后同样立刻刷新 Hub 的主动作卡（不必等退出英语页再进）。
                     materialReader(article) {
@@ -231,17 +226,20 @@ internal fun EnglishHubScreen(
         // 个人词书（EF04）：B 的 PersonalBooksScreen —— 词书管理 / 批量删除 / 导入 / 拍照识词 /
         // 词书生成文章都从这一个入口进，不再各画空壳页。
         "myBooks" -> { {
-            PersonalBooksScreen(owner, onClose = { route = "home" },
+            PersonalBooksScreen(owner, onClose = back,
                 // EF10 收口：保存的文章转成 LearningArticle 后走与「我的精读文章」同一条原有阅读器通路
                 // （materialReader → LearningDialogs.Reader → ArticleReader），点词/进度/逐层返回都复用。
                 onOpenArticle = { record -> openArticle(record.toLearningArticle()) })
         } }
         "intensive" -> { {
-            cn.tonglu.app.ui.english.intensive.IntensiveReadingScreen(owner, onClose = { route = "home" },
+            cn.tonglu.app.ui.english.intensive.IntensiveReadingScreen(owner, onClose = back,
                 onLookup = { lookupQuery = it })
         } }
         else -> null
     }
+
+    }
+    val abilityRoutes = routePath.drop(1)
 
     // 弹层自识别左边缘拖动：Dialog 是**独立 Window**，系统把手势进度派给 Activity，
     // 这里只能拿到「已经返回完」那一次回调 —— 想跟手就得自己认。
@@ -249,14 +247,15 @@ internal fun EnglishHubScreen(
         onClose = { OverlayDismissGuard.arm(); onClose() },
         predictive = OverlayMotion.enabledState,
         selfDrag = true,
-        backEnabled = abilityScreen == null && readingArticle == null,
+        backEnabled = abilityRoutes.isEmpty() && readingArticle == null,
     )
+    CompositionLocalProvider(LocalOverlayEnter provides OverlayEnter.Right) {
     Dialog(
-        onDismissRequest = { if (abilityScreen != null) route = "home" else motion.requestClose() },
+        onDismissRequest = { if (abilityRoutes.isNotEmpty()) routePath = englishHubBack(routePath, route) else motion.requestClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false,
-            backEnabled = abilityScreen == null && readingArticle == null), color = AppColors.CanvasOpaque) {
+            backEnabled = abilityRoutes.isEmpty() && readingArticle == null), color = AppColors.CanvasOpaque) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
@@ -267,7 +266,7 @@ internal fun EnglishHubScreen(
                     }
                     Text("英语", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                     // 48 §6：声音设置放右上角。只在这里设入口，不铺第二个假开关。
-                    TextButton(onClick = { route = "voice" }) { Text("声音设置") }
+                    TextButton(onClick = { navigate("voice") }) { Text("声音设置") }
                 }
                 LazyColumn(
                     modifier = Modifier.weight(1f).widthIn(max = 640.dp).fillMaxWidth().align(Alignment.CenterHorizontally),
@@ -281,25 +280,25 @@ internal fun EnglishHubScreen(
                         }
                     }
                     item("english-destinations") {
-                        EnglishDestinationPager(onReading = { route = "intensive" }, onWords = { route = "words" })
+                        EnglishDestinationPager(onReading = { navigate("intensive") }, onWords = { navigate("words") })
                     }
                     item("word-tools") {
                         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { route = "wordSettings" }) { Text("单词设置") }
-                            TextButton(onClick = { route = "myBooks" }) { Text("我的单词书") }
-                            TextButton(onClick = { route = "readingHistory" }) { Text("精读历史") }
+                            TextButton(onClick = { navigate("wordSettings") }) { Text("单词设置") }
+                            TextButton(onClick = { navigate("myBooks") }) { Text("我的单词书") }
+                            TextButton(onClick = { navigate("readingHistory") }) { Text("精读历史") }
                         }
                     }
                     item("reading") {
                         Text("继续阅读", fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 12.dp, bottom = 12.dp))
                         EnglishReadingCard(article = cardArticle, ratio = cardRatio, finished = cardFinished,
-                            onOpen = openArticle, onChoose = { route = "intensive" })
+                            onOpen = openArticle, onChoose = { navigate("intensive") })
                     }
                     item("library") {
-                        EnglishEntryCard(Icons.Outlined.MenuBook, "我的文章与书籍", "导入 PDF、EPUB 或文本", { route = "myReading" })
+                        EnglishEntryCard(Icons.Outlined.MenuBook, "我的文章与书籍", "导入 PDF、EPUB 或文本", { navigate("myReading") })
                     }
                     item("tools") {
-                        EnglishEntryCard(Icons.Outlined.Widgets, "学习工具", "听说、练习与其他辅助工具", { route = "tools" })
+                        EnglishEntryCard(Icons.Outlined.Widgets, "学习工具", "听说、练习与其他辅助工具", { navigate("tools") })
                         Spacer(Modifier.height(16.dp))
                     }
                 }
@@ -310,8 +309,10 @@ internal fun EnglishHubScreen(
     // 能力屏：画在 Hub **之上**（不是把它替换掉）。
     // ⚠️ 顺序要紧：Dialog 是独立 Window，**后进组合的后加进 WindowManager，所以在上层**。
     // 把这段挪到上面去，用户就又看不到上一页了 —— 而且不会有任何编译错误。
-    if (abilityScreen != null) {
-        abilityScreen()
+    abilityRoutes.forEach { destination ->
+        key(owner, destination) { abilityScreen(destination)?.invoke() }
+    }
+    if (abilityRoutes.isNotEmpty()) {
         // 查词是**叠在能力屏之上**的子层（照 Reader/Ai 的做法），底下那一屏保持存活。
         // key 保证换一个词就是一份全新界面 —— 否则 rememberSaveable 会把上一个词残留下来。
         lookupQuery?.let { word ->
@@ -325,6 +326,7 @@ internal fun EnglishHubScreen(
             readingArticle = null
             refreshTrackedArticle(article)
         }
+    }
     }
 }
 
@@ -511,7 +513,7 @@ internal fun EnglishMoreToolsPane(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     IconButton(onClick = { motion.requestClose() }) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语首页")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回上一页")
                     }
                     Text("更多学习工具", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 }

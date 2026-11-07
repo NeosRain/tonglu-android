@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
@@ -233,6 +234,9 @@ enum class OverlayEnter {
     /** 整页从屏幕右边缘推入；过渡期间左边缘带圆角，到位后恢复全屏方形。 */
     Right,
 }
+
+/** Navigation flows can choose one direction without changing other overlays' existing defaults. */
+internal val LocalOverlayEnter = staticCompositionLocalOf { OverlayEnter.Bottom }
 
 /**
  * 跟手返回的进度状态。两条路（系统进度 / 自己识别拖动）都往这里写，绘制时统一读。
@@ -767,10 +771,21 @@ fun Modifier.overlayMotion(
     onBack: (() -> Unit)? = null,
     backEnabled: Boolean = state.shellBackEnabled,
     /** 进场方向。默认 [OverlayEnter.Bottom]（见该枚举的注释：别改默认值）。 */
-    enter: OverlayEnter = OverlayEnter.Bottom,
+    enter: OverlayEnter = LocalOverlayEnter.current,
 ): Modifier {
     ThemeSystemBars()
     cn.tonglu.app.ui.focus.RegisterPomodoroWindow()
+    if (enter == OverlayEnter.Right && !fade) {
+        val view = LocalView.current
+        // These are full-page navigation windows. Compose already animates the opaque page;
+        // a platform dim/exit animation otherwise leaves the revealed parent dark afterwards.
+        SideEffect {
+            val window = generateSequence(view as android.view.View?) { it.parent as? android.view.View }
+                .filterIsInstance<DialogWindowProvider>().firstOrNull()?.window
+            window?.setDimAmount(0f)
+            window?.setWindowAnimations(0)
+        }
+    }
     val edgeProgress = back ?: rememberEdgeBackProgressState(state.edge)
     // 🔴 圆角形状必须在**这里**（@Composable 函数体）remember，不能在 `graphicsLayer {}` 里读。
     //    graphicsLayer 的 lambda 是 **非 composable** 上下文，读带 @Composable getter 的

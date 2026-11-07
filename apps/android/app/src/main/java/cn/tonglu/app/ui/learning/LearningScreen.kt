@@ -166,6 +166,8 @@ private fun sectionProgress(catalog: LearningCatalog, library: ReadingLibrary, s
 @Composable
 internal fun LearningScreen(
     search: String, owner: String, topInset: Dp = 0.dp,
+    courses: List<cn.tonglu.app.data.CourseDto> = emptyList(),
+    onOpenTimetable: () -> Unit = {},
     onClearSearch: () -> Unit = {},
     visible: Boolean = true,
     aiRequest: Int = 0, signedIn: Boolean = false,
@@ -212,6 +214,10 @@ internal fun LearningScreen(
     var reload by remember { mutableIntStateOf(0) }
     var libraryOpen by rememberSaveable(owner) { mutableStateOf(false) }
     var personalOpen by rememberSaveable(owner) { mutableStateOf(false) }
+    var courseNotesOpen by rememberSaveable(owner) { mutableStateOf(false) }
+    if (courseNotesOpen) CourseNotesPicker(courses,
+        onOpenTimetable = { courseNotesOpen = false; onOpenTimetable() },
+        onClose = { courseNotesOpen = false })
     val homeListState = rememberLazyListState()
     val libraryListState = rememberLazyListState()
     var dialog by rememberSaveable(stateSaver = LearningDialogSaver) { mutableStateOf<LearningDialog>(LearningDialog.None) }
@@ -345,6 +351,7 @@ internal fun LearningScreen(
             onEnglish = { dialog = LearningDialog.EnglishHub() },
             onFocus = { cn.tonglu.app.ui.focus.PomodoroUi.open() },
             onExams = onOpenExamCalendar, onCompetitions = onOpenCompetitions,
+            onCourseNotes = { courseNotesOpen = true }, onOpenTimetable = onOpenTimetable,
         )
         return
     }

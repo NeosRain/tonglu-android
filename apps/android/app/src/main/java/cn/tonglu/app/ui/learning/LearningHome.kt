@@ -42,6 +42,8 @@ internal fun LearningHome(
     onFocus: () -> Unit,
     onExams: () -> Unit,
     onCompetitions: () -> Unit,
+    onCourseNotes: () -> Unit,
+    onOpenTimetable: () -> Unit,
 ) {
     LazyColumn(
         state = listState,
@@ -50,10 +52,17 @@ internal fun LearningHome(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item("heading") {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("学习", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
-                Text("读点喜欢的，学点有用的", style = MaterialTheme.typography.bodyMedium,
-                    color = AppColors.TextSecondary)
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("学习", style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold)
+                    Text("读点喜欢的，学点有用的", style = MaterialTheme.typography.bodyMedium,
+                        color = AppColors.TextSecondary)
+                }
+                FilledTonalButton(onClick = onCourseNotes, shape = RoundedCornerShape(24.dp),
+                    colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppColors.ChipIdle, contentColor = AppColors.TextPrimary)) {
+                    Text("课堂笔记")
+                }
             }
         }
         item("articles-heading") { HomeSectionHeading("文章", "阅读与书库") }
@@ -90,21 +99,16 @@ internal fun LearningHome(
                 }
             }
         }
-        item("study-heading") { HomeSectionHeading("专业学习", "学科工具") }
+        item("study-heading") {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { HomeSectionHeading("专业学习", "学科工具") }
+                TextButton(onClick = onOpenTimetable) { Text("查看课表") }
+            }
+        }
         item("english") {
             Surface(shape = RoundedCornerShape(24.dp), color = AppColors.SurfaceOpaque) {
-                Column {
-                    AuxiliaryDestination("英语", Icons.Outlined.Translate, onEnglish)
-                    HorizontalDivider(Modifier.padding(horizontal = 18.dp), color = AppColors.Divider)
-                    Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Outlined.Calculate, null, tint = AppColors.TextSecondary)
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("数学", style = MaterialTheme.typography.bodyMedium)
-                            Text("学科工具尚未开放", style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
-                        }
-                    }
-                }
+                AuxiliaryDestination("英语", Icons.Outlined.Translate, onEnglish,
+                    subtitle = "单词 · 精读 · 听说与学习计划")
             }
         }
         item("focus") {
@@ -167,14 +171,17 @@ private fun BookDestination(title: String, icon: ImageVector, summary: String, d
 }
 
 @Composable
-private fun AuxiliaryDestination(title: String, icon: ImageVector, onClick: () -> Unit) {
+private fun AuxiliaryDestination(title: String, icon: ImageVector, onClick: () -> Unit, subtitle: String? = null) {
     Surface(onClick = onClick, color = androidx.compose.ui.graphics.Color.Transparent) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Surface(shape = RoundedCornerShape(14.dp), color = learningDestinationBackground(learningDestinationTint(title), AppColors.SurfaceOpaque)) {
                 Icon(icon, null, tint = AppColors.TextPrimary, modifier = Modifier.padding(10.dp).size(22.dp))
             }
-            Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyMedium)
+                subtitle?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary) }
+            }
             Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight, null, tint = AppColors.TextSecondary,
                 modifier = Modifier.size(18.dp))
         }

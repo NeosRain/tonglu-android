@@ -1,6 +1,5 @@
 package cn.tonglu.app.ui
 
-import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -31,11 +30,14 @@ fun ScheduleImportScreen(
     onClose: () -> Unit,
     onSave: (List<ParsedCourse>, Boolean, (Boolean, String) -> Unit) -> Unit,
     onSaveExternal: (ExternalSchedule, Boolean, (Boolean, String) -> Unit) -> Unit,
+    onChildVisibilityChanged: (Boolean) -> Unit = {},
 ) {
     val context = LocalContext.current
     val owner = SessionStore.currentOwner(context)
     val prefs = remember { context.getSharedPreferences("schedule_school", android.content.Context.MODE_PRIVATE) }
     var route by rememberSaveable { mutableStateOf("home") }
+    LaunchedEffect(route) { onChildVisibilityChanged(route != "home") }
+    DisposableEffect(Unit) { onDispose { onChildVisibilityChanged(false) } }
     var showSchools by rememberSaveable { mutableStateOf(false) }
     var schoolQuery by rememberSaveable { mutableStateOf("") }
     var school by rememberSaveable(owner) { mutableStateOf(prefs.getString("name@$owner", "").orEmpty()) }
@@ -81,7 +83,6 @@ fun ScheduleImportScreen(
             readAttempt++
         }
     }
-    BackHandler(enabled = route != "home") { route = "home" }
     if (showSchools) AlertDialog(onDismissRequest = { showSchools = false }, title = { Text("辽宁高校") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(schoolQuery, { schoolQuery = it.take(80) }, label = { Text("搜索学校") }, singleLine = true)
@@ -93,11 +94,8 @@ fun ScheduleImportScreen(
                 if (SchoolDirectory.search(schoolQuery).isEmpty()) item { Text("未找到，可在下方填写学校官方地址") }
             }
         } }, confirmButton = { TextButton(onClick = { showSchools = false }) { Text("关闭") } })
-    when (route) {
-        "liaodong" -> LiaodongScheduleImportScreen(onClose = { route = "home" }, onSave = onSave)
-        "browser" -> CampusBrowserScreen(address, school.ifBlank { "学校教务" }, { route = "home" },
-            initialDesktopMode = true, onReadPage = { html -> route = "home"; uri = null; parse(html) })
-        else -> Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque) {
+    Box(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
@@ -183,5 +181,22 @@ fun ScheduleImportScreen(
                 }
             }
         }
+        when (route) {
+            "liaodong" -> ScheduleImportChild(onClose = { route = "home" }) { requestClose ->
+                LiaodongScheduleImportScreen(onClose = requestClose, onSave = onSave)
+            }
+            "browser" -> CampusBrowserScreen(address, school.ifBlank { "学校教务" }, { route = "home" },
+                initialDesktopMode = true, onReadPage = { html -> route = "home"; uri = null; parse(html) })
+        }
+    }
+}
+
+/** Keep the import chooser underneath; this child owns its own back progress and exit. */
+@Composable
+internal fun ScheduleImportChild(onClose: () -> Unit, content: @Composable (() -> Unit) -> Unit) {
+    val motion = rememberOverlayMotion(onClose = onClose, predictive = OverlayMotion.enabledState, selfDrag = false)
+    Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false, enter = OverlayEnter.Right),
+        color = AppColors.CanvasOpaque) {
+        content(motion::requestClose)
     }
 }

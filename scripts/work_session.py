@@ -90,12 +90,15 @@ def run_android_build(root, tasks, java_home):
         wrapper = android / ('gradlew.bat' if os.name == 'nt' else 'gradlew')
         code = 124
         output = ''
+        hosted = env.get('GITHUB_ACTIONS') == 'true'
         try:
-            result = subprocess.run([str(wrapper), '--no-daemon', '--console=plain', '-q', *tasks],
-                                    cwd=android, env=env, stdout=subprocess.PIPE,
-                                    stderr=subprocess.STDOUT, timeout=60 * 25)
+            result = subprocess.run([str(wrapper), '--no-daemon', '--console=plain',
+                                     *([] if hosted else ['-q']), *tasks],
+                                    cwd=android, env=env, stdout=None if hosted else subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, timeout=60 * (45 if hosted else 25))
             code = result.returncode
-            output = result.stdout.decode('utf-8', 'replace')
+            output = ('Gradle task log streamed to the GitHub Actions console (secret masking enabled).'
+                      if hosted else result.stdout.decode('utf-8', 'replace'))
         except subprocess.TimeoutExpired as error:
             output = (error.stdout or b'').decode('utf-8', 'replace') + '\n构建超时；请确认 Gradle 子进程已退出后再重试。'
         after = source_snapshot(root)

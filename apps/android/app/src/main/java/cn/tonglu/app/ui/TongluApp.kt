@@ -470,6 +470,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
 
     // 教务课表导入（全屏 WebView 流程）
     var showScheduleImport by rememberSaveable { mutableStateOf(false) }
+    var scheduleImportChildOpen by remember { mutableStateOf(false) }
     var showScores by rememberSaveable { mutableStateOf(false) }
     var showVerification by rememberSaveable { mutableStateOf(false) }
     var showScoreImport by rememberSaveable { mutableStateOf(false) }
@@ -621,6 +622,8 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     ) }
                     "学习" -> LearningScreen(
                         search = search,
+                        courses = state.courses,
+                        onOpenTimetable = { scope.launch { mainPager.animateScrollToPage(0) } },
                         onClearSearch = { search = "" },
                         owner = state.session?.userId ?: state.session?.username ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER,
                         topInset = topInset,
@@ -858,13 +861,14 @@ private fun TongluAppContent(viewModel: AppViewModel) {
         }
     }
     if (showScheduleImport) {
-        OverlayLayerHost(onClose = { closeLayer {
+        OverlayLayerHost(backEnabled = !scheduleImportChildOpen, onClose = { closeLayer {
             viewModel.reloadLocal()
             showScheduleImport = false
             if (importBoth && jointScheduleSaved) showScoreImport = true else importBoth = false
         } }) { requestClose ->
             ScheduleImportScreen(
                 onClose = requestClose,
+                onChildVisibilityChanged = { scheduleImportChildOpen = it },
                 onSave = { courses, replace, done ->
                     viewModel.importCourses(courses, replace) { ok, message ->
                         if (ok) {

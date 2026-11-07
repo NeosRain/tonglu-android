@@ -1,6 +1,5 @@
 package cn.tonglu.app.ui.speech
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +16,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import cn.tonglu.app.data.speech.AudioPackPlayer
 import cn.tonglu.app.data.speech.AudioPackStore
 import cn.tonglu.app.data.speech.EnglishAudioPack
+import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OverlayDismissGuard
+import cn.tonglu.app.ui.OverlayMotion
+import cn.tonglu.app.ui.OverlayEnter
+import cn.tonglu.app.ui.overlayMotion
+import cn.tonglu.app.ui.rememberOverlayMotion
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -40,8 +45,11 @@ internal fun AudioPackPreview(onClose: () -> Unit) {
     var downloadGeneration by remember { mutableLongStateOf(0L) }
     val player = remember(store, scope) { AudioPackPlayer(context, store, scope) { text, id -> message = text; active = id } }
     fun stop() { downloadGeneration++; download?.cancel(); download = null; downloading = false; player.stop() }
-    fun close() { stop(); onClose() }
-    BackHandler { close() }
+    val motion = rememberOverlayMotion(
+        onClose = { stop(); OverlayDismissGuard.arm(); onClose() },
+        predictive = OverlayMotion.enabledState, selfDrag = true,
+    )
+    fun close() { stop(); motion.requestClose() }
     DisposableEffect(player, lifecycle) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_STOP) stop() }
         lifecycle.addObserver(observer)
@@ -65,7 +73,7 @@ internal fun AudioPackPreview(onClose: () -> Unit) {
     }
     val selected = pack?.items?.filter { it.voiceId == voice }.orEmpty()
     Dialog(onDismissRequest = { close() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false, enter = OverlayEnter.Right), color = AppColors.CanvasOpaque) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().padding(horizontal = 20.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     TextButton(onClick = { close() }) { Text("返回") }

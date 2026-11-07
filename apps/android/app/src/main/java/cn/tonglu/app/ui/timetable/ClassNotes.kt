@@ -49,6 +49,10 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.layout.onSizeChanged
@@ -219,6 +223,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     val listHeaderInset = with(LocalDensity.current) { listHeaderHeight.toDp() }
     val footerInset = with(LocalDensity.current) { footerHeight.toDp() }
     val backdrop = rememberLayerBackdrop()
+    val editorFocus = remember { FocusRequester() }
     fun append(note: ClassNote): Boolean {
         if (error?.startsWith("读取笔记失败") == true) return false
         return runCatching { store.append(note); notes = store.readAll(); error = null }
@@ -226,18 +231,20 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     }
     fun saveDraft(): Boolean {
         val content = draft.trim()
-        if ((content.isNotEmpty() || editingNoteId != null) && error?.startsWith("读取笔记失败") != true) {
+        val existing = notes.any { it.id == editingNoteId }
+        if ((content.isNotEmpty() || existing) && error?.startsWith("读取笔记失败") != true) {
             if (notes.any { it.id == editingNoteId && it.text == content }) {
                 return runCatching { store.saveDraft(""); error = null }
                     .onFailure { error = "清理草稿失败：${it.localizedMessage}" }.isSuccess
             }
             val targetId = editingNoteId ?: UUID.randomUUID().toString()
-            val saved = editingNoteId?.let { id ->
-                runCatching { store.replaceText(id, content); notes = store.readAll(); error = null }
+            val saved = if (existing) {
+                runCatching { store.replaceText(targetId, content); notes = store.readAll(); error = null }
                     .onFailure { error = "更新失败：${it.localizedMessage}" }.isSuccess
-            } ?: append(ClassNote(targetId, System.currentTimeMillis(), content, null, null))
+            } else append(ClassNote(targetId, System.currentTimeMillis(), content, null, null))
             if (saved) {
                 editingNoteId = targetId
+                morphNoteId = targetId
                 runCatching { store.saveDraft("") }.onFailure { error = "清理草稿失败：${it.localizedMessage}" }
             }
             return saved
@@ -250,15 +257,20 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         if (!editorOpen) return null
         if (!saveDraft()) throw IllegalStateException(error ?: "请先保存当前笔记")
         if (editingNoteId == null) {
-            val id = UUID.randomUUID().toString()
-            check(append(ClassNote(id, System.currentTimeMillis(), draft.trim(), null, null))) { error ?: "创建笔记失败" }
-            editingNoteId = id
+            // Reserve an identity, not a row. Cancelling a camera/import or a failed recording
+            // must not leave a blank note; typing during a recording still uses this identity.
+            editingNoteId = UUID.randomUUID().toString()
         }
         return editingNoteId
     }
     fun saveMedia(file: File, image: Boolean, target: String?): Boolean {
-        if (target == null) return append(ClassNote(UUID.randomUUID().toString(), System.currentTimeMillis(), "",
-            if (image) file.name else null, if (image) null else file.name))
+        if (target == null || notes.none { it.id == target }) {
+            val id = target ?: UUID.randomUUID().toString()
+            val saved = append(ClassNote(id, System.currentTimeMillis(), "",
+                if (image) file.name else null, if (image) null else file.name))
+            if (saved && editorOpen && editingNoteId == id) morphNoteId = id
+            return saved
+        }
         return runCatching { store.attach(target, file.name, image); notes = store.readAll(); error = null }
             .onFailure { error = "附件保存失败：${it.localizedMessage}" }.isSuccess
     }
@@ -367,9 +379,31 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         if (draft.isNotBlank()) runCatching { store.saveDraft(draft); saveDraft() }
             .onFailure { error = "自动保存失败：${it.localizedMessage}" }
     }
-    Dialog(onDismissRequest = { if (recorder != null) stopRecording(); if (saveDraft()) { if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" } else onDismiss() } },
+    val outerBackEnabled = !editorOpen && recorder == null && !importing && draft.isBlank() && enlargedPhoto == null
+    val outerMotion = rememberOverlayMotion(
+        onClose = { OverlayDismissGuard.arm(); onDismiss() },
+        predictive = OverlayMotion.enabledState, selfDrag = true, backEnabled = outerBackEnabled,
+    )
+    fun requestBack() {
+        if (recorder != null && !stopRecording()) return
+        if (!saveDraft()) return
+        if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" }
+        else outerMotion.requestClose()
+    }
+    Dialog(onDismissRequest = { requestBack() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val dialogView = LocalView.current
+        val focusManager = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        LaunchedEffect(editorOpen) {
+            if (editorOpen && morphNoteId == null) {
+                editorFocus.requestFocus()
+                keyboard?.show()
+            } else if (!editorOpen) {
+                focusManager.clearFocus()
+                keyboard?.hide()
+            }
+        }
         val imeShowing = WindowInsets.ime.getBottom(LocalDensity.current) > 0
         DisposableEffect(dialogView, AppTheme.darkState) {
             val window = (dialogView.parent as? DialogWindowProvider)?.window
@@ -383,16 +417,24 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                 if (oldNavigation != null) controller.isAppearanceLightNavigationBars = oldNavigation
             }
         }
-        Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
+        Surface(Modifier.fillMaxSize().overlayMotion(outerMotion, fade = false, backEnabled = outerBackEnabled, enter = OverlayEnter.Right), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
                 SharedTransitionLayout(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
                 AnimatedContent(targetState = editorOpen,
-                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(220)) },
+                    // Only the selected card bounds crossfade. Fading both whole pages as well
+                    // made the entire grid ghost through the expanding document.
+                    transitionSpec = {
+                        if (morphNoteId == null) {
+                            if (targetState) slideInHorizontally(tween(320)) { it } togetherWith ExitTransition.None
+                            else EnterTransition.None togetherWith slideOutHorizontally(tween(280)) { it }
+                        } else EnterTransition.None togetherWith ExitTransition.None
+                    },
                     modifier = Modifier.fillMaxSize(), label = "class-note-editor") { editing ->
                     if (editing) {
                         Column(Modifier.fillMaxSize().sharedBounds(
                             rememberSharedContentState(key = "note-${morphNoteId ?: "new"}"),
                             animatedVisibilityScope = this@AnimatedContent,
+                            enter = fadeIn(tween(90)), exit = fadeOut(tween(90)),
                             boundsTransform = { _, _ -> tween(380) })
                             .background(AppColors.CanvasOpaque)
                             // Reserve the floating controls in the IME scroll viewport so the caret cannot hide behind them.
@@ -404,7 +446,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             val shownDraft = if (editorOpen) draft else current?.text.orEmpty()
                             current?.let { Text(SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.getDefault()).format(Date(it.time)),
                                 color = AppColors.TextSecondary, fontSize = 12.sp) }
-                            BasicTextField(value = shownDraft, onValueChange = { draft = it }, readOnly = !editorOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp),
+                            BasicTextField(value = shownDraft, onValueChange = { draft = it }, readOnly = !editorOpen, modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp).focusRequester(editorFocus),
                                 textStyle = TextStyle(color = AppColors.TextPrimary, fontSize = 20.sp, lineHeight = 32.sp),
                                 cursorBrush = SolidColor(AppColors.Accent),
                                 decorationBox = { field -> Box { if (shownDraft.isEmpty()) Text("开始写这篇笔记…", color = AppColors.TextMuted, fontSize = 20.sp); field() } })
@@ -433,6 +475,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             modifier = Modifier.sharedBounds(
                                 rememberSharedContentState(key = "note-${note.id}"),
                                 animatedVisibilityScope = this@AnimatedContent,
+                                enter = fadeIn(tween(90)), exit = fadeOut(tween(90)),
                                 boundsTransform = { _, _ -> tween(380) }).clickable {
                                 if (draft.isNotBlank() && editingNoteId != note.id && !saveDraft()) return@clickable
                                 morphNoteId = note.id
@@ -463,14 +506,19 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                     }
                 }
                 }
-                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { headerHeight = it.height; if (!editorOpen) listHeaderHeight = it.height }, style = GlassPanelStyle.Solid.copy(surfaceAlpha = 0.72f, blurDp = 24f)) {
+                GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { headerHeight = it.height; if (!editorOpen) listHeaderHeight = it.height }, shape = RoundedCornerShape(0.dp), style = GlassPanelStyle.Solid.copy(surfaceAlpha = 0.72f, blurDp = 24f)) {
                 Column(Modifier.padding(horizontal = 18.dp, vertical = 6.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    IconButton(onClick = { if (recorder != null) stopRecording(); if (saveDraft()) { if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" } else onDismiss() } }) {
+                    IconButton(onClick = { requestBack() }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回")
                     }
-                    Text(course.name, color = AppColors.TextSecondary, fontSize = 14.sp, maxLines = 1,
-                        overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                    Column(Modifier.weight(1f)) {
+                        Text(if (editorOpen) "编辑笔记" else course.name,
+                            color = if (editorOpen) AppColors.TextPrimary else AppColors.TextSecondary,
+                            fontSize = if (editorOpen) 18.sp else 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        if (editorOpen) Text(course.name, color = AppColors.TextSecondary, fontSize = 12.sp,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
                 if (!editorOpen) Text("课堂笔记", color = AppColors.TextPrimary, fontSize = 28.sp,
                     fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(top = 4.dp, bottom = 8.dp))
@@ -524,10 +572,10 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             else micPermission.launch(Manifest.permission.RECORD_AUDIO)
                         }) { Icon(if (recorder == null) Icons.Outlined.Mic else Icons.Outlined.Stop,
                             if (recorder == null) "开始录音" else "结束录音", tint = AppColors.Danger) }
-                        IconButton(enabled = !importing && recorder == null, onClick = { if (saveDraft()) { morphNoteId = null; editingNoteId = null; draft = ""; editorOpen = true } }) {
+                        if (!editorOpen) IconButton(enabled = !importing && recorder == null, onClick = { if (saveDraft()) { morphNoteId = null; editingNoteId = null; draft = ""; editorOpen = true } }) {
                             Icon(Icons.Outlined.Add, "新建笔记")
                         }
-                        if (editorOpen) IconButton(onClick = { saveDraft() }) {
+                        if (editorOpen) IconButton(onClick = { if (saveDraft()) { focusManager.clearFocus(); keyboard?.hide() } }) {
                             Icon(Icons.Outlined.Check, "保存笔记", tint = AppColors.Accent)
                         }
                     }
@@ -536,9 +584,12 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         }
     }
     enlargedPhoto?.let { name ->
-        Dialog(onDismissRequest = { enlargedPhoto = null }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        val photoMotion = rememberOverlayMotion(
+            onClose = { enlargedPhoto = null }, predictive = OverlayMotion.enabledState, selfDrag = true,
+        )
+        Dialog(onDismissRequest = { photoMotion.requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false)) {
             val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 2200) }
-            Surface(Modifier.fillMaxSize().clickable { enlargedPhoto = null }, color = AppColors.CanvasOpaque) {
+            Surface(Modifier.fillMaxSize().overlayMotion(photoMotion, fade = false, enter = OverlayEnter.Right).clickable { photoMotion.requestClose() }, color = AppColors.CanvasOpaque) {
                 if (bitmap != null) Image(bitmap.asImageBitmap(), "查看课堂照片", Modifier.fillMaxSize(),
                     contentScale = ContentScale.Fit)
             }

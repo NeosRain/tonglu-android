@@ -182,8 +182,12 @@ fun CampusBrowserScreen(
     // 网页能后退就先退一页，退不动了才关掉这一层。让跟手返回抢过去的话，
     // 用户往右拖一下看到的是「整层要关掉」，松手却只是网页退了一页，对不上。
     // 有网页历史时先退网页；没有历史时才由宿主接管预测返回并关闭窗口。
+    var pendingReadHtml by remember { mutableStateOf<String?>(null) }
     val motion = rememberOverlayMotion(
-        onClose = onClose,
+        onClose = {
+            val html = pendingReadHtml
+            if (html != null && onReadPage != null) onReadPage(html) else onClose()
+        },
         predictive = OverlayMotion.enabledState,
         selfDrag = false,
         backEnabled = !canGoBack,
@@ -255,7 +259,8 @@ fun CampusBrowserScreen(
                                 require(html.toByteArray(Charsets.UTF_8).size <= cn.tonglu.app.data.ExternalScheduleParser.MAX_BYTES) {
                                     "页面超过 2 MB，请改用课表导出文件"
                                 }
-                                onReadPage(html)
+                                pendingReadHtml = html
+                                motion.requestClose()
                             } catch (error: Exception) { hint = error.message ?: "读取页面失败，请重试" }
                         }
                     }) { Text("读取课表") }
