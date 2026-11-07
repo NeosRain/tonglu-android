@@ -7,6 +7,12 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
@@ -221,9 +227,16 @@ internal fun EnglishStudyScreen(
     }
     LaunchedEffect(Unit) {
         downloaded = EnglishBookStore.downloadedIds(context)
+        // A local/bundled book is usable before the optional network refresh finishes.
+        // Otherwise startOnReady can remain on "preparing" for the entire HTTP timeout.
+        try { catalog = repository.catalog(null) }
+        catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (_: Exception) { error = "本机词书目录读取失败，正在尝试联网。" }
+        downloaded = EnglishBookStore.downloadedIds(context)
+        catalogReady = true
         try { catalog = repository.catalog(api) }
         catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-        catch (_: Exception) { error = "词书目录读取失败，请重新打开。" }
+        catch (_: Exception) { error = if (catalog.isEmpty()) "词书目录读取失败，请重新打开。" else "目录刷新失败，仍可使用本机词书。" }
         finally { catalogReady = true }
         downloaded = EnglishBookStore.downloadedIds(context)
     }
@@ -317,15 +330,21 @@ internal fun EnglishStudyScreen(
     }
     LaunchedEffect(startOnReady, imported, book?.id, busy, checkpointReady) {
         if (startOnReady && checkpointReady && !startedFromToday && book != null && imported == book.id && !busy) {
-            startedFromToday = true
-            if (route == "practice" && session.isNotEmpty()) return@LaunchedEffect
+            if (route == "practice" && session.isNotEmpty()) { startedFromToday = true; return@LaunchedEffect }
             // 查询当前数据库，避免首次统计 Flow 尚未发值时跳过到期复习。
             try {
                 val due = repository.dao.dueWords(owner, book.id, System.currentTimeMillis(), 1)
+                // This effect can be cancelled while the DAO suspends. Do not consume the
+                // one-shot start until the query completed and the session can really start.
+                if (busy || saving || imported != book.id) return@LaunchedEffect
+                startedFromToday = true
                 start(review = due.isNotEmpty())
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (cause: Exception) { error = "读取复习任务失败：${cause.localizedMessage ?: "请重试"}" }
         }
+    }
+    if (cn.tonglu.app.BuildConfig.DEBUG) LaunchedEffect(route, catalog.size, loadedSettings.first, book?.id, imported, busy, checkpointReady, startedFromToday) {
+        android.util.Log.d("EnglishStart", "route=$route catalog=${catalog.size} settings=${loadedSettings.first} book=${book != null} imported=${imported != null} busy=$busy checkpoint=$checkpointReady started=$startedFromToday")
     }
     LaunchedEffect(startOnReady, loadedSettings.first, catalogReady, book?.id, downloaded, busy) {
         if (startOnReady && route == "preparing" && loadedSettings.first && catalogReady && !busy &&
@@ -504,24 +523,39 @@ internal fun EnglishStudyScreen(
                             item { Text("AI 讲解用的是你自己填的接口，密钥只存本机、请求不经过苔米林服务器；不配置也能离线背单词（导出文件里不含密钥）。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         }
                         "practice" -> {
-                            val current = session.getOrNull(index)
-                            // AnimatedContent 的离场页仍在组合；空会话不代表完成。
-                            if (session.isNotEmpty() && index >= session.size) Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp))
-                                Text("这一组练完了", fontSize = 24.sp, modifier = Modifier.padding(top = 20.dp))
-                                Text("${session.size} 个单词 · $correctCount 次记住 / 答对", Modifier.padding(vertical = 12.dp))
-                                Button(onClick = { if (directSessionExit) motion.requestClose() else { route = entryRoute; speech.stop() } }) { Text(if (directSessionExit) "返回英语" else "返回学习") }
-                            } else if (current != null) key(current.id) { EnglishPractice(current, mode, index + 1, session.size, saving, repository, owner,
-                                accent = pronunciationAccent, onPronounce = { accent ->
-                                    pronunciationAccent = accent; speechPreference.save(owner, null, accent); speak(current)
+                            AnimatedContent(
+                                targetState = index, modifier = Modifier.fillMaxSize(), label = "english-practice-card",
+                                transitionSpec = {
+                                    (fadeIn(tween(180)) + slideInHorizontally(tween(220)) { it / 8 }) togetherWith
+                                        (fadeOut(tween(90)) + slideOutHorizontally(tween(180)) { -it / 12 })
                                 },
-                                onSpeak = { speak(current) }, onReadExample = { text, purpose -> speak(current, text, purpose) }, onFavorite = { favorite(current) }, onAskAi = { aiWord = current },
+                            ) { cardIndex ->
+                                val card = session.getOrNull(cardIndex)
+                                val cardCanInteract = cardIndex == index && transition.currentState == transition.targetState
+                                // Completion belongs to this transition too; an empty session is not a completed one.
+                                if (session.isNotEmpty() && cardIndex >= session.size) Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(Icons.Outlined.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(52.dp))
+                                    Text("这一组练完了", fontSize = 24.sp, modifier = Modifier.padding(top = 20.dp))
+                                    Text("${session.size} 个单词 · $correctCount 次记住 / 答对", Modifier.padding(vertical = 12.dp))
+                                    Button(onClick = { if (directSessionExit) motion.requestClose() else { route = entryRoute; speech.stop() } }) { Text(if (directSessionExit) "返回英语" else "返回学习") }
+                                } else if (card != null) key(card.id) { EnglishPractice(card, mode, cardIndex + 1, session.size, saving || !cardCanInteract, repository, owner,
+                                accent = pronunciationAccent, onPronounce = { accent ->
+                                    if (cardIndex == index) {
+                                        pronunciationAccent = accent; speechPreference.save(owner, null, accent); speak(card)
+                                    }
+                                },
+                                onSpeak = { if (cardIndex == index) speak(card) },
+                                onReadExample = { text, purpose -> if (cardIndex == index) speak(card, text, purpose) },
+                                onFavorite = { if (cardIndex == index) favorite(card) },
+                                onAskAi = { if (cardIndex == index) aiWord = card },
                                 onAnswer = { correct ->
-                                    if (!saving) {
+                                    // AnimatedContent retains the outgoing card. Its late clicks must
+                                    // never score the next word after the first save advances index.
+                                    if (!saving && cardCanInteract && cardIndex == index) {
                                         saving = true
                                         scope.launch {
                                         try {
-                                            val firstLearned = repository.answer(owner, book!!, current, mode, correct)
+                                            val firstLearned = repository.answer(owner, book!!, card, mode, correct)
                                             if (correct) correctCount++
                                             // 只在「首次学会」时上报学习线，复习答对重复上报会被服务端
                                             // 按 words.learned 的日上限截断，但语义上就不该发。
@@ -534,7 +568,7 @@ internal fun EnglishStudyScreen(
                                         finally { saving = false }
                                         }
                                     }
-                                }) }
+                                }) } }
                         }
                     }
                 }

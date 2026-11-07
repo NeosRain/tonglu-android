@@ -54,10 +54,32 @@ class LearningMotionPreviewActivity : ComponentActivity() {
                                 Text("本地示例 · 学习走查", style = MaterialTheme.typography.labelSmall)
                                 if (timetableRequests > 0) Text("课表入口请求：$timetableRequests", style = MaterialTheme.typography.labelSmall)
                                 Box(Modifier.weight(1f)) {
+                                    if (intent.getBooleanExtra("wordMotion", false)) {
+                                        var ready by remember { mutableStateOf(false) }
+                                        var setupError by remember { mutableStateOf<String?>(null) }
+                                        var closed by remember { mutableStateOf(false) }
+                                        LaunchedEffect(Unit) {
+                                            try {
+                                                val repo = cn.tonglu.app.data.english.EnglishRepository(previewContext)
+                                                val book = cn.tonglu.app.data.english.EnglishBookStore.catalog(previewContext, null)
+                                                    .first { it.id == "kylebing-cet4-compact" }
+                                                repo.ensureBook(book)
+                                                repo.dao.settings(cn.tonglu.app.data.english.EnglishSettings(
+                                                    "qa-word-motion", book.id, dailyGoal = 3))
+                                                ready = true
+                                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                            catch (cause: Exception) { setupError = cause.message ?: "走查准备失败" }
+                                        }
+                                        if (closed) Text("词卡走查已返回")
+                                        else if (ready) EnglishStudyScreen(owner = "qa-word-motion", startOnReady = true,
+                                            directSessionExit = true, onClose = { closed = true })
+                                        else Text(setupError ?: "正在准备本机示例词卡")
+                                    } else {
                                     LearningScreen(search = "", owner = "qa-learning-motion",
                                         courses = fixtureCourses, onOpenTimetable = { timetableRequests++ },
                                         onAsk = { _, _, _ -> error("走查入口不请求AI") },
                                         onTranslate = { _, _ -> error("走查入口不请求AI") })
+                                    }
                                 }
                             }
                         }

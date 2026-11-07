@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "252643c6f53a5578f220033034f154b209153dbf",
+  "sourceCommit": "251ce9076be9e6afb4f24fe2cfc11d02799fc6c5",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "c1ab86ba284ccda8de06bec5fe3c6e60d645abb72aea1af84d6feb0463b08c69"
+      "sha256": "3941e856e08759da9a51109222b6c7b2173d76a89b17e3ba74f87a6fda2859a0"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -112,8 +112,8 @@
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/LearningMotionPreviewActivity.kt",
-      "bytes": 4027,
-      "sha256": "6f10ad8c108ecf4148eac0273123bafea5e5ada9557378b5607a68baa937f78d"
+      "bytes": 5988,
+      "sha256": "b628a4dae3177e4bd1900e0e2587d739a64074862fa41e24bffe090e325ff25d"
     },
     {
       "path": "apps/android/app/src/main/AndroidManifest.xml",
@@ -1217,8 +1217,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/EnglishStudyScreen.kt",
-      "bytes": 59435,
-      "sha256": "8d1d638be711c5cafd6d49aaac0a1a672a826344afcd29fd1fc2f575f198d573"
+      "bytes": 62271,
+      "sha256": "61f04046b588ef40f1714ee6c49fe49f62e5149e2b5b754a35c5926ae02072c8"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/exam/ExamCalendarScreen.kt",
