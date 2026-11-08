@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "251ce9076be9e6afb4f24fe2cfc11d02799fc6c5",
+  "sourceCommit": "e05d462bbc4897ba4977df93d99177a0e4e38ee8",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 18046,
-      "sha256": "3941e856e08759da9a51109222b6c7b2173d76a89b17e3ba74f87a6fda2859a0"
+      "sha256": "830ba3ae04b4922699ad284cd0c1f61da44a3efe38cbbbf9c3eafce48b7e606c"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -112,8 +112,8 @@
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/LearningMotionPreviewActivity.kt",
-      "bytes": 5988,
-      "sha256": "b628a4dae3177e4bd1900e0e2587d739a64074862fa41e24bffe090e325ff25d"
+      "bytes": 7424,
+      "sha256": "c5f6184cad6c6635cd3b9ec123ce3d22eec4dcf5f8b61cd35cd4c58b67dc0423"
     },
     {
       "path": "apps/android/app/src/main/AndroidManifest.xml",
@@ -1432,8 +1432,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/QuestionBankScreen.kt",
-      "bytes": 67534,
-      "sha256": "8a9338c7aa86641b71b6901200b9ef48529d57404a87abbc81931fd34444d454"
+      "bytes": 68893,
+      "sha256": "8c18e4c3afa408213f18b323b50103a454448e9a6a1354facd066a5e30001ad8"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/ReadingConversationBridge.kt",
@@ -2492,8 +2492,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/learning/QuestionBankCatalogTest.kt",
-      "bytes": 5450,
-      "sha256": "c4014ed671b0a4c2649787b0f91526ee0a156d757be4cd1ce72e738cf191229b"
+      "bytes": 5557,
+      "sha256": "d3ff3cd50cde1cc14e42ac042b31762df62cc840ff51d1f4b242fa5fa1daded3"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/learning/ReadingConversationBridgeTest.kt",

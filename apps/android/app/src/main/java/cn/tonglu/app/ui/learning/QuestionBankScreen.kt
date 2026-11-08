@@ -1,10 +1,19 @@
 package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -44,7 +53,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -674,7 +685,7 @@ private enum class ProgressMark { None, Correct, Wrong }
  * （要显示「听原文第 N 句」），题库题可能只绑定整卷录音，不一定有逐句时间轴。
  */
 @Composable
-private fun BankQuizPane(
+internal fun BankQuizPane(
     bank: QuestionBank,
     owner: String,
     store: PracticeStore,
@@ -686,6 +697,7 @@ private fun BankQuizPane(
      */
     initialOnlyWrong: Boolean = false,
 ) {
+    val questionStates = key(owner, bank.id) { rememberSaveableStateHolder() }
     var revision by remember { mutableIntStateOf(0) }
     val wrongKeys = remember(owner, bank.id, revision) { store.wrongKeys().filter { it.startsWith("${bank.id}:") }.toSet() }
     var reviewKeys by remember(owner, bank.id) { mutableStateOf(wrongKeys) }
@@ -779,16 +791,29 @@ private fun BankQuizPane(
                         }
                     } else {
                         val question = list[safeIndex]
-                        item(key = bank.keyOf(question)) {
+                        item(key = "question-card") {
+                            AnimatedContent(targetState = question, label = "bank-question",
+                                transitionSpec = {
+                                    val direction = if (bank.questionList.indexOf(targetState) >= bank.questionList.indexOf(initialState)) 1 else -1
+                                    (fadeIn(tween(180)) + slideInHorizontally(tween(220)) { direction * it / 8 }) togetherWith
+                                        (fadeOut(tween(90)) + slideOutHorizontally(tween(180)) { -direction * it / 12 })
+                                }) { renderedQuestion ->
+                            val active = bank.keyOf(renderedQuestion) == bank.keyOf(question) && transition.currentState == transition.targetState
+                            questionStates.SaveableStateProvider(bank.keyOf(renderedQuestion)) {
                             BankQuestionCardInternal(
-                                bank = bank, question = question, store = store, owner = owner,
+                                bank = bank, question = renderedQuestion, store = store, owner = owner,
+                                interactionEnabled = active,
                                 onAnswered = { revision++; onAnswered() },
-                                questionIndex = safeIndex,
+                                questionIndex = list.indexOf(renderedQuestion).takeIf { it >= 0 } ?: bank.questionList.indexOf(renderedQuestion),
                                 onAskAi = { scope ->
-                                    aiQuestionKey = bank.keyOf(question)
-                                    if (aiConfig.ready()) aiScope = scope else aiSettingsOpen = true
+                                    if (active && bank.keyOf(renderedQuestion) == bank.keyOf(list[safeIndex])) {
+                                        aiQuestionKey = bank.keyOf(renderedQuestion)
+                                        if (aiConfig.ready()) aiScope = scope else aiSettingsOpen = true
+                                    }
                                 },
                             )
+                            }
+                            }
                         }
                         item {
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -868,15 +893,31 @@ internal fun BankQuestionCardInternal(
     questionIndex: Int = 0,
     /** 有 AI 配置时给一个「问 AI」入口；为 null 时不显示（如诊断页不提供）。 */
     onAskAi: ((AiScope) -> Unit)? = null,
+    interactionEnabled: Boolean = true,
 ) {
     val questionKey = bank.keyOf(question)
-    var chosen by remember(questionKey) { mutableIntStateOf(-1) }
-    var submitted by remember(questionKey) { mutableStateOf(false) }
-    var wasCorrect by remember(questionKey) { mutableStateOf(false) }
-    var markedUnknown by remember(questionKey) { mutableStateOf(false) }
-    val stats = remember(questionKey, submitted) { store.statsOf(questionKey) }
+    var chosen by rememberSaveable(owner, questionKey) { mutableIntStateOf(-1) }
+    var submitted by rememberSaveable(owner, questionKey) { mutableStateOf(false) }
+    var wasCorrect by rememberSaveable(owner, questionKey) { mutableStateOf(false) }
+    var markedUnknown by rememberSaveable(owner, questionKey) { mutableStateOf(false) }
+    var saveError by rememberSaveable(owner, questionKey) { mutableStateOf<String?>(null) }
+    val stats = remember(owner, questionKey, submitted) { store.statsOf(questionKey) }
+    fun submitAnswer(answer: Int, unknown: Boolean = false) {
+        if (!interactionEnabled || submitted) return
+        val correct = !unknown && answer == question.answer
+        try {
+            store.record(questionId = question.id, materialId = bank.id, materialTitle = bank.title,
+                chosen = answer, correct = correct, questionKey = questionKey, mode = PracticeMode.QUIZ)
+        } catch (cause: Exception) {
+            android.util.Log.e("PracticeStore", "题库作答写入失败", cause)
+            saveError = "回答未保存，请重试。你的选择已保留。"
+            return
+        }
+        markedUnknown = unknown; wasCorrect = correct; submitted = true; saveError = null
+        onAnswered()
+    }
 
-    OutlinedCard(modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+    OutlinedCard(modifier = Modifier.fillMaxWidth().animateContentSize(tween(220)), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -903,6 +944,7 @@ internal fun BankQuestionCardInternal(
                 )
             }
             Text(question.prompt.ifBlank { "（这道题没有题面）" }, fontWeight = FontWeight.SemiBold)
+            saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
             if (bank.subjective && question.type == "prompt") {
                 Text("主观练习 · 不自动判分", color = MaterialTheme.colorScheme.primary,
@@ -927,33 +969,14 @@ internal fun BankQuestionCardInternal(
             } else if (!submitted) {
                 // 未提交：只渲染选项，不泄露任何对错信息。
                 question.options.forEachIndexed { i, option ->
-                    BankChoiceRow(option, chosen == i, letter(i), BankChoiceState.Neutral) {
-                        chosen = i; markedUnknown = false
-                    }
+                    BankChoiceRow(option, chosen == i, letter(i), BankChoiceState.Neutral,
+                        if (interactionEnabled) ({ chosen = i; markedUnknown = false }) else null)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = {
-                        if (chosen < 0) return@Button
-                        val correct = chosen == question.answer
-                        wasCorrect = correct
-                        submitted = true
-                        try {
-                            // 记录里带 bankId 派生的题目键：跨题库不串（docs/plan/57 §一）。
-                            store.record(
-                                questionId = question.id,
-                                materialId = bank.id,
-                                materialTitle = bank.title,
-                                chosen = chosen, correct = correct,
-                                questionKey = questionKey,
-                                mode = PracticeMode.QUIZ,
-                            )
-                            onAnswered()
-                        } catch (cause: Exception) {
-                            android.util.Log.e("PracticeStore", "题库作答写入失败", cause)
-                        }
-                    }) { Text("提交答案") }
-                    if (chosen >= 0) TextButton(onClick = { chosen = -1 }) { Text("清除选择") }
+                FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Button(enabled = interactionEnabled && chosen >= 0,
+                        onClick = { if (chosen >= 0) submitAnswer(chosen) }) { Text("提交答案") }
+                    if (chosen >= 0) TextButton(enabled = interactionEnabled, onClick = { chosen = -1 }) { Text("清除选择") }
                     // B5 A2：做题时直接问 AI（范围明确是「第 N 题」）。放在未提交页也提供 ——
                     // 「这题不会、题干看不懂」正是最需要问的时候，不能只让答完才问。
                     onAskAi?.let { ask ->
@@ -966,24 +989,8 @@ internal fun BankQuestionCardInternal(
                 if (allowUnknown) {
                     // T6：诊断里允许「不认识」——判分把「不认识」算作未掌握，
                     // **不伪造一个对错**（docs/plan/56 §4.4）。
-                    TextButton(onClick = {
-                        markedUnknown = true
-                        wasCorrect = false
-                        submitted = true
-                        try {
-                            store.record(
-                                questionId = question.id,
-                                materialId = bank.id,
-                                materialTitle = bank.title,
-                                chosen = -1, correct = false,
-                                questionKey = questionKey,
-                                mode = PracticeMode.QUIZ,
-                            )
-                            onAnswered()
-                        } catch (cause: Exception) {
-                            android.util.Log.e("PracticeStore", "题库作答写入失败", cause)
-                        }
-                    }) { Text("不认识这个词 / 这句") }
+                    TextButton(enabled = interactionEnabled,
+                        onClick = { submitAnswer(-1, unknown = true) }) { Text("不认识这个词 / 这句") }
                 }
             } else {
                 question.options.forEachIndexed { i, option ->
@@ -1023,8 +1030,8 @@ internal fun BankQuestionCardInternal(
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    Button(onClick = {
-                        chosen = -1; submitted = false; wasCorrect = false; markedUnknown = false
+                    Button(enabled = interactionEnabled, onClick = {
+                        chosen = -1; submitted = false; wasCorrect = false; markedUnknown = false; saveError = null
                     }) { Text("再练这一题") }
                     stats?.let {
                         Text(it.label, style = MaterialTheme.typography.labelSmall,

@@ -68,12 +68,13 @@ class QuestionBankCatalogTest {
         val file = listOf("src/main/java", "app/src/main/java", "../app/src/main/java")
             .map { File(it, path) }.first { it.isFile }
         val source = file.readText()
-        val quiz = source.substringAfter("private fun BankQuizPane(")
+        val quiz = source.substringAfter("internal fun BankQuizPane(")
         assertTrue(quiz.substringBefore(") {").contains("owner: String"))
         assertTrue(quiz.contains("owner = owner,"))
         assertFalse(quiz.contains("owner = \"question\","))
         assertFalse(source.contains("wrongCount = remember(bank.id, revision)"))
-        assertTrue(quiz.contains("aiQuestionKey = bank.keyOf(question)"))
+        assertTrue(quiz.contains("aiQuestionKey = bank.keyOf(renderedQuestion)"))
+        assertTrue(quiz.contains("bank.keyOf(renderedQuestion) == bank.keyOf(list[safeIndex])"))
         assertTrue(quiz.contains("scopeKey = aiQuestionKey,"))
     }
 

@@ -54,7 +54,20 @@ class LearningMotionPreviewActivity : ComponentActivity() {
                                 Text("本地示例 · 学习走查", style = MaterialTheme.typography.labelSmall)
                                 if (timetableRequests > 0) Text("课表入口请求：$timetableRequests", style = MaterialTheme.typography.labelSmall)
                                 Box(Modifier.weight(1f)) {
-                                    if (intent.getBooleanExtra("wordMotion", false)) {
+                                    if (intent.getBooleanExtra("quizMotion", false)) {
+                                        var closed by remember { mutableStateOf(false) }
+                                        val store = remember { cn.tonglu.app.data.listening.PracticeStore(
+                                            File(previewContext.filesDir, "qa-quiz-attempts"), "qa-quiz-motion") }
+                                        val bank = remember { cn.tonglu.app.data.question.QuestionBank(
+                                            id = "qa-motion-bank", title = "本地示例 · 切题走查",
+                                            sourceNote = "本地走查示例题，提交仅写隔离测试记录，不是真题。", license = "项目自编示例",
+                                            questions = (1..3).map { n -> cn.tonglu.app.data.question.BankQuestion(
+                                                id = "q$n", prompt = "示例题 $n：选择 A", options = listOf("Q${n}_A", "Q${n}_B"),
+                                                answer = 0, explanation = "本地示例解析 $n") }) }
+                                        if (closed) Text("题库走查已返回")
+                                        else cn.tonglu.app.ui.learning.BankQuizPane(bank, "qa-quiz-motion", store,
+                                            onExit = { closed = true }, onAnswered = {})
+                                    } else if (intent.getBooleanExtra("wordMotion", false)) {
                                         var ready by remember { mutableStateOf(false) }
                                         var setupError by remember { mutableStateOf<String?>(null) }
                                         var closed by remember { mutableStateOf(false) }
