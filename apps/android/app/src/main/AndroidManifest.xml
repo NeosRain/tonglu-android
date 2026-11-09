@@ -67,10 +67,10 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="portrait">
-            <!-- 锁竖屏（2026-10-05 用户报告「变成横屏了」）：校园课表/首页卡都是按竖屏设计的，
-                 跟随系统旋转会拿到横屏配置，整页布局被拉宽、右侧内容挤出屏幕。
-                 tools:ignore 不需要——锁定方向对 targetSdk 没有额外要求。 -->
+            android:screenOrientation="fullUser"
+            android:resizeableActivity="true">
+            <!-- 向系统声明支持平板旋转和分屏；普通手机的竖屏偏好由MainActivity保留。
+                 导航按实际窗口宽高选择侧栏或底栏，不按设备型号硬编码。 -->
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/launcher_shortcuts" />
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -54,7 +54,34 @@ class LearningMotionPreviewActivity : ComponentActivity() {
                                 Text("本地示例 · 学习走查", style = MaterialTheme.typography.labelSmall)
                                 if (timetableRequests > 0) Text("课表入口请求：$timetableRequests", style = MaterialTheme.typography.labelSmall)
                                 Box(Modifier.weight(1f)) {
-                                    if (intent.getBooleanExtra("quizMotion", false)) {
+                                    if (intent.getBooleanExtra("dailyMotion", false)) {
+                                        var ready by remember { mutableStateOf(false) }
+                                        var setupError by remember { mutableStateOf<String?>(null) }
+                                        var closed by remember { mutableStateOf(false) }
+                                        var lookedUp by remember { mutableStateOf("") }
+                                        LaunchedEffect(Unit) {
+                                            try {
+                                                val repo = cn.tonglu.app.data.english.EnglishRepository(previewContext)
+                                                val book = "qa-daily-motion-book"
+                                                repo.dao.book(cn.tonglu.app.data.english.EnglishBook(book,
+                                                    "本地示例 · 例句走查", "本地示例", 3, "1", source = "项目自编示例", license = "项目自编示例"))
+                                                repo.dao.words(listOf(
+                                                    cn.tonglu.app.data.english.EnglishWord("qa-daily-forest", "forest", "森林",
+                                                        example = "The forest is calm.", exampleTranslation = "森林很安静。", wordBank = book, position = 1),
+                                                    cn.tonglu.app.data.english.EnglishWord("qa-daily-note", "note", "笔记",
+                                                        example = "We read a short note.", exampleTranslation = "我们读一篇短笔记。", wordBank = book, position = 2),
+                                                    cn.tonglu.app.data.english.EnglishWord("qa-daily-light", "light", "光",
+                                                        example = "Soft light fills the room.", exampleTranslation = "柔光洒满房间。", wordBank = book, position = 3)))
+                                                repo.dao.settings(cn.tonglu.app.data.english.EnglishSettings("qa-daily-motion", book))
+                                                ready = true
+                                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                                            catch (cause: Exception) { setupError = cause.message ?: "例句走查准备失败" }
+                                        }
+                                        if (closed) Text("例句走查已返回 · 查词请求：$lookedUp")
+                                        else if (ready) cn.tonglu.app.ui.learning.DailySentencePane("qa-daily-motion",
+                                            onClose = { closed = true }, onLookupWord = { lookedUp = it })
+                                        else Text(setupError ?: "正在准备本地示例例句")
+                                    } else if (intent.getBooleanExtra("quizMotion", false)) {
                                         var closed by remember { mutableStateOf(false) }
                                         val store = remember { cn.tonglu.app.data.listening.PracticeStore(
                                             File(previewContext.filesDir, "qa-quiz-attempts"), "qa-quiz-motion") }

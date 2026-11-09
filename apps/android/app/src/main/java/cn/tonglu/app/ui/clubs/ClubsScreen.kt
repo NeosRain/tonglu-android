@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.clubs
 
+import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -154,7 +156,7 @@ internal fun ClubsScreen(
         LazyColumn(Modifier.fillMaxWidth().fillMaxHeight().clipToBounds()
             .morphRailClip(fullWidthPx, morph)
             .morphHeadingLift(morph, HEADING_LIFT_DP + if (showExamples) 28f else 0f),
-            state = listState, contentPadding = PaddingValues(top = topInset, bottom = 116.dp)) {
+            state = listState, contentPadding = PaddingValues(top = topInset, bottom = LocalMainNavigationBottomPadding.current)) {
             item(key = "heading") {
                 Box(Modifier.fillMaxWidth().height(HEADING_LIFT_DP.dp).clipToBounds()) {
                     Row(Modifier.wrapContentWidth(Alignment.Start, unbounded = true).width(fullWidth)
@@ -213,7 +215,7 @@ internal fun ClubsScreen(
                     (fadeIn(tween(160)) + slideInHorizontally(tween(220)) { it / 10 }) togetherWith
                         fadeOut(tween(120))
                 }, label = "社团分组切换") { club ->
-                    ClubTopics(club, workspace.showInfo && club.id == current.id, bottomInset = 116.dp,
+                    ClubTopics(club, workspace.showInfo && club.id == current.id, bottomInset = LocalMainNavigationBottomPadding.current,
                         signedIn = state.session != null, myUserId = state.session?.userId ?: "",
                         workspace = workspace, actions = channelActions,
                         postsActions = postsActions,

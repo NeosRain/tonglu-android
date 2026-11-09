@@ -15,6 +15,8 @@ import androidx.compose.ui.unit.dp
 import cn.tonglu.app.BuildConfig
 import cn.tonglu.app.data.update.AppUpdates
 import cn.tonglu.app.data.update.UpdateChannel
+import cn.tonglu.app.data.update.UpdateTransfer
+import cn.tonglu.app.data.update.UpdateUiState
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.OverlayDismissGuard
 
@@ -32,8 +34,8 @@ internal fun AppUpdateHost() {
         title = { Text("苔米林 ${release.versionName} 可以更新", color = AppColors.TextPrimary) },
         text = { Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(release.notes, color = AppColors.TextSecondary)
-            Text("${release.size / 1_000_000} MB · 下载后由系统确认安装", color = AppColors.TextMuted)
-            if (state.downloading) Text("下载中 ${state.progress}%", color = AppColors.Accent)
+            UpdateTransferStatus(state)
+            Text("下载后由系统确认安装", color = AppColors.TextMuted)
             state.error?.let { Text(it, color = AppColors.Danger) }
         } },
         confirmButton = { TextButton(enabled = !state.downloading && !state.checking, onClick = {
@@ -70,7 +72,7 @@ internal fun UpdateSettingsCard() {
             }
             Text("启动时及系统允许时检查，发现新版本提示。文章、目录等内容沿用在线更新。", color = AppColors.TextMuted)
             state.error?.let { Text(it, color = AppColors.Danger) }
-            if (state.downloading) Text("下载中 ${state.progress}%", color = AppColors.Accent)
+            if (state.release != null) UpdateTransferStatus(state)
             else if (!state.checking && state.release == null && state.error == null) Text("当前未发现新版本", color = AppColors.TextMuted)
             FlowRow {
                 TextButton(onClick = { AppUpdates.check(c, manual = true) }, enabled = !state.checking && !state.downloading) { Text(if (state.checking) "检查中…" else "检查更新") }
@@ -79,4 +81,20 @@ internal fun UpdateSettingsCard() {
             }
         }
     }
+}
+
+@Composable
+private fun UpdateTransferStatus(state: UpdateUiState) {
+    fun mb(bytes: Long) = String.format(java.util.Locale.getDefault(), "%.1f MB", bytes / 1_000_000.0)
+    val message = when (state.transfer) {
+        UpdateTransfer.CheckingBase -> "正在核对现有安装包，匹配增量更新…"
+        UpdateTransfer.Delta -> "增量更新 · ${mb(state.transferBytes ?: 0)}"
+        UpdateTransfer.Full -> "完整更新 · ${mb(state.transferBytes ?: 0)}"
+        null -> state.release?.let { "完整安装包 ${mb(it.size)} · 下载前自动匹配增量" }.orEmpty()
+    }
+    Text(message, color = AppColors.TextSecondary)
+    state.transferNotice?.let { Text(it, color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
+    if (state.downloading && state.transfer != UpdateTransfer.CheckingBase)
+        Text("下载中 ${state.progress}%", color = AppColors.Accent)
+    if (state.ready) Text("安装包已校验，可以安装", color = AppColors.Accent)
 }

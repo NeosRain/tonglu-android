@@ -2,11 +2,13 @@ package cn.tonglu.app.data.english
 
 import android.content.Context
 import android.util.Log
+import android.util.AtomicFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 import java.time.LocalDate
 import java.time.ZoneId
@@ -111,21 +113,35 @@ class DailySentenceStore(context: Context, private val owner: String) {
         set
     }
 
-    /** 是否已收藏某句。 */
-    fun favorites(): Set<String> = try {
-        if (!favFile.exists()) emptySet()
-        else JSONArray(favFile.readText()).let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() }
-    } catch (cause: Exception) { Log.w("DailySentence", "收藏读取失败", cause); emptySet() }
+    private val favoriteLock = Any()
+    /** 读取失败须交给界面说明，不能拿空集合覆盖已有收藏。 */
+    fun favorites(): Set<String> = synchronized(favoriteLock) {
+        val atomic = AtomicFile(favFile)
+        if (!favFile.exists() && !File(favFile.path + ".bak").exists()) emptySet()
+        else atomic.openRead().bufferedReader().use { reader ->
+            JSONArray(reader.readText()).let { arr -> (0 until arr.length()).map { arr.getString(it) }.toSet() }
+        }
+    }
 
     /** 收藏 / 取消收藏。返回收藏后的状态。 */
-    fun toggleFavorite(id: String): Boolean {
+    fun toggleFavorite(id: String): Boolean = synchronized(favoriteLock) {
         val now = favorites().toMutableSet()
         val added = if (id in now) { now.remove(id); false } else { now.add(id); true }
+        val bytes = JSONArray().apply { now.forEach { put(it) } }.toString().toByteArray(Charsets.UTF_8)
+        val atomic = AtomicFile(favFile)
+        favFile.parentFile?.mkdirs()
+        val stream = atomic.startWrite()
         try {
-            favFile.parentFile?.mkdirs()
-            favFile.writeText(JSONArray().apply { now.forEach { put(it) } }.toString())
-        } catch (cause: Exception) { Log.w("DailySentence", "收藏保存失败", cause) }
-        return added
+            stream.write(bytes)
+            stream.fd.sync()
+            atomic.finishWrite(stream)
+        } catch (cause: Exception) {
+            atomic.failWrite(stream)
+            throw cause
+        }
+        // AtomicFile.finishWrite在某些系统上只记录重命名失败，回读确认后才能报成功。
+        if (!atomic.openRead().use { it.readBytes() }.contentEquals(bytes)) throw IOException("收藏写入未完成")
+        added
     }
 
     /**

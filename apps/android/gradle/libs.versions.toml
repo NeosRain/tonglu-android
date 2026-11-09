@@ -17,6 +17,7 @@ jsoup = "1.21.1"
 room = "2.8.4"
 ksp = "2.3.10"
 markdown = "0.45.0"
+richEditor = "1.1.0"
 readerCoil = "3.6.0"
 datastore = "1.1.7"
 # Glance（桌面小部件）。稳定版 1.2.0（2026-08-26），minSdk 23 ≤ 本项目的 24。
@@ -24,6 +25,7 @@ datastore = "1.1.7"
 glance = "1.2.0"
 
 [libraries]
+compose-rich-editor = { module = "com.mohamedrejeb.richeditor:richeditor-compose", version.ref = "richEditor" }
 androidx-activity-compose = { module = "androidx.activity:activity-compose", version.ref = "activityCompose" }
 androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeBom" }
 androidx-compose-ui = { module = "androidx.compose.ui:ui" }

@@ -1,5 +1,6 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-    <application>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+    <application android:label="${debugAppLabel}" tools:replace="android:label">
+        <activity android:name=".ui.UpdateQaActivity" android:exported="true" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.LearningMotionPreviewActivity" android:exported="true"
             android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".MemoryProtocolProbeActivity" android:exported="true" />

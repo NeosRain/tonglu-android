@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.learning
 
+import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
+
 import cn.tonglu.app.ui.*
 import androidx.activity.compose.BackHandler
 
@@ -358,7 +360,7 @@ internal fun LearningScreen(
     LazyColumn(
         state = libraryListState,
         modifier = Modifier.fillMaxSize().learningScrollViewport(topInset),
-        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = topInset + 8.dp, bottom = 116.dp),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = topInset + 8.dp, bottom = LocalMainNavigationBottomPadding.current),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         item(key = "library-heading") {

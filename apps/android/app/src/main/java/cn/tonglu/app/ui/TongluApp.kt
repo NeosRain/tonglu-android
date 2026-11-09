@@ -171,6 +171,7 @@ import cn.tonglu.app.ui.glass.LiquidBottomTabs
 import cn.tonglu.app.ui.glass.LiquidBottomTab
 import cn.tonglu.app.ui.glass.rememberBarAutoHide
 import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.glass.drawFrostSurface
 import cn.tonglu.app.ui.competition.CompetitionScreen
 import cn.tonglu.app.ui.exam.ExamCalendarScreen
 import cn.tonglu.app.ui.exam.ExamDetailSheet
@@ -562,7 +563,13 @@ private fun TongluAppContent(viewModel: AppViewModel) {
         snackbarHost = { SnackbarHost(snackbar) },
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
     ) { padding ->
-        Box(Modifier.fillMaxSize()) {
+        BoxWithConstraints(Modifier.fillMaxSize()) {
+            val windowWidth = maxWidth
+            // Use the actual window: split-screen and landscape phones must not be treated as tablets by model name.
+            val useRail = maxWidth >= 600.dp && maxHeight >= 480.dp
+            val railSpace = if (useRail) 108.dp else 0.dp
+            CompositionLocalProvider(LocalMainNavigationBottomPadding provides
+                if (useRail) WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding() + 20.dp else 116.dp) {
             Column(
                 Modifier
                     .fillMaxSize()
@@ -570,6 +577,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     // 底栏「上滑隐藏 / 下滑出现」：在内容之上拦一层滚动位移
                     .nestedScroll(barAutoHide.connection)
                     .then(if (useGlassNav) Modifier.liquidLayerBackdrop(liquidBackdrop) else Modifier)
+                    .padding(start = railSpace)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(
                         if (useGlassNav) WindowInsetsSides.Horizontal
                         else WindowInsetsSides.Top + WindowInsetsSides.Horizontal,
@@ -595,7 +603,8 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 androidx.compose.runtime.key(tabs) {
                 HorizontalPager(state = mainPager, modifier = Modifier.weight(1f).fillMaxWidth(),
                     beyondViewportPageCount = BEYOND_PAGES, key = { tabs[it] }) { page ->
-                Box(Modifier.fillMaxSize().graphicsLayer()) {
+                Box(Modifier.fillMaxSize().graphicsLayer(), contentAlignment = Alignment.TopCenter) {
+                Box(Modifier.widthIn(max = if (tabs[page] == "首页") windowWidth else 960.dp).fillMaxSize()) {
                 when (tabs[page]) {
                     "首页" -> CompositionLocalProvider(LocalCourseColors provides courseColors) { HomeScreen(
                         state = state,
@@ -738,6 +747,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 }
                 }
                 }
+                }
             }
             if (useGlassNav) {
                 // 顶栏玻璃条：必须做成叠加层。如果放在上面的 Column 里，它采样到的是自己所在的那层，
@@ -745,7 +755,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 GlassTopBar(
                     backdrop = liquidBackdrop,
                     modifier = Modifier
-                        .align(Alignment.TopCenter),
+                        .align(Alignment.TopCenter).padding(start = railSpace),
                 ) {
                     // 返回穿透冷却期：整条顶栏这一小会儿点不动（见 OverlayDismissGuard）。
                     // 判一次、传给三个控件，而不是各自去读 —— 免得出现「搜索框解禁了、头像还没有」的错位。
@@ -775,7 +785,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     }
                     }
                 }
-                if (!navigationImeVisible) GlassBottomBar(
+                if (!useRail && !navigationImeVisible) GlassBottomBar(
                     tabs = tabs,
                     filledIcons = filledIcons,
                     outlinedIcons = outlinedIcons,
@@ -786,7 +796,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             } else {
-                if (!navigationImeVisible) CoolapkNavigationBar(
+                if (!useRail && !navigationImeVisible) CoolapkNavigationBar(
                     tabs = tabs,
                     filledIcons = filledIcons,
                     outlinedIcons = outlinedIcons,
@@ -794,6 +804,11 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     onSelect = tabNavigator::select,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
+            }
+            if (useRail && !navigationImeVisible) TabletNavigationRail(
+                tabs, filledIcons, outlinedIcons, mainPager.targetPage, tabNavigator::select, liquidBackdrop, useGlassNav,
+                Modifier.align(Alignment.CenterStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 12.dp, vertical = 16.dp),
+            )
             }
         }
     }
@@ -1191,9 +1206,7 @@ private fun GlassBottomBar(
     ) {
         tabs.forEachIndexed { index, title ->
             val selected = selectedTab == index
-            // 选中态主题色由指示器胶囊"吸"上来；这里给图标和文字一个基础着色。
-            // 底色是浅色玻璃（GlassTokens.DarkGlass 恒为 false），图标就用深色灰，别转白。
-            val tint = if (selected) NavAccent else NavInactive
+            val tint = if (selected) GlassTokens.AccentOnGlass else NavInactive
             LiquidBottomTab(index = index, onClick = { onSelect(index) }) {
                 Icon(
                     if (selected) filledIcons[index] else outlinedIcons[index],
@@ -1249,15 +1262,15 @@ private fun SearchField(
     val shape = RoundedCornerShape(GlassTokens.SearchCornerDp.dp)
     // 玻璃模式下搜索框是**自己一块磨砂玻璃**：底色调实到能看清字，
     // 再叠一层 blur + 折射 + 光影。老版本只铺 alpha=0.12 的浅色，近乎全透 → 看不清。
-    val glassSurface = if (dark) Color(0xFF15171C).copy(alpha = 0.52f)
-        else AppColors.Surface.copy(alpha = 0.52f)
+    val glassSurface = if (dark) GlassTokens.ContainerDark else GlassTokens.ContainerLight
+    val hintInk = if (onGlass) AppColors.TextSecondary else Muted
     val decor: Modifier = if (onGlass && backdrop != null) {
         Modifier.drawBackdrop(
             backdrop = backdrop,
             shape = { shape },
             effects = {
                 vibrancy()
-                blur(24.dp.toPx())
+                blur(GlassTokens.SearchBlurDp.dp.toPx())
                 lens(GlassTokens.SearchLensRadiusDp.dp.toPx(), GlassTokens.SearchLensAmountDp.dp.toPx(),
                     chromaticAberration = GlassTokens.ChromaticAberration)
             },
@@ -1265,7 +1278,7 @@ private fun SearchField(
             shadow = { Shadow(alpha = GlassTokens.SearchShadowAlpha) },
             innerShadow = { InnerShadow(radius = GlassTokens.SearchInnerShadowRadiusDp.dp,
                 alpha = GlassTokens.SearchInnerShadowAlpha) },
-            onDrawSurface = { drawRect(glassSurface) },
+            onDrawSurface = { drawFrostSurface(glassSurface, GlassTokens.SearchSurfaceAlpha) },
         )
     } else {
         // 非玻璃模式：老老实实一块实色方框
@@ -1279,7 +1292,7 @@ private fun SearchField(
         // 图标即「提交」：学习页点它 = 问 AI（回车同效）。无 onSubmit 时只是装饰。
         val searchIcon: @Composable () -> Unit = {
             Icon(Icons.Outlined.Search, contentDescription = if (onSubmit != null) "搜索" else null,
-                modifier = Modifier.size(16.dp), tint = Muted)
+                modifier = Modifier.size(16.dp), tint = hintInk)
         }
         if (onSubmit != null) {
             Box(Modifier.size(26.dp).clip(CircleShape).clickable(enabled = enabled, onClick = onSubmit),
@@ -1290,7 +1303,7 @@ private fun SearchField(
         Spacer(Modifier.width(6.dp))
         Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
             if (value.isEmpty() && !focused) {
-                Text(hint, color = Muted, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(hint, color = hintInk, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             BasicTextField(
                 value = value,
@@ -1303,7 +1316,7 @@ private fun SearchField(
                     .semantics { if (value.isEmpty()) contentDescription = hint },
                 singleLine = true,
                 textStyle = TextStyle(color = NavInk, fontSize = 13.sp),
-                cursorBrush = SolidColor(Accent),
+                cursorBrush = SolidColor(if (onGlass) GlassTokens.AccentOnGlass else Accent),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
                     onSubmit?.invoke(); focusManager.clearFocus()

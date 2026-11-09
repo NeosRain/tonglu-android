@@ -114,6 +114,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Keep the phone's portrait preference; large screens now have a window-adaptive layout.
+        // FULL_USER also respects the owner's system rotation lock.
+        requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= 600 || isInMultiWindowMode)
+            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         // 旧版 Android 同样从屏幕边缘绘制；各控件自行避让状态栏与挖孔。
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),

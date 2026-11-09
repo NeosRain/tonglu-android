@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.profile
 
+import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
+
 import android.os.Build
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -193,7 +195,7 @@ internal fun ProfileScreen(
         confirmButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false; onAcademicSync() }) { Text("开始同步") } },
         dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false }) { Text("取消") } })
     LazyColumn(Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = topInset + 18.dp, bottom = 116.dp),
+        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = topInset + 18.dp, bottom = LocalMainNavigationBottomPadding.current),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {

@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.home
 
+import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -176,7 +178,7 @@ internal fun HomeScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp + topInset, bottom = 116.dp),
+            contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp + topInset, bottom = LocalMainNavigationBottomPadding.current),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             holidayToday?.let { span -> item { HolidayBanner(span) } }

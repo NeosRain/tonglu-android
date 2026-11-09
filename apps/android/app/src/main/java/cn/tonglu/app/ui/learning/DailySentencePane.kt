@@ -1,6 +1,8 @@
 package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -11,6 +13,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -34,11 +37,15 @@ import cn.tonglu.app.data.speech.SpeechResult
 import cn.tonglu.app.data.speech.SpeechService
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
+import cn.tonglu.app.ui.OverlayEnter
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
 
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * 每日例句（docs/plan/56 §6.3 A3）。
@@ -58,14 +65,15 @@ internal fun DailySentencePane(owner: String, onClose: () -> Unit, onLookupWord:
     val scope = rememberCoroutineScope()
 
     var set by remember(owner) { mutableStateOf<DailySentenceSet?>(null) }
-    var loading by remember { mutableStateOf(true) }
-    var favorites by remember(owner) { mutableStateOf(store.favorites()) }
+    var loading by remember(owner) { mutableStateOf(true) }
+    var favorites by remember(owner) { mutableStateOf<Set<String>>(emptySet()) }
+    var favoriteSaving by remember(owner) { mutableStateOf<String?>(null) }
     // 例句线的完成记录：今天朗读过几句（挖空没有判定，记不了「答案」，见 store 里的说明）。
     var spokenToday by remember(owner) { mutableIntStateOf(store.spokenToday()) }
-    var clozeOn by remember(owner) { mutableStateOf(false) }
+    var clozeOn by rememberSaveable(owner) { mutableStateOf(false) }
     var wordsById by remember(owner) { mutableStateOf<Map<String, EnglishWord>>(emptyMap()) }
-    var expanded by remember(owner) { mutableStateOf<String?>(null) }
-    var notice by remember { mutableStateOf<String?>(null) }
+    var expanded by rememberSaveable(owner) { mutableStateOf<String?>(null) }
+    var notice by remember(owner) { mutableStateOf<String?>(null) }
     var speechProblem by remember { mutableStateOf<SpeechProblem?>(null) }
 
     val speech = remember { SpeechService(context) { problem -> speechProblem = problem } }
@@ -74,6 +82,12 @@ internal fun DailySentencePane(owner: String, onClose: () -> Unit, onLookupWord:
 
     LaunchedEffect(owner) {
         loading = true
+        try { favorites = withContext(Dispatchers.IO) { store.favorites() } }
+        catch (cancelled: CancellationException) { throw cancelled }
+        catch (cause: Exception) {
+            android.util.Log.w("DailySentence", "收藏读取失败", cause)
+            notice = "收藏暂时无法读取，已有收藏未修改。请稍后重试。"
+        }
         try {
             // 取词口径与背词页一致：优先没背过的词，不够再补到期词，避免「首页说学这些、背词页说学那些」。
             // 这里只取一次当前值（本页是一次性展示），不长期订阅。
@@ -85,7 +99,8 @@ internal fun DailySentencePane(owner: String, onClose: () -> Unit, onLookupWord:
             // 词库还没下或没例句 → 句子自然为空，界面如实说明，不硬编几句假句充数。
             wordsById = pool.associateBy { it.english.lowercase() }
             set = store.today(pool)
-        } catch (cause: Exception) {
+        } catch (cancelled: CancellationException) { throw cancelled }
+        catch (cause: Exception) {
             android.util.Log.w("DailySentence", "生成失败", cause)
             notice = "例句生成失败：${cause.message ?: cause::class.java.simpleName}"
         } finally { loading = false }
@@ -113,56 +128,69 @@ internal fun DailySentencePane(owner: String, onClose: () -> Unit, onLookupWord:
     )
     Dialog(onDismissRequest = { motion.requestClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = MaterialTheme.colorScheme.background) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false, enter = OverlayEnter.Right), color = MaterialTheme.colorScheme.background) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { dismiss() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语") }
+                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语") }
                     Text("每日例句", Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                     TextButton(onClick = { clozeOn = !clozeOn }) { Text(if (clozeOn) "看原文" else "挖空练习") }
                 }
-                if (loading) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                    return@Column
-                }
-                val current = set
-                if (current == null || current.sentences.isEmpty()) {
-                    Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("今天还没有可用的例句。", fontWeight = FontWeight.SemiBold)
-                        Text("例句取自你自己词书里的词条。先下载一本词库、并选几个还没背过的词，这里就会有内容。" +
-                            "换了词书或换一天，句子会跟着更新。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                AnimatedContent(targetState = loading to set, modifier = Modifier.weight(1f),
+                    label = "daily-content",
+                    transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(90)) }) { (isLoading, current) ->
+                    if (isLoading) {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    } else if (current == null || current.sentences.isEmpty()) {
+                        Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Text("今天还没有可用的例句。", fontWeight = FontWeight.SemiBold)
+                            Text("例句取自你自己词书里的词条。先下载一本词库、并选几个还没背过的词，这里就会有内容。" +
+                                "换了词书或换一天，句子会跟着更新。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    } else {
+                        val active = current == set && !loading && transition.currentState == transition.targetState
+                        Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Text("今天 ${current.localDate} 的 ${current.sentences.size} 句 · 今日已朗读 $spokenToday 句" +
+                                "（同一句里的词今天出现过，点开可核对）",
+                                style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            current.sentences.forEach { sentence ->
+                                SentenceCard(
+                                    sentence = sentence,
+                                    cloze = clozeOn,
+                                    favorite = sentence.id in favorites,
+                                    favoriteEnabled = active && favoriteSaving == null,
+                                    expanded = expanded == sentence.id,
+                                    words = sentence.wordIds.mapNotNull { wordsById[it.lowercase()] },
+                                    onSpeak = { if (active) speak(sentence.text, sentence.id) },
+                                    onToggleFavorite = {
+                                        if (active && favoriteSaving == null) {
+                                            favoriteSaving = sentence.id
+                                            scope.launch {
+                                                try {
+                                                    val added = withContext(Dispatchers.IO) { store.toggleFavorite(sentence.id) }
+                                                    favorites = if (added) favorites + sentence.id else favorites - sentence.id
+                                                } catch (cancelled: CancellationException) { throw cancelled }
+                                                catch (cause: Exception) {
+                                                    android.util.Log.w("DailySentence", "收藏保存失败", cause)
+                                                    notice = "收藏未保存，请重试。已有收藏未修改。"
+                                                } finally { favoriteSaving = null }
+                                            }
+                                        }
+                                    },
+                                    onToggleExpand = { if (active) expanded = if (expanded == sentence.id) null else sentence.id },
+                                    onLookup = { if (active) onLookupWord(it) },
+                                )
+                            }
+                            Text("这些句子是词书里原有的例句，用来在真实语境里复习。AI 讲解是可选的，" +
+                                "没有配置 API 也能正常用、能朗读。",
+                                style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Spacer(Modifier.height(8.dp))
+                        }
                     }
-                    return@Column
-                }
-                Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text("今天 ${current.localDate} 的 ${current.sentences.size} 句 · 今日已朗读 $spokenToday 句" +
-                        "（同一句里的词今天出现过，点开可核对）",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    current.sentences.forEach { sentence ->
-                        SentenceCard(
-                            sentence = sentence,
-                            cloze = clozeOn,
-                            favorite = sentence.id in favorites,
-                            expanded = expanded == sentence.id,
-                            words = sentence.wordIds.mapNotNull { wordsById[it.lowercase()] },
-                            onSpeak = { speak(sentence.text, sentence.id) },
-                            onToggleFavorite = {
-                                val added = store.toggleFavorite(sentence.id)
-                                favorites = store.favorites()
-                                notice = if (added) "已收藏这句" else "已取消收藏"
-                            },
-                            onToggleExpand = { expanded = if (expanded == sentence.id) null else sentence.id },
-                            onLookup = { onLookupWord(it) },
-                        )
-                    }
-                    Text("这些句子是词书里原有的例句，用来在真实语境里复习。AI 讲解是可选的，" +
-                        "没有配置 API 也能正常用、能朗读。",
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.height(8.dp))
                 }
             }
         }
@@ -189,6 +217,7 @@ private fun SentenceCard(
     sentence: DailySentence,
     cloze: Boolean,
     favorite: Boolean,
+    favoriteEnabled: Boolean,
     expanded: Boolean,
     words: List<EnglishWord>,
     onSpeak: () -> Unit,
@@ -198,42 +227,56 @@ private fun SentenceCard(
 ) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.large) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(if (cloze) sentence.cloze() else sentence.text,
-                fontSize = 18.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp)
-            if (!cloze && sentence.translation.isNotBlank()) {
-                Text(sentence.translation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            AnimatedContent(targetState = cloze, label = "daily-cloze",
+                transitionSpec = { fadeIn(tween(150)) togetherWith fadeOut(tween(90)) }) { isCloze ->
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(if (isCloze) sentence.cloze() else sentence.text,
+                        fontSize = 18.sp, fontWeight = FontWeight.Medium, lineHeight = 26.sp)
+                    if (!isCloze && sentence.translation.isNotBlank()) {
+                        Text(sentence.translation, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    if (isCloze) Text("把横线处补全，再点「看原文」对照。",
+                        style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-            if (cloze) Text("把横线处补全，再点「看原文」对照。",
-                style = MaterialTheme.typography.bodySmall, fontStyle = FontStyle.Italic,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 TextButton(onClick = onSpeak) {
                     Icon(Icons.AutoMirrored.Outlined.VolumeUp, null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp)); Text("朗读")
                 }
-                TextButton(onClick = onToggleFavorite) {
-                    Icon(if (favorite) Icons.Filled.Star else Icons.Outlined.StarBorder, null,
-                        modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp)); Text(if (favorite) "已收藏" else "收藏")
+                TextButton(enabled = favoriteEnabled, onClick = onToggleFavorite) {
+                    AnimatedContent(targetState = favorite, label = "daily-favorite",
+                        transitionSpec = { fadeIn(tween(120)) togetherWith fadeOut(tween(90)) }) { selected ->
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (selected) Icons.Filled.Star else Icons.Outlined.StarBorder, null,
+                                modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp)); Text(if (selected) "已收藏" else "收藏")
+                        }
+                    }
                 }
                 TextButton(onClick = onToggleExpand) { Text(if (expanded) "收起覆盖词" else "这些词今天出现过") }
             }
-            if (expanded) {
-                if (words.isEmpty()) {
-                    Text("这些词的词条已不在当前词书里（可能换了词书）。",
-                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                } else words.forEach { word ->
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text(word.english, fontWeight = FontWeight.Medium)
-                        Text(word.chinese, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall, maxLines = 1)
-                        TextButton(onClick = { onLookup(word.english) }) { Text("查词") }
+            AnimatedVisibility(visible = expanded,
+                enter = expandVertically(tween(220)) + fadeIn(tween(150)),
+                exit = shrinkVertically(tween(180)) + fadeOut(tween(90))) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (words.isEmpty()) {
+                        Text("这些词的词条已不在当前词书里（可能换了词书）。",
+                            style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    } else words.forEach { word ->
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(word.english, fontWeight = FontWeight.Medium)
+                            Text(word.chinese, Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodySmall, maxLines = 1)
+                            TextButton(onClick = { onLookup(word.english) }) { Text("查词") }
+                        }
                     }
+                    // 难度只说得出「词在词书里的相对位置」—— 明确不宣称这是 CEFR / 四六级难度。
+                    Text("难度按词在词书中的位置估：${sentence.level}。不是 CEFR / 四六级等级。",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                // 难度只说得出「词在词书里的相对位置」—— 明确不宣称这是 CEFR / 四六级难度。
-                Text("难度按词在词书中的位置估：${sentence.level}。不是 CEFR / 四六级等级。",
-                    style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
     }

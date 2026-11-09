@@ -17,7 +17,11 @@
 package cn.tonglu.app.ui.glass
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import cn.tonglu.app.ui.AppTheme
+import cn.tonglu.app.ui.AppColors
 
 /**
  * 液态玻璃的**统一视觉参数**。
@@ -27,52 +31,26 @@ import cn.tonglu.app.ui.AppTheme
  */
 internal object GlassTokens {
 
-    /**
-     * 玻璃组件按深色渲染吗？**目前恒为 false**。
-     *
-     * 原因：MainActivity 里写死了 `colorScheme = lightColorScheme(...)`，
-     * 也就是 App 整体**不跟随系统深色** —— 页面背景、文字、酷安风底栏在夜间都还是浅色。
-     * 玻璃若单独去读 `isSystemInDarkTheme()`，就会出现「底栏是黑的、页面是白的」的割裂
-     * （2026-09-30 实测出来的），所以这里统一按浅色走。
-     *
-     * 等 App 真正接入深色主题时，只需把这里改成读 App 自己的深色开关，
-     * 顶栏和底栏会一起跟着变，不会出现只有一条栏变色的情况。
-     */
-    // 2026-10-08：按其注释接好 —— 读 App 自己的开关（**不是**系统夜间，别改回去）。
+    /** 主题跟随应用的主题选择，顶栏、底栏与输入面板同步。 */
     val DarkGlass: Boolean get() = AppTheme.darkState
 
-    /** 玻璃底色（浅色主题）：比纯白略灰一点，静置时轮廓更清楚 */
-    val ContainerLight = Color(0xFFF1F2F5)
+    /** 玻璃底色（浅色主题）：乳白底色，配合柔和阴影与高光形成可见面板 */
+    val ContainerLight = Color(0xFFFFFFFF)
 
     /** 玻璃底色（深色主题） */
-    val ContainerDark = Color(0xFF15171C)
+    val ContainerDark = Color(0xFF34373E)
 
-    /**
-     * 「实体档」玻璃底色（浅色主题）：**纯白**。
-     *
-     * 2026-10-10 实测：默认档 [ContainerLight]（241,242,245）按 [ContainerAlpha]=0.68
-     * 叠在亮度约 245 的页面背景上，结果和背景只差 **1.7** —— 玻璃几乎没有辨识度，
-     * 看着像「什么都没有」，而不是「一块玻璃」（酷安那条底边比背后亮 **+15.9**）。
-     * 纯白才能把这块条从背景里拉出来。
-     */
+    /** A lifted smoke surface needs a lighter accent than the page canvas. */
+    val AccentOnGlass: Color get() = if (DarkGlass) lerp(AppColors.Accent, Color.White, .65f) else AppColors.Accent
+
+    /** 更凝实面板沿用同一乳白底色，以不透明度和光影区分密度。 */
     val PanelSolidLight = Color(0xFFFFFFFF)
 
-    /**
-     * 「实体档」玻璃底色（深色主题）：比 [ContainerDark] 亮一档。
-     *
-     * 深色下如果沿用 ContainerDark（21,23,28）压 0.88，玻璃会比背景还暗，
-     * 又变成「看不见的一条」—— 这里抬高到 (36,40,48)，深色下也能看出是一块。
-     */
-    val PanelSolidDark = Color(0xFF242830)
+    /** 更凝实面板沿用同一烟灰底色。 */
+    val PanelSolidDark = ContainerDark
 
-    /**
-     * 静置时玻璃的不透明度。
-     *
-     * 这一项直接决定"看得清不清楚"：调高 → 更实、字更清楚，但折射感变弱；
-     * 调低 → 更通透、更像玻璃，但内容会和后面的页面糊在一起。
-     * 0.4 时太飘，0.72 是"能看清 + 仍有玻璃味"的平衡点。
-     */
-    const val ContainerAlpha = 0.68f
+    /** 深色更凝实，避免白色图片穿透后降低控件可读性。 */
+    val ContainerAlpha: Float get() = if (DarkGlass) .88f else .78f
 
     /** 主题色（浅色主题）：对齐 App 的 Accent。2026-10-11 随浅色 Accent 一起加深到 #2563EB。 */
     val AccentLight = Color(0xFF2563EB)
@@ -84,21 +62,14 @@ internal object GlassTokens {
      */
     val AccentDark = Color(0xFF4173CC)
 
-    /**
-     * 玻璃效果参数全部对齐 skill 的 **v2 统一规范**（.workbuddy/refs/skill-liquid-glass/
-     * guides/best-practices.md 第 1 节，明确写了适用于 LiquidBottomTabs）。
-     * 老参数是 blur 8dp / lens 24,24 无色散，糊成一团、看不出折射 —— 所以"不够玻璃"。
-     *
-     * 规范值：blur 2dp（低模糊保留内容细节）、lens 12/24 + 色散、常驻高光 0.15、
-     * 常驻阴影 0.08、常驻内阴影 4dp/0.1，按压时各自线性增强。
-     */
-    const val BlurDp = 6f
+    /** 以宽范围模糊和柔光形成磨砂，边缘保留轻折射。 */
+    const val BlurDp = 28f
 
     /** 透镜折射 X 半径（dp）：边缘把背景"掰弯"的距离 —— 玻璃感的主要来源 */
-    const val LensXDp = 12f
+    const val LensXDp = 8f
 
     /** 透镜折射 Y 半径（dp） */
-    const val LensYDp = 24f
+    const val LensYDp = 12f
 
     /**
      * 色散（chromaticAberration）：折射时边缘把 RGB 拆开，出现黄/蓝彩边。
@@ -109,35 +80,35 @@ internal object GlassTokens {
     const val ChromaticAberration = false
 
     // 底板只折射窄边缘；拖动胶囊保留独立的强透镜，避免整栏背景被拉进图标区。
-    const val PanelRefractionHeightDp = 12f
-    const val PanelRefractionAmountDp = 24f
-    const val PanelBlurDp = 8f
-    const val PanelSurfaceAlpha = 0.76f
-    /** 按住时白色磨砂逐渐透光；松手回到静置强度。 */
-    const val PanelPressedSurfaceAlpha = 0.38f
-    const val PanelPressedBlurDp = 3f
-    const val PanelPressedRefractionHeightDp = 18f
-    const val PanelPressedRefractionAmountDp = 28f
+    const val PanelRefractionHeightDp = 6f
+    const val PanelRefractionAmountDp = 10f
+    const val PanelBlurDp = 28f
+    val PanelSurfaceAlpha: Float get() = if (DarkGlass) .88f else .80f
+    /** 按住时材质稍加凝实，与输入面板的反馈一致。 */
+    val PanelPressedSurfaceAlpha: Float get() = if (DarkGlass) .92f else .88f
+    const val PanelPressedBlurDp = 32f
+    const val PanelPressedRefractionHeightDp = 8f
+    const val PanelPressedRefractionAmountDp = 14f
 
     /** 常驻高光：静止时玻璃边缘的轮廓光（有它才像一块玻璃，不是一块灰板） */
-    const val RestHighlightAlpha = 0.15f
+    val RestHighlightAlpha: Float get() = if (DarkGlass) .24f else .42f
 
-    /** 按压时高光在常驻基础上再加多少（规范：0.15 + 0.35 * progress） */
-    const val PressHighlightGain = 0.35f
+    /** 按压时增强边缘光。 */
+    const val PressHighlightGain = 0.10f
 
     /** 常驻阴影：让玻璃"浮"在页面之上 */
-    const val RestShadowAlpha = 0.08f
+    val RestShadowAlpha: Float get() = if (DarkGlass) .28f else .15f
 
     /** 按压时阴影在常驻基础上再加多少 */
-    const val PressShadowGain = 0.22f
+    const val PressShadowGain = 0.08f
 
     /** 常驻内阴影半径 / 强度：玻璃内侧的一圈暗边 */
     const val RestInnerShadowRadiusDp = 4f
-    const val RestInnerShadowAlpha = 0.10f
+    const val RestInnerShadowAlpha = 0.06f
 
-    /** 按压时内阴影的增量（半径 8dp、强度 0.3） */
+    /** 按压时内侧柔影的增量。 */
     const val PressInnerShadowRadiusGainDp = 8f
-    const val PressInnerShadowAlphaGain = 0.30f
+    const val PressInnerShadowAlphaGain = 0.08f
 
     // ---------------- 顶栏尺寸 ----------------
 
@@ -167,20 +138,20 @@ internal object GlassTokens {
      * 现在按 skill 的 [LiquidSearchBar] 给搜索框独立做 blur + 折射 + 光影，
      * 底色也调实到能看清字，但比顶栏整体更收敛，避免跳出成第二块顶栏。
      */
-    const val SearchBlurDp = 8f
+    const val SearchBlurDp = 28f
     /** 透镜折射半径（dp）：边缘把背景掰弯的距离，玻璃感的主要来源 */
-    const val SearchLensRadiusDp = 10f
+    const val SearchLensRadiusDp = 6f
     /** 透镜折射位移量（dp） */
-    const val SearchLensAmountDp = 14f
-    /** 搜索框底色不透明度：0.55 = 看得清文字，又仍透出一点背景 */
-    const val SearchSurfaceAlpha = 0.55f
+    const val SearchLensAmountDp = 8f
+    /** 搜索框比外层稍凝实，形成独立的圆润磨砂面。 */
+    val SearchSurfaceAlpha: Float get() = if (DarkGlass) .90f else .86f
     /** 常驻高光：够亮才像一块玻璃，不是一块灰板 */
-    const val SearchHighlightAlpha = 0.22f
-    const val SearchShadowAlpha = 0.10f
+    val SearchHighlightAlpha: Float get() = if (DarkGlass) .22f else .40f
+    val SearchShadowAlpha: Float get() = if (DarkGlass) .24f else .12f
     const val SearchInnerShadowRadiusDp = 4f
-    const val SearchInnerShadowAlpha = 0.12f
-    /** 搜索框圆角：10dp 是「方框」与「胶囊」的分水岭，保持不变 */
-    const val SearchCornerDp = 10f
+    const val SearchInnerShadowAlpha = 0.04f
+    /** 36dp高搜索框采用完整圆角。 */
+    const val SearchCornerDp = 18f
     /** 清除按钮直径与叉号尺寸：原来 16dp/11dp 太浅，几乎看不见 */
     const val SearchClearSizeDp = 18f
     const val SearchClearIconDp = 12f
@@ -224,6 +195,17 @@ internal object GlassTokens {
 
     /** 按住时胶囊放大到多少倍（官方取 78/56 ≈ 1.39） */
     const val PressedScale = 78f / 56f
+}
+
+/** Shared frost tint and broad, soft surface light; the backdrop still provides the real blur. */
+internal fun DrawScope.drawFrostSurface(color: Color, alpha: Float) {
+    drawRect(color.copy(alpha = alpha))
+    val dark = GlassTokens.DarkGlass
+    drawRect(Brush.verticalGradient(listOf(
+        Color.White.copy(alpha = if (dark) .06f else .18f),
+        Color.Transparent,
+        Color.Black.copy(alpha = if (dark) .035f else .018f),
+    )))
 }
 
 

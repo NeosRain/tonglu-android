@@ -14,6 +14,14 @@ val configuredApiBaseUrl = providers.gradleProperty("API_BASE_URL")
     .get()
     .let { if (it.endsWith("/")) it else "$it/" }
 
+// Separate application/data/signing identity for real updater walks; never a release variant.
+val updateQa = providers.gradleProperty("updateQa").orNull == "true"
+if (updateQa) tasks.configureEach {
+    if (name.contains("Release", ignoreCase = true)) doFirst {
+        throw GradleException("updateQa cannot execute release tasks")
+    }
+}
+
 android {
     namespace = "cn.tonglu.app"
     compileSdk = 37
@@ -59,8 +67,13 @@ android {
         //              今日/整周小组件裁切与清晰度；网盘容量口径与分享链。
         // M0 内测候选：Android 收口首页/学习/我的，社区入口隐藏，数据与后端保留。
         // 每日预览进preview、每周正式进stable；0.16起预览序号1–98、正式槽99。
-        versionCode = 250101
-        versionName = "0.25.1-beta.1"
+        versionCode = 260001
+        versionName = "0.26.0-beta.1"
+        if (updateQa) {
+            applicationId = "cn.tonglu.app.updateqa"
+            versionCode = providers.gradleProperty("updateQaCode").get().toInt().also { require(it in 1..2_100_000_000) }
+            versionName = "${versionName}-updateqa"
+        }
         buildConfigField("String", "API_BASE_URL", "\"$configuredApiBaseUrl\"")
     }
 
@@ -172,6 +185,7 @@ android {
     buildTypes {
         debug {
             manifestPlaceholders["usesCleartextTraffic"] = "true"
+            manifestPlaceholders["debugAppLabel"] = if (updateQa) "苔米林·更新走查" else "@string/app_name"
             ndk { abiFilters += targetAbis }
         }
         release {
@@ -247,6 +261,7 @@ dependencies {
     // PDF 文字提取；原版页面由系统 PdfRenderer 绘制。许可与 NOTICE 随 APK 打包。
     implementation("com.tom-roush:pdfbox-android:2.0.27.0")
     implementation(libs.markdown.m3)
+    implementation(libs.compose.rich.editor)
     implementation(libs.reader.images)
     implementation(libs.reader.network)
     implementation("com.google.zxing:core:3.5.4")

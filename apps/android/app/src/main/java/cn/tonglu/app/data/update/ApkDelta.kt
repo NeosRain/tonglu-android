@@ -6,7 +6,7 @@ import java.security.MessageDigest
 
 /** TMLD1 reconstructs the exact signed APK; no APK contents are interpreted or installed here. */
 internal object ApkDelta {
-    private fun sha(file: File): String {
+    fun sha256(file: File): String {
         val digest = MessageDigest.getInstance("SHA-256")
         file.inputStream().use { input ->
             val buffer = ByteArray(65536)
@@ -36,7 +36,7 @@ internal object ApkDelta {
     fun apply(base: File, patch: File, output: File, release: UpdateRelease) {
         val delta = requireNotNull(release.patch)
         require(base.isFile && patch.isFile && patch.length() == delta.size) { "增量文件不完整" }
-        require(sha(base) == delta.baseSha256 && sha(patch) == delta.sha256) { "增量基础包或补丁校验失败" }
+        require(sha256(base) == delta.baseSha256 && sha256(patch) == delta.sha256) { "增量基础包或补丁校验失败" }
         val pending = File(output.parentFile, "${output.name}.pending")
         try {
             RandomAccessFile(base, "r").use { old ->
@@ -75,7 +75,7 @@ internal object ApkDelta {
                     }
                 }
             }
-            require(sha(pending) == release.sha256) { "还原的安装包校验失败" }
+            require(sha256(pending) == release.sha256) { "还原的安装包校验失败" }
             require(!output.exists() || output.delete()) { "无法替换更新文件" }
             require(pending.renameTo(output)) { "无法保存更新文件" }
         } finally {

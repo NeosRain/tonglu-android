@@ -86,10 +86,10 @@ fun GlassTopBar(
         modifier
             .drawBackdrop(
                 backdrop = backdrop,
-                shape = { RoundedCornerShape(0.dp) },
+                shape = { RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) },
                 effects = {
                     vibrancy()
-                    blur(24.dp.toPx())
+                    blur(GlassTokens.BlurDp.dp.toPx())
                 },
                 // 与底栏同一套常驻光影，两条栏才是「同一块玻璃」
                 highlight = { Highlight.Default.copy(alpha = GlassTokens.RestHighlightAlpha) },
@@ -101,7 +101,7 @@ fun GlassTopBar(
                     )
                 },
                 onDrawSurface = {
-                    drawRect(containerColor.copy(alpha = 0.72f))
+                    drawFrostSurface(containerColor, GlassTokens.ContainerAlpha)
                     drawRect(containerColor.copy(alpha = 0.96f), size = Size(size.width, statusHeight.toPx()))
                 }
             )

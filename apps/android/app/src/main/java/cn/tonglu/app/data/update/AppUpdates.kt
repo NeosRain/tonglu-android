@@ -19,8 +19,11 @@ import java.io.File
 import java.security.MessageDigest
 import java.util.concurrent.TimeUnit
 
+internal enum class UpdateTransfer { CheckingBase, Delta, Full }
 internal data class UpdateUiState(val checking: Boolean = false, val release: UpdateRelease? = null,
-    val error: String? = null, val downloading: Boolean = false, val ready: Boolean = false, val progress: Int = 0, val channel: UpdateChannel = UpdateChannel.Stable)
+    val error: String? = null, val downloading: Boolean = false, val ready: Boolean = false, val progress: Int = 0,
+    val channel: UpdateChannel = UpdateChannel.Stable, val transfer: UpdateTransfer? = null,
+    val transferBytes: Long? = null, val transferNotice: String? = null)
 
 /** 设备级更新状态，不接触账号、校园 Cookie 或个人数据库。 */
 internal object AppUpdates {
@@ -107,18 +110,35 @@ internal object AppUpdates {
         }.also { checkJob = it }
     }
 
-    fun download(context: Context, release: UpdateRelease) {
-        try {
-            val c = context.applicationContext
-            val patch = release.patch?.takeIf { it.baseCode == BuildConfig.VERSION_CODE.toLong() }
-            startDownload(c, release, patch != null)
-            scope.launch { while (mutable.value.downloading) {
-                refreshDownload(c, release, prefs(c).getBoolean("downloadIsPatch", false)); delay(1200)
-            } }
-        } catch (e: Exception) { Log.w("AppUpdates", "下载更新失败", e); mutable.value = mutable.value.copy(error = e.message ?: "无法下载更新") }
+    @Synchronized fun download(context: Context, release: UpdateRelease) {
+        if (mutable.value.downloading) return
+        val c = context.applicationContext
+        checkJob?.cancel()
+        mutable.value = UpdateUiState(release = release, downloading = true, channel = channel(c), transfer = UpdateTransfer.CheckingBase)
+        scope.launch {
+            try {
+                check(isNewerThanInstalled(release)) { "更新版本不高于当前版本，请重新检查" }
+                val hasBase = release.availablePatches.any { it.baseCode == BuildConfig.VERSION_CODE.toLong() }
+                val patch = if (hasBase) release.patchForInstalled(BuildConfig.VERSION_CODE.toLong(), ApkDelta.sha256(File(c.applicationInfo.sourceDir))) else null
+                val selected = release.copy(patch = patch)
+                val notice = when {
+                    patch != null -> null
+                    hasBase -> "现有安装包与增量基包不一致，本次下载完整更新。"
+                    else -> "当前版本没有匹配的增量包，本次下载完整更新。"
+                }
+                startDownload(c, selected, patch != null, notice)
+                while (mutable.value.downloading) {
+                    refreshDownload(c, selected, prefs(c).getBoolean("downloadIsPatch", false)); delay(1200)
+                }
+            } catch (cancelled: CancellationException) { throw cancelled }
+            catch (e: Exception) {
+                Log.w("AppUpdates", "下载更新失败", e)
+                mutable.value = mutable.value.copy(downloading = false, transfer = null, transferBytes = null, error = e.message ?: "无法下载更新")
+            }
+        }
     }
 
-    private fun startDownload(c: Context, release: UpdateRelease, isPatch: Boolean) {
+    private fun startDownload(c: Context, release: UpdateRelease, isPatch: Boolean, notice: String? = null) {
         val patch = if (isPatch) requireNotNull(release.patch) else null
         val file = if (isPatch) patchFile(c, release.versionCode) else updateFile(c, release.versionCode)
         if (file.exists()) check(file.delete()) { "无法移除旧的更新文件" }
@@ -131,7 +151,9 @@ internal object AppUpdates {
         val id = c.getSystemService(DownloadManager::class.java).enqueue(request)
         prefs(c).edit().putLong("downloadId", id).putString("downloadRelease", release.toJson())
             .putString("downloadChannel", channel(c).key).putBoolean("downloadIsPatch", isPatch).apply()
-        mutable.value = UpdateUiState(release = release, downloading = true, channel = channel(c))
+        mutable.value = UpdateUiState(release = release, downloading = true, channel = channel(c),
+            transfer = if (isPatch) UpdateTransfer.Delta else UpdateTransfer.Full,
+            transferBytes = patch?.size ?: release.size, transferNotice = notice)
     }
 
     @Synchronized fun restore(context: Context) {
@@ -149,7 +171,10 @@ internal object AppUpdates {
                 mutable.value = UpdateUiState(release = saved?.takeIf { isNewerThanInstalled(it) }, channel = selected)
                 val download = prefs(c).getString("downloadRelease", null)?.let { parseUpdateRelease(it) }
                 if (download != null && prefs(c).getString("downloadChannel", "stable") == selected.key && isNewerThanInstalled(download)) {
-                    mutable.value = UpdateUiState(release = download, downloading = true, channel = selected)
+                    val isPatch = prefs(c).getBoolean("downloadIsPatch", false)
+                    mutable.value = UpdateUiState(release = download, downloading = true, channel = selected,
+                        transfer = if (isPatch) UpdateTransfer.Delta else UpdateTransfer.Full,
+                        transferBytes = if (isPatch) download.patch?.size else download.size)
                     while (mutable.value.downloading) {
                         refreshDownload(c, download, prefs(c).getBoolean("downloadIsPatch", false)); delay(1200)
                     }
@@ -190,7 +215,7 @@ internal object AppUpdates {
             if (isPatch) {
                 if (patchFile(c, release.versionCode).exists() && !patchFile(c, release.versionCode).delete())
                     Log.w("AppUpdates", "增量失败后缓存清理失败")
-                runCatching { startDownload(c, release, false) }
+                runCatching { startDownload(c, release, false, "增量更新未完成，已自动改为完整更新：${e.message ?: "补丁无法使用"}") }
                     .onFailure { Log.w("AppUpdates", "增量失败后全量下载也无法启动", it)
                         mutable.value = mutable.value.copy(downloading = false, ready = false, error = it.message ?: "无法下载完整更新") }
             } else mutable.value = mutable.value.copy(downloading = false, ready = false, error = e.message ?: "更新校验失败")

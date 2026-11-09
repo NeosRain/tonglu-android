@@ -17,18 +17,7 @@ import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
 
-/**
- * 一块玻璃的**可调参数**。
- *
- * 独立成 data class 而不是往 [GlassActionPanel] 上堆五个形参：
- * 位置参数一多就容易传错位，且这里要能整体替换（「默认档 / 实体档」），
- * 逐项传会让调用点把样式细节散在各处。
- *
- * 🔴 默认值**全部**取自 [GlassTokens]，所以 [GlassPanelStyle.Default] 的行为
- * 与引入本类之前**逐项一致** —— 已存在的调用点（顶栏、底栏、搜索框、阅读器、
- * 笔记编辑器、发帖器）不受影响。想改全局观感请改 [GlassTokens]，
- * 想只改某一处请传这里的另一个档位。
- */
+/** Shared frosted material; density varies while palette, blur and surface light stay consistent. */
 internal data class GlassPanelStyle(
     val surfaceAlpha: Float = GlassTokens.ContainerAlpha,
     val blurDp: Float = GlassTokens.BlurDp,
@@ -38,26 +27,16 @@ internal data class GlassPanelStyle(
 ) {
     companion object {
 
-        /** 默认档：与引入本类之前完全一致。 */
-        val Default = GlassPanelStyle()
+        // Getters read current theme values instead of freezing the first composition.
+        val Default get() = GlassPanelStyle()
 
-        /**
-         * 实体档：**详情页底部两块条**专用（2026-10-10 用户选 C 档）。
-         *
-         * 为什么需要它：默认档在浅色背景上「条 − 背后」的亮度差只有 **−1.7**
-         * （酷安那条是 **+15.9**），玻璃几乎融进背景，用户反馈「没有酷安的好」。
-         * 这档对症下药 —— 底色压实到 0.88、模糊 6→16dp（背后内容明显被抹糊）、
-         * 高光 0.15→0.28、阴影 0.08→0.20（勾出轮廓、让它浮起来）。
-         *
-         * 副作用要认：alpha 0.88 意味着**几乎不透**，玻璃的「通透感」会让位于
-         * 「看得见的一块」。这是刻意的选择 —— 录屏里酷安那条就是实心的。
-         */
-        val Solid = GlassPanelStyle(
-            surfaceAlpha = 0.88f,
-            blurDp = 16f,
-            highlightAlpha = 0.28f,
-            shadowAlpha = 0.20f,
-            innerShadowAlpha = 0.14f,
+        /** Denser version for floating detail actions. */
+        val Solid get() = GlassPanelStyle(
+            surfaceAlpha = if (GlassTokens.DarkGlass) .92f else .86f,
+            blurDp = 32f,
+            highlightAlpha = GlassTokens.RestHighlightAlpha,
+            shadowAlpha = GlassTokens.RestShadowAlpha + .02f,
+            innerShadowAlpha = GlassTokens.RestInnerShadowAlpha,
         )
     }
 }
@@ -98,10 +77,12 @@ internal fun GlassActionPanel(
     Column(modifier.drawBackdrop(
         backdrop = backdrop,
         shape = { shape },
-        effects = { vibrancy(); blur(style.blurDp.dp.toPx()); lens(8.dp.toPx(), 12.dp.toPx()) },
+        effects = { vibrancy(); blur(style.blurDp.dp.toPx())
+            lens(GlassTokens.PanelRefractionHeightDp.dp.toPx(), GlassTokens.PanelRefractionAmountDp.dp.toPx(),
+                chromaticAberration = GlassTokens.ChromaticAberration) },
         highlight = { Highlight.Default.copy(alpha = style.highlightAlpha) },
         shadow = { Shadow(alpha = style.shadowAlpha) },
         innerShadow = { InnerShadow(radius = 8.dp, alpha = style.innerShadowAlpha) },
-        onDrawSurface = { drawRect(surfaceColor.copy(alpha = style.surfaceAlpha)) },
+        onDrawSurface = { drawFrostSurface(surfaceColor, style.surfaceAlpha) },
     ), content = content)
 }

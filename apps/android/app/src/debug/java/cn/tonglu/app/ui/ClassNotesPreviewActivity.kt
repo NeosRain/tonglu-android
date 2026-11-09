@@ -25,6 +25,7 @@ class ClassNotesPreviewActivity : ComponentActivity() {
     } }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState); enableEdgeToEdge()
+        window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         previousMode = AppTheme.modeState
         AppTheme.setEnabled(previewContext, intent.getBooleanExtra("dark", false))
         val course = CourseDto("qa-course", "示例 · 课堂笔记走查", "QA", weekday=1, startPeriod=1, endPeriod=2, startWeek=1, endWeek=20)

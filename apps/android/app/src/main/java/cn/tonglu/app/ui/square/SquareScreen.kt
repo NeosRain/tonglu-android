@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.square
 
+import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
+
 import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -136,7 +138,7 @@ internal fun SquareScreen(
             Modifier.fillMaxSize(),
             // 卡与卡的间距也收一档（8 → 6dp）：录屏里信息流是「密」的，
             // 但**不留到 0** —— 卡是白底直铺浅灰底，间距归零就分不出卡边界了。
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = 116.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = LocalMainNavigationBottomPadding.current),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (search.isNotBlank()) item(key = "search-hint") {

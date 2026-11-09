@@ -106,12 +106,10 @@ fun LiquidBottomTabs(
     // 口径统一在 GlassTokens.DarkGlass，接入深色主题时改那一处即可。
     val isLightTheme = !GlassTokens.DarkGlass
     // 主题色与玻璃通透度统一走 GlassTokens —— 顶栏共用同一套参数，两条栏才是"同一块玻璃"
-    val accentColor =
-        if (isLightTheme) GlassTokens.AccentLight
-        else GlassTokens.AccentDark
+    val accentColor = GlassTokens.AccentOnGlass
     val containerColor =
-        if (isLightTheme) GlassTokens.ContainerLight.copy(GlassTokens.PanelSurfaceAlpha)
-        else GlassTokens.ContainerDark.copy(GlassTokens.PanelSurfaceAlpha)
+        if (isLightTheme) GlassTokens.ContainerLight
+        else GlassTokens.ContainerDark
 
     val latestSelectedIndex by rememberUpdatedState(selectedTabIndex)
     val latestOnTabSelected by rememberUpdatedState(onTabSelected)
@@ -282,7 +280,8 @@ fun LiquidBottomTabs(
                         },
                         innerShadow = {
                             val progress = dampedDragAnimation.pressProgress
-                            InnerShadow(radius = 4.dp + 8.dp * progress, alpha = 0.10f + 0.30f * progress)
+                            InnerShadow(radius = GlassTokens.RestInnerShadowRadiusDp.dp + GlassTokens.PressInnerShadowRadiusGainDp.dp * progress,
+                                alpha = GlassTokens.RestInnerShadowAlpha + GlassTokens.PressInnerShadowAlphaGain * progress)
                         },
                         // 按压时面板整体微微放大（16dp 相对自身宽度）
                         layerBlock = {
@@ -292,7 +291,7 @@ fun LiquidBottomTabs(
                             scaleY = scale
                         },
                         onDrawSurface = {
-                            drawRect(containerColor.copy(alpha = lerp(GlassTokens.PanelSurfaceAlpha, GlassTokens.PanelPressedSurfaceAlpha, dampedDragAnimation.pressProgress)))
+                            drawFrostSurface(containerColor, lerp(GlassTokens.PanelSurfaceAlpha, GlassTokens.PanelPressedSurfaceAlpha, dampedDragAnimation.pressProgress))
                         }
                     )
                     .then(interactiveHighlight.modifier)

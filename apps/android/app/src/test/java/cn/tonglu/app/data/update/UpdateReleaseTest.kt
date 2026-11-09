@@ -15,6 +15,21 @@ class UpdateReleaseTest {
         parseUpdateRelease(release.copy(patch = UpdatePatch(75, "b".repeat(64),
             "https://example.org/patch", "c".repeat(64), 8000000)).toJson())
     }
+    @Test fun 跨版本候选往返并按安装包实际指纹选择() {
+        val previous = UpdatePatch(75, "b".repeat(64), "https://dl.useall.top/from-75.tmld", "c".repeat(64), 8000000)
+        val skipped = UpdatePatch(73, "d".repeat(64), "https://dl.useall.top/from-73.tmld", "e".repeat(64), 9000000)
+        val manifest = release.copy(patch = previous, patches = listOf(previous, skipped))
+        val parsed = parseUpdateRelease(manifest.toJson())
+        assertEquals(manifest, parsed)
+        assertEquals(previous, parsed.patchForInstalled(75, "b".repeat(64)))
+        assertEquals(skipped, parsed.patchForInstalled(73, "d".repeat(64)))
+        assertNull(parsed.patchForInstalled(73, "f".repeat(64)))
+        assertNull(parsed.patchForInstalled(72, "d".repeat(64)))
+    }
+    @Test(expected = IllegalArgumentException::class) fun 次要候选也必须来自可信域名() {
+        parseUpdateRelease(release.copy(patches = listOf(UpdatePatch(73, "b".repeat(64),
+            "https://example.org/patch", "c".repeat(64), 8000000))).toJson())
+    }
     @Test(expected = IllegalArgumentException::class) fun 拒绝其他下载域名() { parseUpdateRelease(release.copy(url = "https://example.org/a.apk").toJson()) }
     @Test(expected = IllegalArgumentException::class) fun 拒绝明文下载() { parseUpdateRelease(release.copy(url = "http://dl.useall.top/a.apk").toJson()) }
     @Test(expected = IllegalArgumentException::class) fun 拒绝地址凭据() { parseUpdateRelease(release.copy(url = "https://" + "user:pass@" + "dl.useall.top/a.apk").toJson()) }
