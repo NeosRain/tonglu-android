@@ -72,7 +72,7 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.Backdrop
 import cn.tonglu.app.ui.glass.CommentGlassPill
-import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 import cn.tonglu.app.ui.glass.GlassPanelStyle
 import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.glass.GlassTopBar
@@ -335,6 +335,7 @@ internal fun PostDetailScreen(
         // 评论输入面板：从底部升起 + 遮罩，**正文留在遮罩下**（plan §三.4）。
         // 它不消费 IME Insets（面板自己带键盘），页面根只补尚未避让的键盘覆盖量。
         ComposerPanel(
+            backdrop = backdrop,
             emojiGateway = emojiGateway,
             sessionId = state.session?.sessionId,
             localPreview = isLocalPreview,
@@ -677,8 +678,8 @@ internal fun composerBackAction(imeVisible: Boolean): ComposerBackAction =
     if (imeVisible) ComposerBackAction.HIDE_KEYBOARD else ComposerBackAction.CLOSE_PANEL
 
 /** 仅在键盘真正显示后收起时折叠；初始尚未弹出、硬件键盘均不误关。 */
-internal fun shouldCollapseComposer(keyboardWasShown: Boolean, imeVisible: Boolean, emojiPanelOpen: Boolean = false): Boolean =
-    keyboardWasShown && !imeVisible && !emojiPanelOpen
+internal fun shouldCollapseComposer(keyboardWasShown: Boolean, imeVisible: Boolean, closeRequested: Boolean, emojiPanelOpen: Boolean = false): Boolean =
+    closeRequested && keyboardWasShown && !imeVisible && !emojiPanelOpen
 
 /** 已经被窗口/父层缩掉的高度不得再减；剩余避让也不能超过可用高度。 */
 internal fun commentBottomInsetPx(windowHeight: Int, availableHeight: Int, inset: Int): Int {
@@ -955,6 +956,7 @@ private fun CompactIconAction(icon: androidx.compose.ui.graphics.vector.ImageVec
  */
 @Composable
 private fun ComposerPanel(
+    backdrop: Backdrop,
     emojiGateway: cn.tonglu.app.data.community.EmojiGateway?,
     sessionId: String?,
     localPreview: Boolean,
@@ -982,6 +984,7 @@ private fun ComposerPanel(
     if (!open) return
     val motion = rememberComposerMotion()
     var keyboardWasShown by remember { mutableStateOf(false) }
+    var closeAfterKeyboard by remember { mutableStateOf(false) }
     var inputMode by remember { mutableStateOf(CommentInputMode.Keyboard) }
     var mediaSource by remember(draftOwner, postId) { mutableStateOf<cn.tonglu.app.data.community.EmojiSource?>(null) }
 
@@ -999,10 +1002,11 @@ private fun ComposerPanel(
         onDismiss()
     }
 
-    // 用户点输入法收起按钮时，系统不会走这里的BackHandler，仍需观测IME下降沿。
+    // IME消失不代表退出编辑（硬件输入、输入法切换也会隐藏它）。
+    // 只有明确返回请求才在IME下降沿折叠；遮罩与发送仍走dismiss。
     // 草稿保存在if(open)外，折叠后再次打开仍保留；关层只走统一onDismiss/arm出口。
-    LaunchedEffect(imeVisible, inputMode) {
-        if (shouldCollapseComposer(keyboardWasShown, imeVisible, inputMode == CommentInputMode.Emoji)) dismiss()
+    LaunchedEffect(imeVisible, inputMode, closeAfterKeyboard) {
+        if (shouldCollapseComposer(keyboardWasShown, imeVisible, closeAfterKeyboard, inputMode == CommentInputMode.Emoji)) dismiss()
         else if (imeVisible && inputMode == CommentInputMode.Keyboard) keyboardWasShown = true
     }
 
@@ -1010,7 +1014,7 @@ private fun ComposerPanel(
     BackHandler(enabled = true) {
         if (inputMode == CommentInputMode.Emoji) dismiss()
         else when (composerBackAction(imeVisible = imeVisible)) {
-            ComposerBackAction.HIDE_KEYBOARD -> keyboard?.hide()
+            ComposerBackAction.HIDE_KEYBOARD -> { closeAfterKeyboard = true; keyboard?.hide() }
             ComposerBackAction.CLOSE_PANEL -> dismiss()
         }
     }
@@ -1027,16 +1031,16 @@ private fun ComposerPanel(
                     onClick = { dismiss() },
                 ),
         )
-        // 编辑面板是可读的实体底；玻璃效果保留在浏览状态的两块底栏中。
-        Surface(
-            color = AppColors.Surface,
+        // 输入时采用同一材质的凝实档，保持文字清晰与单次IME避让。
+        GlassBottomActionPanel(
+            backdrop = backdrop, style = GlassPanelStyle.BottomInput,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .heightIn(max = (maxHeight - 24.dp).coerceAtLeast(1.dp))
                 .semantics { contentDescription = "评论输入面板" }
                 .graphicsLayer { translationY = motion.offsetPx(this) },
-            shape = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp),
+            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         ) {
             // ⚠️ 这里**不**加 `navigationBarsPadding()`：键盘升起时系统导航栏被键盘顶掉，
             // 再加一次底部内边距会在面板与键盘之间留一条空隙（plan §四.3）。

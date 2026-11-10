@@ -3,11 +3,12 @@ import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import cn.tonglu.app.data.POST_BODY_MAX
 import cn.tonglu.app.data.PostBodyLimit
-import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 
 import android.view.WindowManager
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,6 +38,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.foundation.background
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -247,7 +249,7 @@ internal fun PostComposerDialog(
 
                 val composerBackdrop = rememberLayerBackdrop()
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    Box(Modifier.fillMaxSize().layerBackdrop(composerBackdrop)) {
+                    Box(Modifier.fillMaxSize().layerBackdrop(composerBackdrop).background(MaterialTheme.colorScheme.background)) {
                     if (preview) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                             if (title.isNotBlank()) {
@@ -268,7 +270,7 @@ internal fun PostComposerDialog(
                     }
 
                 if (!preview && !submitting) {
-                    Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 8.dp).widthIn(max = 720.dp)) {
                     when (panel) {
                         NotePanel.Emoji -> EmojiPanel(
                             onPick = { emoji -> rememberEmoji(emoji); value = value.appendText(emoji) },
@@ -280,7 +282,7 @@ internal fun PostComposerDialog(
                         )
                         NotePanel.None -> Unit
                     }
-                    GlassActionPanel(composerBackdrop) {
+                    GlassBottomActionPanel(composerBackdrop) {
                     EditorToolbar(
                         accent = accent,
                         onWrap = { pre, suf, hint -> value = value.appendWrap(pre, suf, hint) },

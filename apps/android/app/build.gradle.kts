@@ -16,9 +16,12 @@ val configuredApiBaseUrl = providers.gradleProperty("API_BASE_URL")
 
 // Separate application/data/signing identity for real updater walks; never a release variant.
 val updateQa = providers.gradleProperty("updateQa").orNull == "true"
-if (updateQa) tasks.configureEach {
+// Isolated, non-debuggable UI timing fixture. Still debug-signed and never distributable.
+val performanceQa = providers.gradleProperty("performanceQa").orNull == "true"
+require(!(updateQa && performanceQa)) { "Choose only one isolated QA mode" }
+if (updateQa || performanceQa) tasks.configureEach {
     if (name.contains("Release", ignoreCase = true)) doFirst {
-        throw GradleException("updateQa cannot execute release tasks")
+        throw GradleException("Isolated QA modes cannot execute release tasks")
     }
 }
 
@@ -67,8 +70,8 @@ android {
         //              今日/整周小组件裁切与清晰度；网盘容量口径与分享链。
         // M0 内测候选：Android 收口首页/学习/我的，社区入口隐藏，数据与后端保留。
         // 每日预览进preview、每周正式进stable；0.16起预览序号1–98、正式槽99。
-        versionCode = 260001
-        versionName = "0.26.0-beta.1"
+        versionCode = 270002
+        versionName = "0.27.0-beta.2"
         if (updateQa) {
             applicationId = "cn.tonglu.app.updateqa"
             versionCode = providers.gradleProperty("updateQaCode").get().toInt().also { require(it in 1..2_100_000_000) }
@@ -184,8 +187,13 @@ android {
 
     buildTypes {
         debug {
-            manifestPlaceholders["usesCleartextTraffic"] = "true"
-            manifestPlaceholders["debugAppLabel"] = if (updateQa) "苔米林·更新走查" else "@string/app_name"
+            if (performanceQa) {
+                applicationIdSuffix = ".performanceqa"
+                versionNameSuffix = "-performanceqa"
+                isDebuggable = false
+            }
+            manifestPlaceholders["usesCleartextTraffic"] = if (performanceQa) "false" else "true"
+            manifestPlaceholders["debugAppLabel"] = if (performanceQa) "苔米林·性能走查" else if (updateQa) "苔米林·更新走查" else "@string/app_name"
             ndk { abiFilters += targetAbis }
         }
         release {

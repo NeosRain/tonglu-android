@@ -1,9 +1,17 @@
 package cn.tonglu.app.data.question
 
 import cn.tonglu.app.ui.learning.buildDiagnosisSet
+import cn.tonglu.app.ui.learning.DiagnosisRound
+import cn.tonglu.app.ui.learning.diagnosisResults
+import cn.tonglu.app.ui.learning.diagnosisPoolSignature
+import cn.tonglu.app.ui.learning.restoreDiagnosisPool
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import com.google.gson.Gson
+import cn.tonglu.app.ui.learning.LearningAnimationFrame
+import cn.tonglu.app.ui.learning.questionContentFingerprint
 
 /**
  * 词汇诊断抽题规则（docs/plan/56 §4.4 / docs/plan/57 §5.3 T6）。
@@ -41,18 +49,11 @@ class DiagnosisSetTest {
     fun `各层拿满配额时合计不超过三十题`() {
         val rich = bank("rich", mapOf(Difficulty.BASIC to 50, Difficulty.CORE to 50, Difficulty.ADVANCED to 50))
         val picks = buildDiagnosisSet(listOf(rich))
+        assertEquals(picks, buildDiagnosisSet(listOf(rich)))
         assertEquals("封顶 30 题（§4.4 的 5–8 分钟预算）", 30, picks.size)
         assertEquals(10, picks.count { it.question.difficulty == Difficulty.BASIC })
         assertEquals(12, picks.count { it.question.difficulty == Difficulty.CORE })
         assertEquals(8, picks.count { it.question.difficulty == Difficulty.ADVANCED })
-    }
-
-    @Test
-    fun `同一份题库两次抽取结果完全一致`() {
-        val b = bank("stable", mapOf(Difficulty.BASIC to 20, Difficulty.CORE to 20, Difficulty.ADVANCED to 20))
-        val first = buildDiagnosisSet(listOf(b)).map { "${it.bank.id}:${it.question.id}" }
-        val second = buildDiagnosisSet(listOf(b)).map { "${it.bank.id}:${it.question.id}" }
-        assertEquals("确定性抽题：同一份题库每次结果必须一样", first, second)
     }
 
     @Test
@@ -96,5 +97,63 @@ class DiagnosisSetTest {
         val picks = buildDiagnosisSet(listOf(broken))
         assertEquals("只有一道可判分的题", 1, picks.size)
         assertEquals("good", picks.first().question.id)
+    }
+    @Test fun roundKeepsOnlyLatestAnswerAndRestartStartsEmpty() {
+        val picks = buildDiagnosisSet(listOf(bank("round", mapOf(Difficulty.BASIC to 2))))
+        val key = picks.first().bank.keyOf(picks.first().question)
+        var round = DiagnosisRound().answer(key, true, false)
+        assertEquals(1, diagnosisResults(picks, round).single().correct)
+        round = round.retry(key).answer(key, false, false).next(picks.size).next(picks.size)
+        assertEquals(0, diagnosisResults(picks, round).single().correct)
+        assertEquals(1, diagnosisResults(picks, round).single().incorrect)
+        assertTrue(round.finished)
+        val restarted = round.restart()
+        assertEquals(1, restarted.number)
+        assertEquals(0, restarted.index)
+        assertEquals(0, restarted.answers.size)
+        assertTrue(!restarted.finished)
+        assertEquals(2, diagnosisResults(picks, restarted).single().skipped)
+    }
+
+    @Test fun savedRoundRestoresPositionResultsAndGeneration() {
+        val round = DiagnosisRound(number = 3).bindPool("catalog-v1").answer("a:q1", true, false)
+            .answer("b:q1", false, true).next(3).next(3)
+        val restored = DiagnosisRound.restore(round.snapshot())
+        assertEquals(round, restored)
+        assertEquals(round, restored.bindPool(""))
+        assertEquals(round, restored.bindPool("catalog-v1"))
+        val refreshed = restored.bindPool("catalog-v2")
+        assertEquals(4, refreshed.number)
+        assertTrue(refreshed.answers.isEmpty())
+        assertEquals("catalog-v1", restored.restart().poolSignature)
+        assertEquals(1, round.previous().index)
+        assertEquals(round.answers, round.previous().answers)
+    }
+
+    @Test fun summariesSeparateUnknownSkippedAndIdenticalIdsAcrossBanks() {
+        val a = bank("a", mapOf(Difficulty.BASIC to 3, Difficulty.CORE to 1))
+        val b = bank("b", mapOf(Difficulty.BASIC to 1))
+        val picks = buildDiagnosisSet(listOf(a, b))
+        val signature = diagnosisPoolSignature(picks)
+        assertEquals(picks, restoreDiagnosisPool(signature, listOf(b, a)))
+        assertNull(restoreDiagnosisPool(signature, emptyList()))
+        assertNull(restoreDiagnosisPool(signature, listOf(b)))
+        val changed = a.copy(questions = a.questionList.mapIndexed { i, q -> if (i == 0) q.copy(answer = 1) else q })
+        assertNull(restoreDiagnosisPool(signature, listOf(changed, b)))
+        val round = DiagnosisRound()
+            .answer(a.keyOf(a.questionList[0]), true, false)
+            .answer(a.keyOf(a.questionList[1]), false, true)
+            .answer(b.keyOf(b.questionList[0]), false, false)
+        val results = diagnosisResults(picks, round)
+        val basic = results.first { it.tier == Difficulty.BASIC }
+        assertEquals(listOf(4, 1, 1, 1, 1), listOf(basic.total, basic.correct, basic.incorrect, basic.unknown, basic.skipped))
+        assertEquals(1, results.first { it.tier == Difficulty.CORE }.skipped)
+    }
+    @Test fun animationKeysHandleLegacyJsonWithMissingOptionalFields() {
+        val question = Gson().fromJson("""{"id":"legacy","type":"single-choice","prompt":"Legacy sample","options":["a","b"],"answer":0,"difficulty":"basic","explanation":"sample"}""", BankQuestion::class.java)
+        val key = "bank:legacy:" + questionContentFingerprint(question)
+        val frames = hashMapOf(LearningAnimationFrame(key, question) to "visible")
+        assertEquals("visible", frames[LearningAnimationFrame(key, question)])
+        assertEquals(1, buildDiagnosisSet(listOf(QuestionBank(id = "legacy", title = "Sample", sourceNote = "Self-authored sample", questions = listOf(question)))).size)
     }
 }

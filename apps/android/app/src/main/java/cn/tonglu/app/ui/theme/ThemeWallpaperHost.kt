@@ -12,6 +12,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.AppTheme
+import cn.tonglu.app.ui.glass.LocalGlassBaseBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 
 /**
  * 根层壁纸宿主：只负责画「壁纸 + 压暗 + 自适应薄雾」，内容由调用方给。
@@ -27,9 +31,15 @@ internal fun ThemeWallpaperHost(modifier: Modifier = Modifier, content: @Composa
     val dimAlpha = ThemeWallpaper.dimOverlayAlpha()
     val veilAlpha = ThemeWallpaper.veilAlpha(dark)
     val veil = AppColors.CanvasOpaque
+    val backgroundBackdrop = rememberLayerBackdrop()
+    val solidBackdrop = rememberCanvasBackdrop { drawRect(veil) }
+    val wallpaperReady = active && image != null
 
-    Box(modifier.background(AppColors.CanvasOpaque)) {
-        if (active && image != null) {
+    Box(modifier) {
+        Box(Modifier.matchParentSize()
+            .then(if (wallpaperReady) Modifier.layerBackdrop(backgroundBackdrop) else Modifier)
+            .background(AppColors.CanvasOpaque)) {
+        if (wallpaperReady && image != null) {
             Image(
                 bitmap = image,
                 contentDescription = null,
@@ -42,9 +52,11 @@ internal fun ThemeWallpaperHost(modifier: Modifier = Modifier, content: @Composa
                 Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = dimAlpha)))
             }
         }
+        }
         // Miuix Text reads its own content-color local, independent of Material3's local.
         // The root wallpaper host is also the root of all app pages and dialogs.
-        CompositionLocalProvider(MiuixContentColor provides AppColors.TextPrimary) {
+        CompositionLocalProvider(MiuixContentColor provides AppColors.TextPrimary,
+            LocalGlassBaseBackdrop provides if (wallpaperReady) backgroundBackdrop else solidBackdrop) {
             content()
         }
     }

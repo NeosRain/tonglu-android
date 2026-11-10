@@ -42,19 +42,20 @@ internal data class ClassNoteExportData(
     val warnings: List<String> = emptyList(),
     val html: String? = null,
     val markdown: String? = null,
+    val title: String = "",
 )
 
 /** One immutable note snapshot. No account preferences, other notes, or WebView data are read. */
 internal object ClassNoteExport {
     fun filename(note: ClassNoteExportData, format: ClassNoteExportFormat): String {
-        val first = note.text.lineSequence().firstOrNull { it.isNotBlank() } ?: note.course
+        val first = note.title.takeIf { it.isNotBlank() } ?: note.text.lineSequence().firstOrNull { it.isNotBlank() } ?: note.course
         val clean = first.replace(Regex("[\\\\/:*?\"<>|\\p{Cntrl}]"), " ").trim().trimEnd('.')
         val short = buildString { clean.codePoints().limit(36).forEach { appendCodePoint(it) } }.ifBlank { "课堂笔记" }
         return "$short.${format.extension}"
     }
 
     fun text(note: ClassNoteExportData, markdown: Boolean = false): String = buildString {
-        append(if (markdown) "# 课堂笔记\n\n" else "课堂笔记\n\n")
+        append(if (markdown) "# " else "").append(note.title.ifBlank { "课堂笔记" }).append("\n\n")
         append(note.course).append('\n').append(date(note)).append("\n\n")
         append(if (markdown) note.markdown ?: note.text else note.text)
         if (note.images.isNotEmpty() || note.recordings.isNotEmpty()) {
@@ -203,7 +204,7 @@ internal object ClassNoteExport {
     }
 
     private fun word(note: ClassNoteExportData, output: OutputStream, warnings: MutableList<String>) {
-        val body = StringBuilder(paragraph("课堂笔记", "Title") + paragraph(note.course) + paragraph(date(note)))
+        val body = StringBuilder(paragraph(note.title.ifBlank { "课堂笔记" }, "Title") + paragraph(note.course) + paragraph(date(note)))
         if (note.html != null) styledParagraphs(note.html).forEach { body.append(styledParagraph(it)) }
         else note.text.replace("\r\n", "\n").replace('\r', '\n').split('\n').forEach { body.append(paragraph(it)) }
         val images = mutableListOf<String>()
@@ -263,7 +264,7 @@ internal object ClassNoteExport {
                 y += 10f
             }
             try {
-                drawText("课堂笔记", 20f, true); drawText(note.course, 11f); drawText(date(note), 10f)
+                drawText(note.title.ifBlank { "课堂笔记" }, 20f, true); drawText(note.course, 11f); drawText(date(note), 10f)
                 drawText(note.html?.let(::styledText) ?: note.text)
                 note.images.forEachIndexed { index, file ->
                     try {
@@ -305,7 +306,7 @@ internal object ClassNoteExport {
                 }
             }
             zip.entry("note.json", JSONObject().put("id", note.id).put("course", note.course).put("createdAt", note.createdAt)
-                .put("text", note.text).putOpt("html", note.html).putOpt("markdown", note.markdown).put("attachments", attachments).put("warnings", JSONArray(warnings)).toString(2))
+                .put("title", note.title).put("text", note.text).putOpt("html", note.html).putOpt("markdown", note.markdown).put("attachments", attachments).put("warnings", JSONArray(warnings)).toString(2))
         }
     }
 }

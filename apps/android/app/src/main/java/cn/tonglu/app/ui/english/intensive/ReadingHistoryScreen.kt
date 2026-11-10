@@ -1,5 +1,16 @@
 package cn.tonglu.app.ui.english.intensive
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.saveable.rememberSaveable
+import cn.tonglu.app.ui.glass.GlassTopBar
+import cn.tonglu.app.ui.glass.GlassTokens
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -40,18 +51,24 @@ internal fun ReadingHistoryScreen(owner: String, onClose: () -> Unit, articleKey
     val scope = rememberCoroutineScope()
     var history by remember { mutableStateOf<List<StoredReadingHistory>>(emptyList()) }
     var favorites by remember { mutableStateOf<List<StoredReadingFavorite>>(emptyList()) }
-    var favoritesTab by remember { mutableStateOf(initialFavorites) }
+    var favoritesTab by rememberSaveable(owner, articleKey, sentenceId) { mutableStateOf(initialFavorites) }
     var error by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
-    fun reload() { scope.launch {
-        try {
-            history = store.history().filter { (articleKey == null || it.articleKey == articleKey) && (sentenceId == null || it.sentenceId == sentenceId) }
-            favorites = store.favorites().filter { articleKey == null || it.articleKey == articleKey }
-        } catch (e: CancellationException) { throw e }
-        catch (e: Exception) { error = "历史读取失败，请重试" }
-    } }
+    var loading by remember(owner) { mutableStateOf(true) }
+    var readError by remember(owner) { mutableStateOf<String?>(null) }
+    var readRevision by remember(owner) { mutableIntStateOf(0) }
+    fun reload() { readRevision++ }
     val changes by IntensiveStudyStore.changes.collectAsState()
-    LaunchedEffect(owner, changes) { reload() }
+    LaunchedEffect(owner, articleKey, sentenceId, changes, readRevision) {
+        loading = true; readError = null
+        try {
+            val loadedHistory = store.history().filter { (articleKey == null || it.articleKey == articleKey) && (sentenceId == null || it.sentenceId == sentenceId) }
+            val loadedFavorites = store.favorites().filter { articleKey == null || it.articleKey == articleKey }
+            history = loadedHistory; favorites = loadedFavorites
+        } catch (e: CancellationException) { throw e }
+        catch (e: Exception) { readError = "历史读取失败，请重试" }
+        finally { loading = false }
+    }
     fun review(row: StoredReadingHistory) {
         if (!config.ready()) { aiSettings = true; return }
         if (busy) return
@@ -69,49 +86,78 @@ internal fun ReadingHistoryScreen(owner: String, onClose: () -> Unit, articleKey
         predictive = OverlayMotion.enabledState, selfDrag = true)
     Dialog(onDismissRequest = { motion.requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = AppColors.CanvasOpaque) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回精读") }
-                    Text("精读记录", Modifier.weight(1f))
-                    TextButton(onClick = { aiSettings = true }) { Text("AI 设置") }
-                }
-                Row(Modifier.padding(horizontal = 16.dp)) {
-                    TextButton(onClick = { favoritesTab = false }) { Text(if (!favoritesTab) "✓ 历史" else "历史") }
-                    TextButton(onClick = { favoritesTab = true }) { Text(if (favoritesTab) "✓ 收藏的句子" else "收藏的句子") }
-                }
-                error?.let { Text(it, Modifier.padding(16.dp), color = AppColors.Danger) }
-                if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-                LazyColumn(Modifier.weight(1f), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    if (!favoritesTab) {
-                        if (history.isEmpty()) item { Text("尚无历史。保存自己的译文或请求 AI 后，会按版本保存在本机。") }
-                        items(history, key = { it.id }) { row ->
-                            Surface(color = AppColors.SurfaceOpaque, shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp)) {
-                                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    Text(readingHistoryKind(row.kind) + " · " + SimpleDateFormat("MM-dd HH:mm:ss", Locale.ROOT).format(Date(row.createdAt)), style = MaterialTheme.typography.labelLarge)
-                                    Text(row.articleTitle, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
-                                    SelectionContainer { Text(row.sourceText) }
-                                    if (row.inputText.isNotBlank()) { Text("当时的译文", style = MaterialTheme.typography.labelMedium); SelectionContainer { Text(row.inputText) } }
-                                    SelectionContainer { Text(row.text) }
-                                    if (row.model.isNotBlank()) Text("AI · ${row.model} · 已保存，重复请求复用", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
-                                    if (row.kind == "manual") TextButton(onClick = { review(row) }, enabled = !busy) { Text("AI 点评这版译文") }
+            val backdrop = rememberLayerBackdrop()
+            val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
+                GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
+                    Column(Modifier.widthIn(max = 880.dp).fillMaxSize().padding(top = headerInset + 12.dp)) {
+                        FlowRow(Modifier.padding(horizontal = 20.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf(false to "历史", true to "收藏的句子").forEach { (tab, title) ->
+                                FilterChip(selected = favoritesTab == tab, onClick = { favoritesTab = tab }, label = { Text(title) },
+                                    border = null, shape = RoundedCornerShape(20.dp), colors = FilterChipDefaults.filterChipColors(
+                                        containerColor = AppColors.ChipIdle, labelColor = AppColors.TextSecondary,
+                                        selectedContainerColor = AppColors.Accent, selectedLabelColor = AppColors.OnAccent))
+                            }
+                        }
+                        if (loading || busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+                        readError?.let { message ->
+                            Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text(message, color = AppColors.TextSecondary)
+                                TextButton(onClick = { reload() }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("重试读取") }
+                            }
+                        }
+                        error?.let { Text(it, Modifier.padding(20.dp), color = AppColors.Danger) }
+                        AnimatedContent(targetState = favoritesTab, transitionSpec = { fadeIn(tween(160, delayMillis = 120)) togetherWith fadeOut(tween(120)) },
+                            modifier = Modifier.weight(1f), label = "reading-history-tab") { tab ->
+                            LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                if (!tab) {
+                                    if (!loading && readError == null && history.isEmpty()) item("history-empty") {
+                                        Text("尚无历史。保存自己的译文或请求 AI 后，会按版本保存在本机。", color = AppColors.TextSecondary)
+                                    }
+                                    items(history, key = { it.id }) { row ->
+                                        Surface(modifier = Modifier.animateItem(), color = AppColors.SurfaceOpaque, shape = RoundedCornerShape(20.dp)) {
+                                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                                Text(readingHistoryKind(row.kind) + " · " + SimpleDateFormat("MM-dd HH:mm:ss", Locale.ROOT).format(Date(row.createdAt)), style = MaterialTheme.typography.labelLarge)
+                                                Text(row.articleTitle, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+                                                SelectionContainer { Text(row.sourceText) }
+                                                if (row.inputText.isNotBlank()) { Text("当时的译文", style = MaterialTheme.typography.labelMedium); SelectionContainer { Text(row.inputText) } }
+                                                SelectionContainer { Text(row.text) }
+                                                if (row.model.isNotBlank()) Text("AI · ${row.model} · 已保存，重复请求复用", style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                                                if (row.kind == "manual") TextButton(onClick = { if (tab == favoritesTab) review(row) },
+                                                    enabled = !busy && tab == favoritesTab, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("AI 点评这版译文") }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    if (!loading && readError == null && favorites.isEmpty()) item("favorites-empty") {
+                                        Text("还没有收藏句子。在逐句精读中点收藏即可保存。", color = AppColors.TextSecondary)
+                                    }
+                                    items(favorites, key = { it.articleKey + it.sentenceId }) { row ->
+                                        Surface(modifier = Modifier.animateItem(), color = AppColors.SurfaceOpaque, shape = RoundedCornerShape(20.dp)) {
+                                            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                Text(row.articleTitle, color = AppColors.TextSecondary)
+                                                SelectionContainer { Text(row.sourceText) }
+                                                TextButton(enabled = tab == favoritesTab && !loading, onClick = {
+                                                    if (tab == favoritesTab) scope.launch {
+                                                        try { store.favorite(row.articleKey, row.articleTitle, row.sentenceId, row.sourceText, false); reload() }
+                                                        catch (e: CancellationException) { throw e }
+                                                        catch (e: Exception) { error = "未能取消收藏，请重试" }
+                                                    }
+                                                }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("取消收藏") }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    } else {
-                        if (favorites.isEmpty()) item { Text("还没有收藏句子。在逐句精读中点收藏即可保存。") }
-                        items(favorites, key = { it.articleKey + it.sentenceId }) { row ->
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                Text(row.articleTitle, color = AppColors.TextSecondary)
-                                SelectionContainer { Text(row.sourceText) }
-                                TextButton(onClick = { scope.launch {
-                                    try { store.favorite(row.articleKey, row.articleTitle, row.sentenceId, row.sourceText, false); reload() }
-                                    catch (e: CancellationException) { throw e }
-                                    catch (e: Exception) { error = "未能取消收藏，请重试" }
-                                } }) { Text("取消收藏") }
-                                HorizontalDivider(color = AppColors.Divider)
-                            }
-                        }
                     }
+                }
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回精读", tint = AppColors.TextPrimary) }
+                    Text("精读记录", Modifier.weight(1f), color = AppColors.TextPrimary)
+                    TextButton(onClick = { aiSettings = true }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("AI 设置") }
                 }
             }
         }

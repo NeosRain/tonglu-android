@@ -386,14 +386,18 @@ fun GraphicsLayerScope.applyEdgeBack(progress: Float, fromLeft: Boolean, fade: B
  */
 @Composable
 fun Modifier.edgeSwipeBack(state: EdgeBackState, enabled: Boolean, backEnabled: Boolean = true,
-    onBack: (() -> Unit)? = null): Modifier {
+    onBack: (() -> Unit)? = null, preview: Boolean = enabled): Modifier {
     val latestBack by rememberUpdatedState(onBack)
-    // 必须在绘制层（Dialog 内）读取 LocalView；在创建 Dialog 前拿到的是 Activity 窗口。
-    DialogBackProgress(state, backEnabled, animate = enabled) {
-        if (latestBack != null) { state.cancel(); latestBack?.invoke() } else state.end(commit = true)
+    fun complete(commit: Boolean) {
+        if (!commit) state.cancel()
+        else if (latestBack != null) { state.cancel(); latestBack?.invoke() }
+        else if (preview) state.end(commit = true)
+        else { state.cancel(); state.onCommit() }
     }
+    // 必须在绘制层（Dialog 内）读取 LocalView；在创建 Dialog 前拿到的是 Activity 窗口。
+    DialogBackProgress(state, backEnabled, animate = preview) { complete(true) }
     if (!enabled || !backEnabled) return this
-    return this.pointerInput(state, enabled, backEnabled) {
+    return this.pointerInput(state, enabled, backEnabled, preview) {
         val edgePx = OverlayMotion.EdgeWidth.toPx()
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
@@ -409,9 +413,7 @@ fun Modifier.edgeSwipeBack(state: EdgeBackState, enabled: Boolean, backEnabled: 
                 if (!change.pressed) {
                     if (tracking) {
                         val shift = abs(change.position.x - down.position.x) / size.width.toFloat()
-                        if (shift >= OverlayMotion.COMMIT_RATIO && latestBack != null) {
-                            state.cancel(); latestBack?.invoke()
-                        } else state.end(commit = shift >= OverlayMotion.COMMIT_RATIO)
+                        complete(shift >= OverlayMotion.COMMIT_RATIO)
                     }
                     break
                 }
@@ -427,7 +429,7 @@ fun Modifier.edgeSwipeBack(state: EdgeBackState, enabled: Boolean, backEnabled: 
                     }
                 }
                 if (tracking) {
-                    state.drag(dx / size.width.toFloat(), if (fromLeft) BackEventCompat.EDGE_LEFT else BackEventCompat.EDGE_RIGHT)
+                    if (preview) state.drag(dx / size.width.toFloat(), if (fromLeft) BackEventCompat.EDGE_LEFT else BackEventCompat.EDGE_RIGHT)
                     change.consume()
                 }
             }
@@ -772,6 +774,8 @@ fun Modifier.overlayMotion(
     backEnabled: Boolean = state.shellBackEnabled,
     /** 进场方向。默认 [OverlayEnter.Bottom]（见该枚举的注释：别改默认值）。 */
     enter: OverlayEnter = LocalOverlayEnter.current,
+    /** 仅在松手提交返回，拖动期间不改变页面；默认保留其它页面的既有行为。 */
+    gestureWithoutPreview: Boolean = false,
 ): Modifier {
     ThemeSystemBars()
     cn.tonglu.app.ui.focus.RegisterPomodoroWindow()
@@ -809,8 +813,8 @@ fun Modifier.overlayMotion(
         //     这里自动让位（见 edgeSwipeBack 里的 break），不会两边打架；
         //   · 系统不管 → 就是这里在跟手。
         // shellBackEnabled 是「返回另有含义」的层（传输进行中等）的闸门，与返回键同一条规矩。
-        .edgeSwipeBack(state.edge, enabled = state.predictive && backEnabled,
-            backEnabled = backEnabled, onBack = onBack)
+        .edgeSwipeBack(state.edge, enabled = (state.predictive || gestureWithoutPreview) && backEnabled,
+            backEnabled = backEnabled, onBack = onBack, preview = state.predictive && backEnabled)
         // 🔴 两眼**都在绘制相位**读值（`enterState.value` / `edgeProgress.value`）：
         // 在函数体里先读成 `Float` 再进 lambda，就是「整页每帧重组」（BUGS A16）。
         .graphicsLayer {

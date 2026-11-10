@@ -2,6 +2,14 @@ package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import cn.tonglu.app.ui.glass.GlassTopBar
+import cn.tonglu.app.ui.glass.GlassTokens
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -114,6 +122,8 @@ internal fun EnglishHubScreen(
     var planBookName by remember(owner) { mutableStateOf<String?>(null) }
     var diagnosisBanks by remember(owner) { mutableStateOf<List<cn.tonglu.app.data.question.QuestionBank>>(emptyList()) }
     var diagnosisError by remember(owner) { mutableStateOf<String?>(null) }
+    var diagnosisLoading by remember(owner) { mutableStateOf(true) }
+    var diagnosisLoadError by remember(owner) { mutableStateOf<String?>(null) }
     LaunchedEffect(owner) {
         try {
             val banks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -122,7 +132,10 @@ internal fun EnglishHubScreen(
             diagnosisBanks = banks
             planBankTitles = banks.map { it.title }
         } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-        catch (cause: Exception) { diagnosisError = "题组读取失败：${cause.localizedMessage ?: "请重新进入"}" }
+        catch (cause: Exception) {
+            diagnosisLoadError = "题组读取失败：${cause.localizedMessage ?: "请重新进入"}"
+            diagnosisError = diagnosisLoadError
+        } finally { diagnosisLoading = false }
         try {
             planBookName = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 val repository = cn.tonglu.app.data.english.EnglishRepository(context)
@@ -196,7 +209,7 @@ internal fun EnglishHubScreen(
                 onClose = back)
         } }
         "diagnosis" -> { {
-            VocabDiagnosisPane(banks = diagnosisBanks,
+            VocabDiagnosisPane(banks = diagnosisBanks, loading = diagnosisLoading, loadError = diagnosisLoadError,
                 store = cn.tonglu.app.data.listening.PracticeStore.of(context, owner),
                 onExit = back, onAnswered = onPracticeChanged)
         } }
@@ -256,21 +269,15 @@ internal fun EnglishHubScreen(
     ) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false,
             backEnabled = abilityRoutes.isEmpty() && readingArticle == null), color = AppColors.CanvasOpaque) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { motion.requestClose() }) {   // 走 motion：与返回键同一条退场动画
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回学习页")
-                    }
-                    Text("英语", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                    // 48 §6：声音设置放右上角。只在这里设入口，不铺第二个假开关。
-                    TextButton(onClick = { navigate("voice") }) { Text("声音设置") }
-                }
+            val backdrop = rememberLayerBackdrop()
+            val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
+                GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).widthIn(max = 640.dp).fillMaxWidth().align(Alignment.CenterHorizontally),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    modifier = Modifier.widthIn(max = 640.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item("intro") {
@@ -284,9 +291,9 @@ internal fun EnglishHubScreen(
                     }
                     item("word-tools") {
                         FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            TextButton(onClick = { navigate("wordSettings") }) { Text("单词设置") }
-                            TextButton(onClick = { navigate("myBooks") }) { Text("我的单词书") }
-                            TextButton(onClick = { navigate("readingHistory") }) { Text("精读历史") }
+                            TextButton(onClick = { navigate("wordSettings") }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("单词设置") }
+                            TextButton(onClick = { navigate("myBooks") }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("我的单词书") }
+                            TextButton(onClick = { navigate("readingHistory") }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("精读历史") }
                         }
                     }
                     item("reading") {
@@ -301,6 +308,14 @@ internal fun EnglishHubScreen(
                         EnglishEntryCard(Icons.Outlined.Widgets, "学习工具", "听说、练习与其他辅助工具", { navigate("tools") })
                         Spacer(Modifier.height(16.dp))
                     }
+                }
+                }
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                    IconButton(onClick = { motion.requestClose() }) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回学习页", tint = AppColors.TextPrimary)
+                    }
+                    Text("英语", fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { navigate("voice") }) { Text("声音设置", color = AppColors.TextPrimary) }
                 }
             }
         }
@@ -332,20 +347,52 @@ internal fun EnglishHubScreen(
 
 @Composable
 private fun EnglishAuxiliaryTools(onSelect: (String) -> Unit, onClose: () -> Unit) {
+    EnglishToolDirectory("学习工具", "选择接下来要练习的内容。", listOf(
+        EnglishToolEntry("listening", Icons.Outlined.Mic, "听说", "精听与跟读", { onSelect("listening") }),
+        EnglishToolEntry("questions", Icons.Outlined.Quiz, "题组与错题", "练习与复习", { onSelect("questions") }),
+        EnglishToolEntry("words", Icons.Outlined.Translate, "词汇与查词", "辅助阅读时使用", { onSelect("words") }),
+        EnglishToolEntry("favorites", Icons.Outlined.Bookmarks, "单词收藏", "回看收藏", { onSelect("favorites") }),
+        EnglishToolEntry("myBooks", Icons.Outlined.LocalLibrary, "我的单词书", "收藏、合并与导入词表", { onSelect("myBooks") }),
+        EnglishToolEntry("more", Icons.Outlined.Widgets, "更多工具", "例句、计划与诊断", { onSelect("more") }),
+    ), onClose)
+}
+
+private data class EnglishToolEntry(
+    val id: String,
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val title: String,
+    val subtitle: String,
+    val onOpen: () -> Unit,
+)
+
+/** Shared directory chrome; page content and glass sampling are sibling layers. */
+@Composable
+private fun EnglishToolDirectory(title: String, subtitle: String, entries: List<EnglishToolEntry>, onClose: () -> Unit) {
     val motion = rememberOverlayMotion(onClose = { OverlayDismissGuard.arm(); onClose() }, predictive = OverlayMotion.enabledState, selfDrag = true)
+    val backdrop = rememberLayerBackdrop()
     Dialog(onDismissRequest = { motion.requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = AppColors.Canvas) {
-            LazyColumn(Modifier.fillMaxSize().safeDrawingPadding(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
-                    Text("学习工具", fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-                } }
-                item { EnglishEntryCard(Icons.Outlined.Mic, "听说", "精听与跟读", { onSelect("listening") }) }
-                item { EnglishEntryCard(Icons.Outlined.Quiz, "题组与错题", "练习与复习", { onSelect("questions") }) }
-                item { EnglishEntryCard(Icons.Outlined.Translate, "词汇与查词", "辅助阅读时使用", { onSelect("words") }) }
-                item { EnglishEntryCard(Icons.Outlined.Bookmarks, "单词收藏", "回看收藏", { onSelect("favorites") }) }
-                item { EnglishEntryCard(Icons.Outlined.LocalLibrary, "我的单词书", "收藏、合并与导入词表", { onSelect("myBooks") }) }
-                item { EnglishEntryCard(Icons.Outlined.Widgets, "更多工具", "例句、计划与诊断", { onSelect("more") }) }
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = AppColors.CanvasOpaque) {
+            val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
+                    LazyVerticalGrid(columns = GridCells.Adaptive(300.dp),
+                        modifier = Modifier.widthIn(max = 1040.dp).fillMaxSize(),
+                        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 20.dp, bottom = 24.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        item("intro", span = { GridItemSpan(maxLineSpan) }) {
+                            Text(subtitle, color = AppColors.TextSecondary, style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp))
+                        }
+                        items(entries, key = { it.id }) { entry ->
+                            EnglishEntryCard(entry.icon, entry.title, entry.subtitle, entry.onOpen)
+                        }
+                    }
+                }
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回上一页", tint = AppColors.TextPrimary) }
+                    Text(title, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
+                }
             }
         }
     }
@@ -429,7 +476,8 @@ private fun EnglishReadingCard(
                 Text("直接选择考试材料或推荐文章，读过的英文文章会留在这里。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
-                OutlinedButton(onClick = onChoose, modifier = Modifier.fillMaxWidth()) { Text("选择英文文章") }
+                OutlinedButton(onClick = onChoose, modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = AppColors.TextPrimary)) { Text("选择英文文章") }
             } else {
                 // EF08：标题最多 3 行收敛，元信息 1 行 —— 卡片高度随内容自适应，
                 // 长标题/大字号下不会把「继续阅读」按钮和下面的入口挤出一屏；
@@ -496,60 +544,9 @@ internal fun EnglishMoreToolsPane(
     onDiagnosis: () -> Unit,
     onClose: () -> Unit,
 ) {
-    val motion = rememberOverlayMotion(
-        onClose = { OverlayDismissGuard.arm(); onClose() },
-        predictive = OverlayMotion.enabledState,
-        selfDrag = true,
-    )
-    Dialog(
-        onDismissRequest = { motion.requestClose() },
-        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
-    ) {
-        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false),
-            color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { motion.requestClose() }) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回上一页")
-                    }
-                    Text("更多学习工具", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                }
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    item {
-                        // 每日例句无 Key 也能用（句子取自用户自己的词书），是学习入口不是 AI 入口。
-                        EnglishEntryCard(
-                            icon = Icons.Outlined.FormatQuote,
-                            title = "每日例句",
-                            subtitle = "每天 3 句 · 取自你的词书 · 可朗读、可挖空、可收藏（离线可用）",
-                            onClick = onDaily,
-                        )
-                    }
-                    item {
-                        EnglishEntryCard(
-                            icon = Icons.Outlined.EventNote,
-                            title = "学习计划",
-                            subtitle = "生成建议 · 确认后生效 · 完成以作答为准（离线可用）",
-                            onClick = onPlan,
-                        )
-                    }
-                    item {
-                        // 题组读取失败的原因带到这里显示 —— 挪走入口但不能把错误信息一起弄丢，
-                        // 否则用户点进去只会看到一张空列表，不知道是「没有」还是「读失败」。
-                        EnglishEntryCard(
-                            icon = Icons.Outlined.Quiz,
-                            title = "词汇诊断",
-                            subtitle = diagnosisProblem ?: "用已有题组找薄弱点 · 不预测考试分数",
-                            onClick = onDiagnosis,
-                        )
-                    }
-                }
-            }
-        }
-    }
+    EnglishToolDirectory("更多学习工具", "例句、安排与自测，按需要使用。", listOf(
+        EnglishToolEntry("daily", Icons.Outlined.FormatQuote, "每日例句", "每天 3 句 · 可朗读、挖空和收藏", onDaily),
+        EnglishToolEntry("plan", Icons.Outlined.EventNote, "学习计划", "用本机题组安排练习，确认后开始", onPlan),
+        EnglishToolEntry("diagnosis", Icons.Outlined.Quiz, "词汇诊断", diagnosisProblem ?: "用已有题组找薄弱点 · 不预测考试分数", onDiagnosis),
+    ), onClose)
 }

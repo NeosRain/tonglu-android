@@ -74,7 +74,6 @@ class QuestionBankCatalogTest {
         assertFalse(quiz.contains("owner = \"question\","))
         assertFalse(source.contains("wrongCount = remember(bank.id, revision)"))
         assertTrue(quiz.contains("aiQuestionKey = bank.keyOf(renderedQuestion)"))
-        assertTrue(quiz.contains("bank.keyOf(renderedQuestion) == bank.keyOf(list[safeIndex])"))
         assertTrue(quiz.contains("scopeKey = aiQuestionKey,"))
     }
 

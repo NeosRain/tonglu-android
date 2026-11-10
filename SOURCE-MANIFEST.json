@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "d18d2fed5272af47504766f470af3597ccc90c16",
+  "sourceCommit": "d926b60faa82768be400e102d3fb97fc7186ed63",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -37,8 +37,8 @@
     },
     {
       "path": "apps/android/app/build.gradle.kts",
-      "bytes": 18811,
-      "sha256": "92b1e9ec1dec14042a0a1463012d32615dd1a37b3848918a22831ffcbb20a7f4"
+      "bytes": 19358,
+      "sha256": "6723c442bd6459cbd89741418cc7ef3bfb5bf6bc35cca83f55a411bcf9c83feb"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -112,8 +112,8 @@
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/LearningMotionPreviewActivity.kt",
-      "bytes": 10400,
-      "sha256": "8d499a11b1db172969bcc054c50ac93217b75acf82d46e90ec546fdb426a6c03"
+      "bytes": 23443,
+      "sha256": "68b6fa2aad18fe25448c98965b9c45e64757c697186a815374a0cc8064140bc8"
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/UpdateQaActivity.kt",
@@ -612,8 +612,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/LearningPlan.kt",
-      "bytes": 23778,
-      "sha256": "771133c4e6bfa1175c798bdba2f06892311be54bd96e42a4f4de74c89a5d1110"
+      "bytes": 25156,
+      "sha256": "e0d21e2365fff9ceae62b8f8de81807ac9aabd2dd1eda4e257695cfb7e8b179a"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/LearningSearch.kt",
@@ -692,8 +692,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/notes/ClassNoteExport.kt",
-      "bytes": 23038,
-      "sha256": "0c7ecdc8e4e88b3441db48d41a490f662a17414add0f7a3fd8c992783d6aaa28"
+      "bytes": 23208,
+      "sha256": "ad9d8b2895f71408788079f6acfd1df00f8efd98cb05128ee0f5e15dfd382701"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/OpenList.kt",
@@ -997,8 +997,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/ArticleReader.kt",
-      "bytes": 92980,
-      "sha256": "fb12af50005878a1a023ee8bfaf8a82c69f25d96557e211aed8e3df266ad3cc2"
+      "bytes": 92923,
+      "sha256": "4ee8b3fd8b4c9388017ce22e6cf44765022a0326414816c6e5268b6424249ab7"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/Avatar.kt",
@@ -1187,8 +1187,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/ReadingHistoryScreen.kt",
-      "bytes": 7832,
-      "sha256": "d853342233029a73728b66e3ee2f9e679b9bd9d20922bd1b56612329ce2c97f5"
+      "bytes": 12201,
+      "sha256": "dd30fb4fda987a05f375a4d3bc3cc8535246cbb4dd9acbab5684eed533ec1e7d"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/english/intensive/SentenceFavoriteAction.kt",
@@ -1267,8 +1267,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/CommentGlassPill.kt",
-      "bytes": 17579,
-      "sha256": "da0d4fa85d78478755568c87b20a3dce3ffdb40ba5093376a1b43dcf0ccffb5f"
+      "bytes": 17880,
+      "sha256": "09980332f25b461927c5be287305fec79eccaef404bea78b38df5cd948a12155"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/ComposerMotion.kt",
@@ -1292,13 +1292,18 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/GlassActionPanel.kt",
-      "bytes": 4370,
-      "sha256": "8b03fa0966917c11ebdea9c576009c41bd6606e8404a7d3e027a89e063c3a4ad"
+      "bytes": 5101,
+      "sha256": "55516c67255db485e67c263222fa6147ddab34bc1164056af38a8649b3ddf2ec"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/GlassBottomMaterial.kt",
+      "bytes": 2320,
+      "sha256": "6332079afe3938365f865008ccc0372dff38f9afedd4dfa722cbba5fe7a972ab"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/GlassTokens.kt",
-      "bytes": 9568,
-      "sha256": "1dc37c7133ed034b60999a3eb39e4a00b0dde386742c638466563b5eaea75739"
+      "bytes": 10369,
+      "sha256": "397436b627a9db062074f00fa6a7c44933c0271e7aad8fe3239d1cbbb4d8934d"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/GlassTopBar.kt",
@@ -1317,8 +1322,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/LiquidBottomTabs.kt",
-      "bytes": 21296,
-      "sha256": "398383b60d2ba6fbf9a005d25dd76b86688bd466373dd1ab634bc821bbbbb80b"
+      "bytes": 21381,
+      "sha256": "066b260d1a4a911142b811af829fc3f55d4b5a068ba572ba0ae3268e93b37f31"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/glass/ScrollAutoHide.kt",
@@ -1367,13 +1372,18 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/CourseNotesPicker.kt",
-      "bytes": 3938,
-      "sha256": "09c4c3d8fbff721716ab587201aa77c699a0c42c3ac2f2345767d97585f99cd8"
+      "bytes": 7490,
+      "sha256": "6d8512506051909acfaaecd3ebe36495275ee5806fb79b4d076f16a14038c18c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/DailySentencePane.kt",
       "bytes": 18034,
       "sha256": "51ae29f3f36bc5c4afe234a411be1678f40b01e1b382c7594483d1d9e4c1c229"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/DiagnosisRound.kt",
+      "bytes": 4529,
+      "sha256": "a649d4d7af6cda58fb955e9fcf003b8cf25716a414346bfc101a672d77a9584c"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishDestinationPager.kt",
@@ -1387,8 +1397,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishHubScreen.kt",
-      "bytes": 31185,
-      "sha256": "5697f0ac3d21caf23d2f381b8b38fa9f726e875cf4d9bf67be42f888af800797"
+      "bytes": 32120,
+      "sha256": "0016f586150ddca027b64f6cb19d0cbb13cf1c1ceb95384df9d1994b5a1a84f8"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/EnglishPromptAudio.kt",
@@ -1422,8 +1432,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningPlanPane.kt",
-      "bytes": 33064,
-      "sha256": "8cbb5013cda561fcc98390e10afab4357714242d56dbacb4c9180f955dc3f4b1"
+      "bytes": 35171,
+      "sha256": "29cc5ccd69a646436a131fd4e510b70dc6111894a359fbe63243e6593292544f"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/LearningScreen.kt",
@@ -1447,8 +1457,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/QuestionBankScreen.kt",
-      "bytes": 68893,
-      "sha256": "8c18e4c3afa408213f18b323b50103a454448e9a6a1354facd066a5e30001ad8"
+      "bytes": 73974,
+      "sha256": "52a33a908f6aae113f62eec2386976aedce7eceaee8b1a5409f531f0c62b80c4"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/ReadingConversationBridge.kt",
@@ -1482,13 +1492,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/learning/VocabDiagnosisPane.kt",
-      "bytes": 13793,
-      "sha256": "c9cd316a9acfd11207e4a3d90414fdbcb60345c2ef693f020d4fae804d86b72b"
+      "bytes": 19626,
+      "sha256": "c9936b92f29ad911cd2e5383fd2dd23f23829e3cffa0bf06bff0df9f21bf280a"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/LearningGraph.kt",
-      "bytes": 27208,
-      "sha256": "aa7f2a8f20937ca5a7f5f798922990527f023dc49f171a5e4d5488f3603d1da0"
+      "bytes": 27233,
+      "sha256": "0bcdfb37aac0096cc19acfb44f12c01a5b92128a4d5a7d32b8886b1ff8e04769"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/LearningSearchDialog.kt",
@@ -1537,8 +1547,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/NoteEditor.kt",
-      "bytes": 26568,
-      "sha256": "0304b4fbd2dc1f02e340e8bac028bb2f161b46fa9c7da48be199e47c3ac36d38"
+      "bytes": 26702,
+      "sha256": "8c9d3ec7e33028783d706236a63d53467ef05b3df5b61bc9100e0e60754b3302"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/OverlayDismissGuard.kt",
@@ -1547,18 +1557,18 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/OverlayMotion.kt",
-      "bytes": 43793,
-      "sha256": "a662cf99b03b7501db146e7768c06d8fd21f1049a5ef2c90049e5d9a82f9629a"
+      "bytes": 44066,
+      "sha256": "7a19fe34f496371f732a7904424ae7828102390609c1907b007ddeaa642486d4"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/PostComposer.kt",
-      "bytes": 20251,
-      "sha256": "bb1a55dd3cd9464f740edaa31ae437f7cea14989c90722e8dbe215bbe95a513e"
+      "bytes": 20432,
+      "sha256": "201bf49073b00c8e53acfa9ae6e8cde608d0cee03b0029814020394a046ae0fc"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/PostDetail.kt",
-      "bytes": 73648,
-      "sha256": "adb8a282d03568c137c337096b68ad4ee999c52e42b36d697532f41636bac849"
+      "bytes": 74004,
+      "sha256": "b45bf199cc699ca7c161d1a88b6d7704eae264736592a4a1401ccd7ca49275dc"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/PostPackCard.kt",
@@ -1777,8 +1787,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TabletNavigationRail.kt",
-      "bytes": 3281,
-      "sha256": "2800f7e7dd05e274925a558a9f3483a96b46845e48cf150190c46df0e878af7d"
+      "bytes": 3351,
+      "sha256": "9ffccfd99f290b0c74e71c64d4356a27ab27ed02ef1570aa646331495c467143"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/theme/ThemeAccent.kt",
@@ -1802,8 +1812,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/theme/ThemeWallpaperHost.kt",
-      "bytes": 2275,
-      "sha256": "7577976ede73a44ea01e81e9651f8629c579abe19a60cab8fbc10129188d6ebd"
+      "bytes": 2947,
+      "sha256": "1b59edfb91ae6e6918b3f90ae1104aac71b7ddb821d5ca6d93742657b2fbbf3e"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/theme/WallpaperPreview.kt",
@@ -1832,13 +1842,13 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNoteEditor.kt",
-      "bytes": 6319,
-      "sha256": "8bd978ab3da01ed6ffa29bce9fdf57a0091b9a056a20405f0a9c05477e7a69b1"
+      "bytes": 7248,
+      "sha256": "f324eb7899af6c3bfdd656c2814f1e739a535e2daf91e110318167b2e4762d2d"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/ClassNotes.kt",
-      "bytes": 49975,
-      "sha256": "c353a7f7bc8591d9ca08431fc54f774e6ffdac603ba434123e3b652d9b6bf872"
+      "bytes": 57980,
+      "sha256": "2e56faadb3fbe22659f09209d608d0b0d95b9dbc9066c1a1acb89f85c0917b6b"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/timetable/CourseCardContent.kt",
@@ -1872,8 +1882,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/TongluApp.kt",
-      "bytes": 87970,
-      "sha256": "e0154060a0bac93792c6e2d595ae382435c5f39b003bd2e7a78a0555482bba16"
+      "bytes": 88189,
+      "sha256": "fd35072beb0b5775f3b5e978323d28dacf6dee867b61674e110a5a8bf0eb72e5"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/UnderlayBackTransform.kt",
@@ -2322,8 +2332,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/notes/ClassNoteExportTest.kt",
-      "bytes": 6615,
-      "sha256": "80e1d1537f366cf57ab016ddad60c27c571bc430f855924cdaeba02dc9f52b90"
+      "bytes": 7560,
+      "sha256": "58c444d9cd3228a3b5ce73844404c10c4afb38d002436c4541af999c87667161"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/PersonalBackupTest.kt",
@@ -2332,8 +2342,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/PlanDraftTest.kt",
-      "bytes": 17123,
-      "sha256": "e4f196679e1e2812c02a64aadfe73732360dcb9954a4dbd67830031ca26bb33a"
+      "bytes": 19428,
+      "sha256": "0b89d0ff66231d69f2b51dc63d0b730d74ab12cd6699311036bee5308bda4ed1"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/PostLimitsTest.kt",
@@ -2357,8 +2367,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/question/DiagnosisSetTest.kt",
-      "bytes": 5045,
-      "sha256": "05a5809135f97719980782f00e67c85459b7e21a5a98929baa522a1a3e357828"
+      "bytes": 8733,
+      "sha256": "e1c2e25e6e037242844197ccfb4f36963bb7d837eb8ba02502055c8fee094aa6"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/question/QuestionBankContentTest.kt",
@@ -2482,13 +2492,13 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/ClassNoteEditorTest.kt",
-      "bytes": 1253,
-      "sha256": "d305bea88a6d1701adb6d733a44f293a92945baca1fc5652a7da91799f27a5fa"
+      "bytes": 2077,
+      "sha256": "cfcead0d36cfc3b0d6f1f16db5d93701bb598d4f51dd46931718f5e7b7b2fe68"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/clubs/ClubActivityModelsTest.kt",
-      "bytes": 13339,
-      "sha256": "9d068652ece533eb6a398aea102697f44a9ac39bc6a6b17286a516c8b3566579"
+      "bytes": 12002,
+      "sha256": "14d7f95da84adf0a8e33b278e8f9d63bf71fd952cfb3725b04fc57a247dd95ba"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/clubs/ClubNavigationTest.kt",
@@ -2497,8 +2507,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/ComposerBackActionTest.kt",
-      "bytes": 3538,
-      "sha256": "2f84e8b57cb322e9a84b0d0fc3f662ab1f7457f6d348d93e89fa12165a50000e"
+      "bytes": 2875,
+      "sha256": "c0751cf5b73c76600f7a17d6348964ca2ba54b0145eea21bd3bd565259faa97a"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/english/contextword/ContextWordRulesTest.kt",
@@ -2532,8 +2542,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/learning/QuestionBankCatalogTest.kt",
-      "bytes": 5557,
-      "sha256": "d3ff3cd50cde1cc14e42ac042b31762df62cc840ff51d1f4b242fa5fa1daded3"
+      "bytes": 5459,
+      "sha256": "28a6f658c65020738a466bbe5989ea201b837b9dec798aff62eef98a5355aa6d"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/ui/learning/ReadingConversationBridgeTest.kt",

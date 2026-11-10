@@ -167,6 +167,7 @@ import cn.tonglu.app.data.WeekSpec
 import cn.tonglu.app.data.ScheduleText
 import cn.tonglu.app.ui.timetable.CourseRecognitionActions
 import cn.tonglu.app.ui.glass.GlassTopBar
+import cn.tonglu.app.ui.glass.GlassBottomTokens
 import cn.tonglu.app.ui.glass.LiquidBottomTabs
 import cn.tonglu.app.ui.glass.LiquidBottomTab
 import cn.tonglu.app.ui.glass.rememberBarAutoHide
@@ -1110,7 +1111,7 @@ private fun TopActionRow(
 }
 
 @Composable
-private fun CoolapkNavigationBar(
+internal fun CoolapkNavigationBar(
     tabs: List<String>,
     filledIcons: List<androidx.compose.ui.graphics.vector.ImageVector>,
     outlinedIcons: List<androidx.compose.ui.graphics.vector.ImageVector>,
@@ -1120,18 +1121,18 @@ private fun CoolapkNavigationBar(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .wrapContentWidth(Alignment.CenterHorizontally)
-            .widthIn(max = (tabs.size * 72).dp)
-            .navigationBarsPadding(),
-        color = AppColors.SurfaceOpaque,
-        shadowElevation = 12.dp,
+            .navigationBarsPadding()
+            .padding(horizontal = GlassTokens.BarSideMarginDp.dp, vertical = GlassTokens.BarVerticalMarginDp.dp)
+            .widthIn(max = (tabs.size * GlassBottomTokens.NavigationSlotWidthDp + 8f).dp)
+            .fillMaxWidth(),
+        color = if (GlassTokens.DarkGlass) GlassTokens.ContainerDark else GlassTokens.ContainerLight,
+        shape = RoundedCornerShape(GlassBottomTokens.CornerDp.dp),
+        shadowElevation = 4.dp,
     ) {
         Row(
             Modifier
-                .width((tabs.size * 72).dp)
-                .height(54.dp)
-                .border(0.5.dp, themeColor(Color(0xFFEDEEF0), AppColors.Divider)),
+                .fillMaxWidth()
+                .height(GlassTokens.BarPanelHeightDp.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 酷安风底栏是 Surface(color = Color.White) —— 白底，图标必须保持深色，
@@ -1170,7 +1171,7 @@ private fun CoolapkNavigationBar(
 }
 
 @Composable
-private fun GlassBottomBar(
+internal fun GlassBottomBar(
     tabs: List<String>,
     filledIcons: List<androidx.compose.ui.graphics.vector.ImageVector>,
     outlinedIcons: List<androidx.compose.ui.graphics.vector.ImageVector>,
@@ -1194,11 +1195,11 @@ private fun GlassBottomBar(
                     10f.dp.toPx()
                 translationY = travel * hiddenFraction()
             }
+            .widthIn(max = (tabs.size * GlassBottomTokens.NavigationSlotWidthDp + 8f + GlassTokens.BarSideMarginDp * 2f).dp)
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal))
             .padding(
-                // 左右留一档白边（BarSideMarginDp 22dp）。用户说的「宽度」是 y 轴厚度，
-                // 别再来这里收左右 —— 收了只会变「又短又胖」。
+                // 外层按标签数限宽；这里仅保留离屏幕边缘的间距。
                 horizontal = GlassTokens.BarSideMarginDp.dp,
                 vertical = GlassTokens.BarVerticalMarginDp.dp,
             )

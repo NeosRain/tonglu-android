@@ -24,11 +24,25 @@ internal data class GlassPanelStyle(
     val highlightAlpha: Float = GlassTokens.RestHighlightAlpha,
     val shadowAlpha: Float = GlassTokens.RestShadowAlpha,
     val innerShadowAlpha: Float = GlassTokens.RestInnerShadowAlpha,
+    val refractionHeightDp: Float = GlassTokens.PanelRefractionHeightDp,
+    val refractionAmountDp: Float = GlassTokens.PanelRefractionAmountDp,
 ) {
     companion object {
 
         // Getters read current theme values instead of freezing the first composition.
         val Default get() = GlassPanelStyle()
+
+        val Bottom get() = GlassPanelStyle(
+            surfaceAlpha = GlassBottomTokens.SurfaceAlpha,
+            blurDp = GlassBottomTokens.BlurDp,
+            highlightAlpha = GlassBottomTokens.HighlightAlpha,
+            shadowAlpha = GlassBottomTokens.ShadowAlpha,
+            innerShadowAlpha = GlassBottomTokens.InnerShadowAlpha,
+            refractionHeightDp = GlassBottomTokens.RefractionHeightDp,
+            refractionAmountDp = GlassBottomTokens.RefractionAmountDp,
+        )
+
+        val BottomInput get() = Bottom.copy(surfaceAlpha = if (GlassTokens.DarkGlass) .96f else .94f)
 
         /** Denser version for floating detail actions. */
         val Solid get() = GlassPanelStyle(
@@ -78,7 +92,7 @@ internal fun GlassActionPanel(
         backdrop = backdrop,
         shape = { shape },
         effects = { vibrancy(); blur(style.blurDp.dp.toPx())
-            lens(GlassTokens.PanelRefractionHeightDp.dp.toPx(), GlassTokens.PanelRefractionAmountDp.dp.toPx(),
+            lens(style.refractionHeightDp.dp.toPx(), style.refractionAmountDp.dp.toPx(),
                 chromaticAberration = GlassTokens.ChromaticAberration) },
         highlight = { Highlight.Default.copy(alpha = style.highlightAlpha) },
         shadow = { Shadow(alpha = style.shadowAlpha) },

@@ -26,4 +26,17 @@ class ClassNoteEditorTest {
         assertTrue(editor.state.history.redo())
         assertEquals(formatted, editor.document())
     }
+    @Test fun titleEditsPreserveBodyWhitespaceAndRichContent() {
+        val original = NoteDocument("  alpha\n\nend  ", title = "Old title")
+        val editor = NoteEditorSession(original)
+        editor.title = "New title"
+        assertEquals(original.copy(title = "New title"), editor.document())
+        val restored = NoteEditorSession(editor.document())
+        assertEquals("New title", restored.title)
+        restored.state.selection = TextRange(2, 7)
+        restored.state.toggleSpanStyle(SpanStyle(fontWeight = FontWeight.Bold))
+        assertEquals("New title", restored.document().title)
+        assertEquals(original.text, restored.document().text)
+        assertEquals("Only title", NoteEditorSession(NoteDocument("", title = "Only title")).document().title)
+    }
 }

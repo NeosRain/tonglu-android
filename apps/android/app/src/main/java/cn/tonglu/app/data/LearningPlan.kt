@@ -1,12 +1,16 @@
 package cn.tonglu.app.data
 
 import android.content.Context
-import android.util.Log
+import android.util.AtomicFile
 import cn.tonglu.app.data.listening.QuestionAttempt
 import cn.tonglu.app.data.question.QuestionBank
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
+import java.util.Calendar
+import java.util.Locale
+import java.text.SimpleDateFormat
 
 /**
  * 学习计划（docs/plan/56 §6.2 `LearningPlan` / `LearningTask`，§6.3 A4）。
@@ -200,24 +204,37 @@ class PlanStore(context: Context) {
     private val app = context.applicationContext
     private val dir = File(app.filesDir, "english/plans")
 
-    fun load(owner: String): List<LearningPlan> = try {
-        val file = file(owner)
-        if (!file.exists()) emptyList()
-        else JSONArray(file.readText()).let { arr -> (0 until arr.length()).mapNotNull { parse(arr.optJSONObject(it)) } }
-    } catch (cause: Exception) { Log.w("PlanStore", "计划读取失败", cause); emptyList() }
-
-    /** 保存该 owner 的全部计划。写入用临时文件 + rename，避免写一半崩了留下坏 JSON。 */
-    fun save(owner: String, plans: List<LearningPlan>) {
-        try {
-            dir.mkdirs()
-            val tmp = File(dir, "${safe(owner)}.tmp")
-            val target = file(owner)
-            tmp.writeText(JSONArray().apply { plans.forEach { put(json(it)) } }.toString())
-            if (!tmp.renameTo(target)) { target.writeText(tmp.readText()); tmp.delete() }
-        } catch (cause: Exception) { Log.w("PlanStore", "计划保存失败", cause) }
+    fun load(owner: String): List<LearningPlan> = synchronized(diskLock) {
+        val target = file(owner)
+        if (!target.exists() && !File(target.path + ".bak").exists()) emptyList()
+        else AtomicFile(target).openRead().bufferedReader(Charsets.UTF_8).use { input ->
+            JSONArray(input.readText()).let { rows -> (0 until rows.length()).map { index ->
+                parse(rows.getJSONObject(index)) ?: throw IOException("第 ${index + 1} 份计划缺少标识")
+            } }
+        }
     }
 
-    fun clear(owner: String) { try { file(owner).delete() } catch (_: Exception) { } }
+    /** Reads must succeed before replacing existing data; failures reach the caller. */
+    fun save(owner: String, plans: List<LearningPlan>) = synchronized(diskLock) {
+        load(owner)
+        val text = JSONArray().apply { plans.forEach { put(json(it)) } }.toString()
+        val atomic = AtomicFile(file(owner))
+        val output = atomic.startWrite()
+        try {
+            output.write(text.toByteArray(Charsets.UTF_8))
+            atomic.finishWrite(output)
+        } catch (cause: Exception) { atomic.failWrite(output); throw cause }
+        // AtomicFile reports some commit failures only through Log; verify the committed bytes.
+        check(atomic.openRead().bufferedReader(Charsets.UTF_8).use { it.readText() } == text) { "计划写入未完成，请重试" }
+    }
+
+    fun clear(owner: String) = synchronized(diskLock) {
+        val target = file(owner)
+        AtomicFile(target).delete()
+        check(!target.exists() && !File(target.path + ".bak").exists() && !File(target.path + ".new").exists()) { "计划清理未完成" }
+    }
+
+    private companion object { val diskLock = Any() }
 
     /** 只导出 active 计划给云端 —— draft 是本机的草稿，不属于「用户的安排」。 */
     fun exportPayload(owner: String): PlanPayload =
@@ -396,17 +413,32 @@ fun PlanTask.requiredQuestionCount(banks: List<QuestionBank> = emptyList()): Int
     if (questionCount > 0) questionCount
     else banks.firstOrNull { it.id == bankId }?.size ?: 0
 
-/**
- * 确认基准之后、本任务题组里**不同题目键**的作答数（重答同一题只算一道）。
- *
- * 返回 0 的含义是「没有可归因的作答证据」，不是「用户做了 0 道」——
- * 无题组 / 无基准 / 基准前作答都不算。基准来自用户确认计划那一刻的墙钟毫秒。
- */
+/** Calendar uses the device's natural days, including DST, and is available on API 24. */
+private fun PlanTask.practiceDayStart(): Calendar? {
+    val day = dueDay?.takeIf { it >= 0 } ?: return null
+    val base = baselineAt ?: return null
+    return Calendar.getInstance().apply {
+        timeInMillis = base
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        add(Calendar.DAY_OF_YEAR, day)
+    }
+}
+
+fun PlanTask.practiceDate(): String? = practiceDayStart()?.let {
+    SimpleDateFormat("yyyy-MM-dd", Locale.ROOT).apply { timeZone = it.timeZone }.format(it.time)
+}
+
+/** Distinct questions within the scheduled natural day, never before confirmation. */
 fun PlanTask.answeredDistinctSinceBaseline(attempts: List<QuestionAttempt>): Int {
     val bid = bankId ?: return 0
     val base = baselineAt ?: return 0
+    val day = practiceDayStart()
+    val start = day?.timeInMillis?.coerceAtLeast(base) ?: base
+    day?.add(Calendar.DAY_OF_YEAR, 1)
+    val end = day?.timeInMillis ?: Long.MAX_VALUE
     return attempts.asSequence()
-        .filter { it.answeredAt >= base && it.questionKey.startsWith("$bid:") }
+        .filter { it.answeredAt >= start && it.answeredAt < end && it.questionKey.startsWith("$bid:") }
         .map { it.questionKey }
         .toSet()
         .size

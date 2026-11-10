@@ -88,7 +88,7 @@ import kotlin.math.sign
  * 2. **中层**：`GlassTokens.BarContentHeightDp`、`alpha(0f)` 不可见，但被导出成 [tabsBackdrop]；内容用
  *    `ColorFilter.tint(accentColor)` 染成主题色 —— 它是"指示器要折射的东西"
  * 3. **顶层**：指示器胶囊，宽 1/tabsCount，backdrop 取
- *    `rememberCombinedBackdrop(backdrop, tabsBackdrop)`
+ *    `rememberCombinedBackdrop(bottomBackdrop, tabsBackdrop)`
  *
  * 第 2、3 层这个组合是精髓：胶囊里透出的不是原始页面，而是**已经染色的图标经过玻璃折射**，
  * 所以滑到哪里，哪里的图标就被"吸"进胶囊里放大变亮。直接把页面内容喂给胶囊是做不出这个效果的。
@@ -113,6 +113,7 @@ fun LiquidBottomTabs(
 
     val latestSelectedIndex by rememberUpdatedState(selectedTabIndex)
     val latestOnTabSelected by rememberUpdatedState(onTabSelected)
+    val bottomBackdrop = rememberBottomBackdrop(backdrop)
     val tabsBackdrop = rememberLayerBackdrop()
     // 按 skill 的 exportedBackdrop 导出底板，胶囊采样磨砂结果而非原始页面。
     val panelBackdrop = rememberLayerBackdrop()
@@ -258,30 +259,30 @@ fun LiquidBottomTabs(
                         translationX = panelOffset
                     }
                     .drawBackdrop(
-                        backdrop = backdrop,
+                        backdrop = bottomBackdrop,
                         exportedBackdrop = panelBackdrop,
                         shape = { Capsule() },
                         effects = {
                             vibrancy()
                             val press = dampedDragAnimation.pressProgress
-                            blur(lerp(GlassTokens.PanelBlurDp, GlassTokens.PanelPressedBlurDp, press).dp.toPx())
+                            blur(lerp(GlassBottomTokens.BlurDp, GlassBottomTokens.PressedBlurDp, press).dp.toPx())
                             lens(
-                                lerp(GlassTokens.PanelRefractionHeightDp, GlassTokens.PanelPressedRefractionHeightDp, press).dp.toPx(),
-                                lerp(GlassTokens.PanelRefractionAmountDp, GlassTokens.PanelPressedRefractionAmountDp, press).dp.toPx(),
+                                lerp(GlassBottomTokens.RefractionHeightDp, GlassBottomTokens.PressedRefractionHeightDp, press).dp.toPx(),
+                                lerp(GlassBottomTokens.RefractionAmountDp, GlassBottomTokens.PressedRefractionAmountDp, press).dp.toPx(),
                                 chromaticAberration = GlassTokens.ChromaticAberration
                             )
                         },
                         // 使用 skill 的低强度常驻轮廓，避免额外描边和厚重阴影。
                         highlight = {
-                            Highlight.Default.copy(alpha = GlassTokens.RestHighlightAlpha + GlassTokens.PressHighlightGain * dampedDragAnimation.pressProgress)
+                            Highlight.Default.copy(alpha = GlassBottomTokens.HighlightAlpha + GlassTokens.PressHighlightGain * dampedDragAnimation.pressProgress)
                         },
                         shadow = {
-                            Shadow(alpha = GlassTokens.RestShadowAlpha + GlassTokens.PressShadowGain * dampedDragAnimation.pressProgress)
+                            Shadow(alpha = GlassBottomTokens.ShadowAlpha + GlassTokens.PressShadowGain * dampedDragAnimation.pressProgress)
                         },
                         innerShadow = {
                             val progress = dampedDragAnimation.pressProgress
                             InnerShadow(radius = GlassTokens.RestInnerShadowRadiusDp.dp + GlassTokens.PressInnerShadowRadiusGainDp.dp * progress,
-                                alpha = GlassTokens.RestInnerShadowAlpha + GlassTokens.PressInnerShadowAlphaGain * progress)
+                                alpha = GlassBottomTokens.InnerShadowAlpha + GlassTokens.PressInnerShadowAlphaGain * progress)
                         },
                         // 按压时面板整体微微放大（16dp 相对自身宽度）
                         layerBlock = {
@@ -291,7 +292,7 @@ fun LiquidBottomTabs(
                             scaleY = scale
                         },
                         onDrawSurface = {
-                            drawFrostSurface(containerColor, lerp(GlassTokens.PanelSurfaceAlpha, GlassTokens.PanelPressedSurfaceAlpha, dampedDragAnimation.pressProgress))
+                            drawFrostSurface(containerColor, lerp(GlassBottomTokens.SurfaceAlpha, GlassBottomTokens.PressedSurfaceAlpha, dampedDragAnimation.pressProgress))
                         }
                     )
                     .then(interactiveHighlight.modifier)

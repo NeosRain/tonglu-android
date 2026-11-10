@@ -100,7 +100,7 @@ import java.net.URI
 import org.intellij.markdown.MarkdownElementTypes
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
-import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 import cn.tonglu.app.ui.readingselection.readingTextHit
 import cn.tonglu.app.ui.readingselection.supportsPreciseReading
 import cn.tonglu.app.ui.readingselection.ReaderInteractiveParagraph
@@ -755,7 +755,7 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                         h6 = bodyStyle.copy(fontWeight = FontWeight.SemiBold, color = paper.fg))
                     val readerBackdrop = rememberLayerBackdrop()
                     Box(Modifier.weight(1f)) {
-                    SelectionContainer(Modifier.fillMaxSize().layerBackdrop(readerBackdrop)) {
+                    SelectionContainer(Modifier.fillMaxSize().layerBackdrop(readerBackdrop).background(background)) {
                         Markdown(markdownState = markdownState,
                             imageTransformer = readerImages,
                             typography = mdTypography,
@@ -855,7 +855,7 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                             })
                     }
                     val readerTools: @Composable () -> Unit = {
-                    ReaderTools(article, paper, favorite,
+                    ReaderTools(article, paper.copy(fg = AppColors.TextPrimary, muted = AppColors.TextSecondary), favorite,
                         marks = pageBookmarks.size + pageNotes.size + wholeNotes.size,
                         marking = marking,
                         deepDiving = deepDiveActive,
@@ -877,10 +877,8 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
                         onCopy = { copyArticleSource(context, article) },
                     )
                     }
-                    val toolsModifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 12.dp, vertical = 10.dp)
-                    if (englishReading) Surface(modifier = toolsModifier, shape = RoundedCornerShape(24.dp),
-                        color = background, tonalElevation = 3.dp, shadowElevation = 2.dp) { readerTools() }
-                    else GlassActionPanel(readerBackdrop, toolsModifier, surfaceColor = background) { readerTools() }
+                    val toolsModifier = Modifier.align(Alignment.BottomCenter).padding(horizontal = 12.dp, vertical = 10.dp).widthIn(max = 720.dp)
+                    GlassBottomActionPanel(readerBackdrop, toolsModifier) { readerTools() }
                     }
                 }
             }
@@ -1102,9 +1100,9 @@ private fun ReaderTools(article: LearningArticle, paper: PaperPreset, favorite: 
             onTranslate?.let { ReaderTool(Icons.Outlined.Translate, "翻译", paper.fg, it) }
             ReaderTool(Icons.Outlined.TextFields, "排版", paper.fg, onSettings)
         } else ReaderTool(Icons.Outlined.FormatListBulleted, "目录", paper.fg, onToc)
-        ReaderTool(Icons.Outlined.StickyNote2, "笔记", if (marks > 0) NoteAccent else paper.fg, onMarks)
+        ReaderTool(Icons.Outlined.StickyNote2, "笔记", if (marks > 0) cn.tonglu.app.ui.glass.GlassTokens.AccentOnGlass else paper.fg, onMarks)
         if (deepDiveAvailable && !englishReading) ReaderTool(Icons.Outlined.AutoStories,
-            if (deepDiving) "退出精读" else "精读", if (deepDiving) DeepDiveAccent else paper.fg, onDeepDive)
+            if (deepDiving) "退出精读" else "精读", if (deepDiving) cn.tonglu.app.ui.glass.GlassTokens.AccentOnGlass else paper.fg, onDeepDive)
         Box {
             ReaderTool(Icons.Outlined.MoreHoriz, "更多", paper.fg) { more = true }
             DropdownMenu(expanded = more, onDismissRequest = { more = false }) {

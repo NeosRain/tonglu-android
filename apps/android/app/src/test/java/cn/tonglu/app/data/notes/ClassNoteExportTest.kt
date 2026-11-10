@@ -108,4 +108,15 @@ class ClassNoteExportTest {
             assertTrue(xml.contains("3. "))
         }
     }
+    @Test fun `独立标题导出到文件名正文和资料包且不改正文`() {
+        val titled = note().copy(title = "线性代数与实验")
+        assertEquals("线性代数与实验.txt", ClassNoteExport.filename(titled, ClassNoteExportFormat.Text))
+        assertTrue(export(ClassNoteExportFormat.Text, titled).toString(Charsets.UTF_8).startsWith(titled.title + "\n\n"))
+        assertTrue(export(ClassNoteExportFormat.Markdown, titled).toString(Charsets.UTF_8).startsWith("# " + titled.title + "\n\n"))
+        val xml = entries(export(ClassNoteExportFormat.Word, titled)).getValue("word/document.xml").toString(Charsets.UTF_8)
+        assertTrue(xml.contains(titled.title))
+        val archive = entries(export(ClassNoteExportFormat.Archive, titled))
+        assertTrue(archive.getValue("note.json").toString(Charsets.UTF_8).contains(titled.title))
+        assertTrue(ClassNoteExport.text(titled).contains(body))
+    }
 }

@@ -208,6 +208,23 @@ internal fun DrawScope.drawFrostSurface(color: Color, alpha: Float) {
     )))
 }
 
+/** Shared bottom chrome; top bars/search retain their existing, denser material. */
+internal object GlassBottomTokens {
+    val SurfaceAlpha: Float get() = if (GlassTokens.DarkGlass) .82f else .70f
+    val PressedSurfaceAlpha: Float get() = if (GlassTokens.DarkGlass) .92f else .86f
+    const val BlurDp = 14f
+    const val PressedBlurDp = 22f
+    const val RefractionHeightDp = 12f
+    const val RefractionAmountDp = 18f
+    const val PressedRefractionHeightDp = 16f
+    const val PressedRefractionAmountDp = 22f
+    val HighlightAlpha: Float get() = if (GlassTokens.DarkGlass) .28f else .38f
+    val ShadowAlpha: Float get() = if (GlassTokens.DarkGlass) .24f else .16f
+    const val InnerShadowAlpha = .08f
+    const val CornerDp = 28f
+    const val NavigationSlotWidthDp = 76f
+}
+
 
 
 

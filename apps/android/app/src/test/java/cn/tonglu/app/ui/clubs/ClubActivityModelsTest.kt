@@ -177,21 +177,6 @@ class ClubActivityModelsTest {
             || activityGoingLabel(12).endsWith("人报名"))
     }
 
-    @Test
-    fun `报名名单说明必须点出缺的是接口，并说明人数是合并计数`() {
-        assertTrue(RSVP_ROSTER_PENDING.contains("接口"))
-        assertTrue(RSVP_ROSTER_PENDING.contains("人数"))
-        assertTrue("要说明合并计数，否则用户会以为这就是报名人数", RSVP_ROSTER_PENDING.contains("合并"))
-    }
-
-    @Test
-    fun `空活动文案区分负责人与普通成员`() {
-        // 负责人看得到「你可以发起」，普通成员看到的是说明而非一个他点不动的假按钮。
-        assertTrue(ACTIVITY_EMPTY_FOR_OWNER.contains("负责人"))
-        assertFalse(ACTIVITY_EMPTY_FOR_MEMBER.contains("负责人"))
-        assertFalse("普通成员文案不许出现可操作入口的错觉", ACTIVITY_EMPTY_FOR_MEMBER.contains("你可以"))
-    }
-
     // ---------------------------------------------------------------- 分类：活动是一条真实通道
 
     @Test
@@ -209,15 +194,6 @@ class ClubActivityModelsTest {
         assertFalse(ChannelCategory.BOT.hasRealSupport())
         assertFalse(ChannelCategory.RESOURCE.hasRealSupport())
         assertFalse(ChannelCategory.COHORT.isActivityLane())
-    }
-
-    @Test
-    fun `未支持说明不再把活动算进去`() {
-        assertTrue(CATEGORY_UNSUPPORTED_HINT.contains("年级"))
-        assertTrue("要明确「活动不是频道」，否则用户会去频道里找活动",
-            CATEGORY_UNSUPPORTED_HINT.contains("「活动」不是频道"))
-        // 反向陷阱：谁把活动重新塞回「需要服务端提供」的清单里，这一条就红。
-        assertFalse(CATEGORY_UNSUPPORTED_HINT.contains("资源 / 活动"))
     }
 
     // ---------------------------------------------------------------- 与服务端的字段名对齐

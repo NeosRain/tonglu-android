@@ -10,6 +10,7 @@ import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -61,7 +62,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import androidx.compose.ui.window.DialogWindowProvider
@@ -473,10 +474,9 @@ internal fun LearningGraphScreen(
                         .mapNotNull { nodes.getOrNull(it)?.takeIf { node -> !node.isSection }?.article }
                 }
                 if (picked != null || sectionArticles.isNotEmpty()) {
-                    GlassActionPanel(
+                    GlassBottomActionPanel(
                         backdrop = graphBackdrop,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth(),
-                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).widthIn(max = 720.dp).fillMaxWidth(),
                     ) {
                         Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
                             if (picked != null) {

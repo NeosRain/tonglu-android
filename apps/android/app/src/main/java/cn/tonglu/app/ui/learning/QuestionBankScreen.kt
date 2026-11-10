@@ -1,7 +1,22 @@
 package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.only
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.widthIn
+import cn.tonglu.app.ui.glass.GlassTopBar
+import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.AppColors
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
+import com.kyant.backdrop.backdrops.layerBackdrop
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -20,7 +35,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -38,6 +52,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -53,13 +68,17 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.key
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -195,6 +214,7 @@ internal fun QuestionBankScreen(
 
     var banks by remember(owner) { mutableStateOf<List<QuestionBank>>(emptyList()) }
     var loading by remember(owner) { mutableStateOf(true) }
+    var localBanksError by remember(owner) { mutableStateOf<String?>(null) }
     // 每个题库的下载进度（0~100）；不在下载中的 id 不在表里。
     var progress by remember(owner) { mutableStateOf<Map<String, Int>>(emptyMap()) }
     var error by remember(owner) { mutableStateOf<String?>(null) }
@@ -219,8 +239,11 @@ internal fun QuestionBankScreen(
 
     // 首次进入：本机 assets 先顶上（不空屏），再异步拉远端清单。
     LaunchedEffect(owner) {
-        banks = QuestionBankStore.banks(context)
-        loading = false
+        try {
+            banks = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { QuestionBankStore.banks(context) }
+        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+        catch (cause: Exception) { localBanksError = "本机题组读取失败：${cause.localizedMessage}"; error = localBanksError }
+        finally { loading = false }
         runCatching { QuestionBankStore.banks(context, api) }
             .onSuccess { remote ->
                 if (remote.isNotEmpty()) banks = mergeBanks(banks, remote)
@@ -244,8 +267,8 @@ internal fun QuestionBankScreen(
     }
 
     // route: "list"；否则是正在做的题库 id。
-    var openBankId by remember(owner) { mutableStateOf<String?>(null) }
-    var diagnosisOpen by remember(owner) { mutableStateOf(false) }
+    var openBankId by rememberSaveable(owner) { mutableStateOf<String?>(null) }
+    var diagnosisOpen by rememberSaveable(owner) { mutableStateOf(false) }
     var realPaperSite by remember(owner) { mutableStateOf<RealPaperSite?>(null) }
 
     // 弹层自识别左边缘拖动（Dialog 收不到系统进度，见 EnglishHubScreen 里的说明）。
@@ -259,18 +282,14 @@ internal fun QuestionBankScreen(
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { motion.requestClose() }) {   // 走 motion：与返回键同一条退场动画
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语")
-                    }
-                    Text("做题", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
-                }
-                LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+            val backdrop = rememberLayerBackdrop()
+            val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
+                GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
+                LazyColumn(modifier = Modifier.widthIn(max = 880.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item {
@@ -278,12 +297,12 @@ internal fun QuestionBankScreen(
                             Text("选择考次，下载后离线练习", fontWeight = FontWeight.SemiBold)
                             Text("真题为第三方整理件，专项为自编练习。", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                TextButton(onClick = { realPaperSite = RealPaperSite.XDF }) { Text("真题原站") }
-                                TextButton(onClick = { realPaperSite = RealPaperSite.NEEA }) { Text("官方考试网") }
-                                TextButton(onClick = { instructionsOpen = !instructionsOpen }) { Text(if (instructionsOpen) "收起说明" else "说明") }
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                TextButton(onClick = { realPaperSite = RealPaperSite.XDF }) { Text("真题原站", color = AppColors.TextPrimary) }
+                                TextButton(onClick = { realPaperSite = RealPaperSite.NEEA }) { Text("官方考试网", color = AppColors.TextPrimary) }
+                                TextButton(onClick = { instructionsOpen = !instructionsOpen }) { Text(if (instructionsOpen) "收起说明" else "说明", color = AppColors.TextPrimary) }
                             }
-                            if (instructionsOpen) {
+                            AnimatedVisibility(instructionsOpen) {
                                 Text("题组下载后保存在本机。不同来源、套卷的选项顺序可能不同，请核对原卷。" +
                                     "官方考试网用于报名、大纲与查分，不提供历年真题下载。" +
                                     "自编练习不是真题；练习结果不预测考试分数。来源和权利说明见各题组。",
@@ -293,9 +312,9 @@ internal fun QuestionBankScreen(
                     }
 
                     item {
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("papers" to "真题整理", "drills" to "专项练习", "mine" to "我的题库").forEach { (key, title) ->
-                                FilterChip(selected = catalogSection == key, onClick = { catalogSection = key }, label = { Text(title) })
+                                CatalogFilterChip(selected = catalogSection == key, onClick = { catalogSection = key }, label = { Text(title) })
                             }
                         }
                     }
@@ -367,7 +386,7 @@ internal fun QuestionBankScreen(
                             else -> itemsIndexed(mine.orEmpty(), key = { _, b -> "mine-${b.id}" }) { _, bank ->
                                 val downloading = progress[bank.id]
                                 BankCard(
-                                    bank = bank,
+                                    modifier = Modifier.animateItem(), bank = bank,
                                     wrongCount = remember(owner, bank.id, revision) {
                                         store.wrongKeys().count { it.startsWith("${bank.id}:") }
                                     },
@@ -425,13 +444,13 @@ internal fun QuestionBankScreen(
                         Column {
                             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                 listOf("cet4" to "四级", "cet6" to "六级").forEach { (value, label) ->
-                                    FilterChip(selected = catalogFilter == value, onClick = { catalogFilter = value; catalogYear = 0; expandedGroups = emptyMap() }, label = { Text(label) })
+                                    CatalogFilterChip(selected = catalogFilter == value, onClick = { catalogFilter = value; catalogYear = 0; expandedGroups = emptyMap() }, label = { Text(label) })
                                 }
                             }
-                            Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                FilterChip(selected = catalogYear == 0, onClick = { catalogYear = 0 }, label = { Text("全部年份") })
+                            FlowRow(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                CatalogFilterChip(selected = catalogYear == 0, onClick = { catalogYear = 0 }, label = { Text("全部年份") })
                                 examBankGroups(banks).filter { it.level == catalogFilter }.map { it.year }.distinct().forEach { year ->
-                                    FilterChip(selected = catalogYear == year, onClick = { catalogYear = year; expandedGroups = emptyMap() }, label = { Text("$year 年") })
+                                    CatalogFilterChip(selected = catalogYear == year, onClick = { catalogYear = year; expandedGroups = emptyMap() }, label = { Text("$year 年") })
                                 }
                             }
                         }
@@ -442,21 +461,21 @@ internal fun QuestionBankScreen(
                     itemsIndexed(catalogRows, key = { _, row -> row.key }) { _, row ->
                         if (row is BankCatalogRow.Group) {
                             OutlinedCard(onClick = { expandedGroups = if (row.expanded) emptyMap() else mapOf(row.group.id to true) },
-                                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp)) {
+                                modifier = Modifier.fillMaxWidth().animateItem(), shape = RoundedCornerShape(14.dp)) {
                                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Column(Modifier.weight(1f)) {
                                         Text(row.group.title, fontWeight = FontWeight.SemiBold)
                                         Text("${row.group.banks.size} 个题型 · 第三方整理件", style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     }
-                                    Text(if (row.expanded) "收起" else "展开", color = MaterialTheme.colorScheme.primary)
+                                    Text(if (row.expanded) "收起" else "展开", color = AppColors.TextPrimary)
                                 }
                             }
                         } else if (row is BankCatalogRow.Bank) {
                             val bank = row.bank
                             val downloading = progress[bank.id]
                             BankCard(
-                                bank = bank,
+                                modifier = Modifier.animateItem(), bank = bank,
                                 answeredCount = bank.questionList.count { it.gradable && bank.keyOf(it) in answeredKeys },
                                 displayTitle = if (row.grouped) bank.title.substringAfterLast(" · ") else bank.title,
                                 compact = row.grouped,
@@ -508,6 +527,11 @@ internal fun QuestionBankScreen(
                     }
                     item { Spacer(Modifier.size(24.dp)) }
                 }
+                }
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语", tint = AppColors.TextPrimary) }
+                    Text("做题", fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
+                }
             }
         }
     }
@@ -533,6 +557,7 @@ internal fun QuestionBankScreen(
         VocabDiagnosisPane(
             banks = banks,
             store = store,
+            loading = loading, loadError = localBanksError,
             onExit = { diagnosisOpen = false },
             onAnswered = { revision++; onPracticeChanged() },
         )
@@ -541,17 +566,20 @@ internal fun QuestionBankScreen(
     // 今日卡「错题复习」直达：等题库清单到位后自动挑一个组开进去（只挑一次）。
     // `wrongReviewBankId` 记住「这次是复习进来的」，退出时清掉 —— 否则用户从目录再点别的组，
     // 还会被当成错题复习，开局强行只显示错题。
-    var wrongReviewBankId by remember(owner) { mutableStateOf<String?>(null) }
+    var wrongReviewBankId by rememberSaveable(owner) { mutableStateOf<String?>(null) }
+    // 当前复习标记退出时清除；直达已消费则保存，重建后不重新打开。
+    var wrongReviewOpened by rememberSaveable(owner, wrongReview) { mutableStateOf(false) }
     LaunchedEffect(wrongReview, banks, owner) {
-        if (!wrongReview || wrongReviewBankId != null || banks.isEmpty()) return@LaunchedEffect
+        if (!wrongReview || wrongReviewOpened || banks.isEmpty()) return@LaunchedEffect
         val best = bankWithMostWrong(banks.map { it.id }, store.wrongKeys()) ?: return@LaunchedEffect
+        wrongReviewOpened = true
         wrongReviewBankId = best
         openBankId = best
     }
 
     // EF06：计划任务直达。与错题复习同一模式 —— 只自动开一次，退出练习后停在目录，
     // 不会每次回到本屏都强行把用户塞回同一组。
-    var planBankOpened by remember(owner) { mutableStateOf<String?>(null) }
+    var planBankOpened by rememberSaveable(owner, initialBankId) { mutableStateOf<String?>(null) }
     LaunchedEffect(initialBankId, banks, owner) {
         if (initialBankId == null || planBankOpened != null || banks.isEmpty()) return@LaunchedEffect
         if (banks.none { it.id == initialBankId && it.questionList.isNotEmpty() }) return@LaunchedEffect
@@ -587,6 +615,14 @@ internal fun mergeBanks(local: List<QuestionBank>, remote: List<QuestionBank>): 
 }
 
 @Composable
+private fun CatalogFilterChip(selected: Boolean, onClick: () -> Unit, enabled: Boolean = true, label: @Composable () -> Unit) {
+    FilterChip(selected = selected, onClick = onClick, enabled = enabled, label = { label() }, border = null,
+        shape = RoundedCornerShape(20.dp), colors = FilterChipDefaults.filterChipColors(
+            containerColor = AppColors.ChipIdle, labelColor = AppColors.TextSecondary,
+            selectedContainerColor = AppColors.Accent, selectedLabelColor = AppColors.OnAccent))
+}
+
+@Composable
 private fun BankCard(
     bank: QuestionBank,
     wrongCount: Int,
@@ -596,12 +632,13 @@ private fun BankCard(
     answeredCount: Int = 0,
     displayTitle: String = bank.title,
     compact: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     OutlinedCard(
         onClick = onClick,
         enabled = !downloading,
-        modifier = Modifier.fillMaxWidth().padding(start = if (compact) 16.dp else 0.dp),
+        modifier = modifier.fillMaxWidth().padding(start = if (compact) 16.dp else 0.dp),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
@@ -700,13 +737,16 @@ internal fun BankQuizPane(
     val questionStates = key(owner, bank.id) { rememberSaveableStateHolder() }
     var revision by remember { mutableIntStateOf(0) }
     val wrongKeys = remember(owner, bank.id, revision) { store.wrongKeys().filter { it.startsWith("${bank.id}:") }.toSet() }
-    var reviewKeys by remember(owner, bank.id) { mutableStateOf(wrongKeys) }
+    var reviewKeys by rememberSaveable(owner, bank.id, stateSaver = listSaver<Set<String>, String>(
+        save = { it.toList() }, restore = { it.toSet() },
+    )) { mutableStateOf(wrongKeys) }
     val wrongHere = reviewQuestions(bank, reviewKeys)
 
     // 没有错题时**不**预置成 true：那会开出一个空列表，看起来像卡住。
-    var onlyWrong by remember(owner, bank.id) { mutableStateOf(initialOnlyWrong && wrongKeys.isNotEmpty()) }
+    var onlyWrong by rememberSaveable(owner, bank.id) { mutableStateOf(initialOnlyWrong && wrongKeys.isNotEmpty()) }
     var index by rememberSaveable(owner, bank.id) {
-        mutableIntStateOf(nextUnansweredIndex(bank, store.attempts().map { it.questionKey }.toSet()))
+        mutableIntStateOf(if (initialOnlyWrong && wrongKeys.isNotEmpty()) 0
+            else nextUnansweredIndex(bank, store.attempts().map { it.questionKey }.toSet()))
     }
     // B5 A2：题目内「问 AI」。配置进加密存储；没配就引导去设置，不发请求。
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -733,31 +773,23 @@ internal fun BankQuizPane(
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = MaterialTheme.colorScheme.background) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    IconButton(onClick = { motion.requestClose() }) {   // 走 motion：与返回键同一条退场动画
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回题组列表")
-                    }
-                    Column(Modifier.weight(1f)) {
-                        Text(bank.title, fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.titleSmall)
-                        Text(if (list.isEmpty()) "没有可做的题" else "第 ${safeIndex + 1} / ${list.size} 题",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                }
+            val backdrop = rememberLayerBackdrop()
+            val barHeight = maxOf(GlassTokens.TopBarHeightDp.dp, 44.dp * LocalDensity.current.fontScale)
+            val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
+                barHeight + GlassTokens.TopBarVerticalMarginDp.dp
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
+                    .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
                 LazyColumn(
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
+                    modifier = Modifier.widthIn(max = 880.dp).fillMaxSize(),
+                    contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     item {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(selected = !onlyWrong, onClick = { onlyWrong = false; index = 0 },
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            CatalogFilterChip(selected = !onlyWrong, onClick = { onlyWrong = false; index = 0 },
                                 label = { Text("全部题（${bank.size}）") })
-                            FilterChip(
+                            CatalogFilterChip(
                                 selected = onlyWrong,
                                 onClick = { if (wrongKeys.isNotEmpty()) { reviewKeys = wrongKeys; onlyWrong = true; index = 0 } },
                                 enabled = onlyWrong || wrongKeys.isNotEmpty(),
@@ -775,8 +807,7 @@ internal fun BankQuizPane(
                     // 原卷/答案解析直链（第三方整理件，公开可下）。只给入口，不内嵌文件。
                     bank.sourceLink?.let { url ->
                         item {
-                            Row(verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = { paperUrl = url }) { Text("下载原卷 PDF") }
                                 Text("第三方整理件，仅供学习", style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -792,21 +823,29 @@ internal fun BankQuizPane(
                     } else {
                         val question = list[safeIndex]
                         item(key = "question-card") {
-                            AnimatedContent(targetState = question, label = "bank-question",
+                            val questionFrame = remember(bank.id, question) {
+                                LearningAnimationFrame("${bank.keyOf(question)}:${questionContentFingerprint(question)}", question)
+                            }
+                            val latestFrameKey = rememberUpdatedState(questionFrame.key)
+                            AnimatedContent(targetState = questionFrame, label = "bank-question",
                                 transitionSpec = {
-                                    val direction = if (bank.questionList.indexOf(targetState) >= bank.questionList.indexOf(initialState)) 1 else -1
-                                    (fadeIn(tween(180)) + slideInHorizontally(tween(220)) { direction * it / 8 }) togetherWith
+                                    val direction = if (bank.questionList.indexOf(targetState.content) >= bank.questionList.indexOf(initialState.content)) 1 else -1
+                                    (fadeIn(tween(170, delayMillis = 90)) + slideInHorizontally(tween(220)) { direction * it / 8 }) togetherWith
                                         (fadeOut(tween(90)) + slideOutHorizontally(tween(180)) { -direction * it / 12 })
-                                }) { renderedQuestion ->
-                            val active = bank.keyOf(renderedQuestion) == bank.keyOf(question) && transition.currentState == transition.targetState
-                            questionStates.SaveableStateProvider(bank.keyOf(renderedQuestion)) {
+                                }) { renderedFrame ->
+                            val renderedQuestion = renderedFrame.content
+                            fun current() = latestFrameKey.value == renderedFrame.key && motion.canHandleBack &&
+                                bank.keyOf(list[index.coerceIn(0, list.lastIndex)]) == bank.keyOf(renderedQuestion) &&
+                                transition.currentState == EnterExitState.Visible && transition.targetState == EnterExitState.Visible
+                            val active = current()
+                            questionStates.SaveableStateProvider(renderedFrame.key) {
                             BankQuestionCardInternal(
                                 bank = bank, question = renderedQuestion, store = store, owner = owner,
-                                interactionEnabled = active,
-                                onAnswered = { revision++; onAnswered() },
+                                interactionEnabled = active, isInteractionCurrent = { current() },
+                                onAnswered = { if (current()) { revision++; onAnswered() } },
                                 questionIndex = list.indexOf(renderedQuestion).takeIf { it >= 0 } ?: bank.questionList.indexOf(renderedQuestion),
                                 onAskAi = { scope ->
-                                    if (active && bank.keyOf(renderedQuestion) == bank.keyOf(list[safeIndex])) {
+                                    if (current()) {
                                         aiQuestionKey = bank.keyOf(renderedQuestion)
                                         if (aiConfig.ready()) aiScope = scope else aiSettingsOpen = true
                                     }
@@ -816,8 +855,8 @@ internal fun BankQuizPane(
                             }
                         }
                         item {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
-                                verticalAlignment = Alignment.CenterVertically) {
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 OutlinedButton(
                                     onClick = { if (safeIndex > 0) index = safeIndex - 1 },
                                     enabled = safeIndex > 0,
@@ -833,6 +872,19 @@ internal fun BankQuizPane(
                         }
                     }
                     item { Spacer(Modifier.size(24.dp)) }
+                }
+                }
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), barHeight = barHeight) {
+                    IconButton(onClick = { motion.requestClose() }) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回题组列表", tint = AppColors.TextPrimary)
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(bank.title, fontWeight = FontWeight.SemiBold,
+                            style = MaterialTheme.typography.titleSmall, color = AppColors.TextPrimary,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(if (list.isEmpty()) "没有可做的题" else "第 ${safeIndex + 1} / ${list.size} 题",
+                            style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+                    }
                 }
             }
         }
@@ -868,8 +920,8 @@ internal fun BankQuizPane(
     }
 }
 
-private val okGreen = Color(0xFF2E7D32)
-private val badRed = Color(0xFFC62828)
+private val okGreen: Color get() = if (cn.tonglu.app.ui.AppTheme.darkState) Color(0xFF81C784) else Color(0xFF2E7D32)
+private val badRed: Color get() = cn.tonglu.app.ui.AppColors.Danger
 
 /**
  * 一道题卡（题库与诊断共用）。
@@ -894,6 +946,9 @@ internal fun BankQuestionCardInternal(
     /** 有 AI 配置时给一个「问 AI」入口；为 null 时不显示（如诊断页不提供）。 */
     onAskAi: ((AiScope) -> Unit)? = null,
     interactionEnabled: Boolean = true,
+    isInteractionCurrent: () -> Boolean = { true },
+    onGraded: ((Boolean, Boolean) -> Unit)? = null,
+    onResetAnswer: (() -> Unit)? = null,
 ) {
     val questionKey = bank.keyOf(question)
     var chosen by rememberSaveable(owner, questionKey) { mutableIntStateOf(-1) }
@@ -903,7 +958,7 @@ internal fun BankQuestionCardInternal(
     var saveError by rememberSaveable(owner, questionKey) { mutableStateOf<String?>(null) }
     val stats = remember(owner, questionKey, submitted) { store.statsOf(questionKey) }
     fun submitAnswer(answer: Int, unknown: Boolean = false) {
-        if (!interactionEnabled || submitted) return
+        if (!interactionEnabled || !isInteractionCurrent() || submitted) return
         val correct = !unknown && answer == question.answer
         try {
             store.record(questionId = question.id, materialId = bank.id, materialTitle = bank.title,
@@ -914,6 +969,7 @@ internal fun BankQuestionCardInternal(
             return
         }
         markedUnknown = unknown; wasCorrect = correct; submitted = true; saveError = null
+        onGraded?.invoke(correct, unknown)
         onAnswered()
     }
 
@@ -1031,7 +1087,10 @@ internal fun BankQuestionCardInternal(
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Button(enabled = interactionEnabled, onClick = {
-                        chosen = -1; submitted = false; wasCorrect = false; markedUnknown = false; saveError = null
+                        if (isInteractionCurrent()) {
+                            chosen = -1; submitted = false; wasCorrect = false; markedUnknown = false; saveError = null
+                            onResetAnswer?.invoke()
+                        }
                     }) { Text("再练这一题") }
                     stats?.let {
                         Text(it.label, style = MaterialTheme.typography.labelSmall,
@@ -1068,13 +1127,16 @@ private fun BankChoiceRow(
         enabled = onClick != null,
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.outlinedCardColors(containerColor = container),
+        colors = CardDefaults.outlinedCardColors(containerColor = container,
+            contentColor = MaterialTheme.colorScheme.onSurface, disabledContainerColor = container,
+            disabledContentColor = MaterialTheme.colorScheme.onSurface),
         border = androidx.compose.foundation.BorderStroke(1.dp, border),
     ) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Text(marker, fontWeight = FontWeight.SemiBold, color = border)
+            Text(marker, fontWeight = FontWeight.SemiBold,
+                color = if (state == BankChoiceState.Neutral) MaterialTheme.colorScheme.onSurfaceVariant else border)
             Text(label, modifier = Modifier.weight(1f))
             when (state) {
                 BankChoiceState.Correct -> Icon(Icons.Outlined.Check, "正确", tint = okGreen,

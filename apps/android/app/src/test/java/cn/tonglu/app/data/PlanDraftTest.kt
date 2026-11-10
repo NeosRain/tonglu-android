@@ -325,4 +325,42 @@ class PlanDraftTest {
         assertEquals("已确认的既有安排必须保留", listOf("draft-2", "plan-active"), after.map { it.id })
         assertTrue("已确认那条仍然是 active", after.first { it.id == "plan-active" }.active)
     }
+
+    private fun <T> withPlanZone(id: String, block: () -> T): T {
+        val previous = java.util.TimeZone.getDefault()
+        return try { java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone(id)); block() }
+        finally { java.util.TimeZone.setDefault(previous) }
+    }
+    private fun epoch(value: String) = java.time.OffsetDateTime.parse(value).toInstant().toEpochMilli()
+
+    @Test fun `重复题组三天必须分别用各日作答完成`() = withPlanZone("Asia/Shanghai") {
+        val confirmed = epoch("2026-11-10T10:00:00+08:00")
+        val tasks = (0..2).map { task(id = "day$it", bankId = "b1", count = 2, baseline = confirmed).copy(dueDay = it) }
+        val attempts = mutableListOf<QuestionAttempt>()
+        for (day in 0..2) {
+            val time = epoch("2026-11-${10 + day}T11:00:00+08:00")
+            attempts += listOf(attempt("b1:q1", time), attempt("b1:q2", time + 1))
+            assertEquals((0..2).map { if (it <= day) PlanTaskProof.VERIFIED else PlanTaskProof.PENDING },
+                tasks.map { it.proof(attempts) })
+        }
+        assertEquals(6, attempts.size)
+    }
+
+    @Test fun `确认前不计入第一天且午夜作答只属于第二天`() = withPlanZone("Asia/Shanghai") {
+        val confirmed = epoch("2026-11-10T23:59:00+08:00")
+        val midnight = epoch("2026-11-11T00:00:00+08:00")
+        val attempts = listOf(attempt("b1:q1", confirmed - 1), attempt("b1:q2", midnight))
+        val first = task(bankId = "b1", count = 1, baseline = confirmed).copy(dueDay = 0)
+        assertEquals(PlanTaskProof.PENDING, first.proof(attempts))
+        assertEquals(PlanTaskProof.VERIFIED, first.copy(dueDay = 1).proof(attempts))
+    }
+
+    @Test fun `每日窗口按自然日处理夏令时而不是固定24小时`() = withPlanZone("America/New_York") {
+        val confirmed = epoch("2026-03-07T12:00:00-05:00")
+        val day = task(bankId = "b1", count = 1, baseline = confirmed).copy(dueDay = 1)
+        val attempts = listOf(attempt("b1:q1", epoch("2026-03-08T23:59:59-04:00")),
+            attempt("b1:q2", epoch("2026-03-09T00:00:00-04:00")))
+        assertEquals(1, day.answeredDistinctSinceBaseline(attempts))
+        assertEquals(1, day.copy(dueDay = 2).answeredDistinctSinceBaseline(attempts))
+    }
 }

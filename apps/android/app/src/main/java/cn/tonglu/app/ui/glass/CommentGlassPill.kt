@@ -82,6 +82,7 @@ internal fun CommentGlassPill(
     surfaceColor: Color = if (GlassTokens.DarkGlass) GlassTokens.ContainerDark else GlassTokens.ContainerLight,
     content: @Composable BoxScope.() -> Unit,
 ) {
+    val bottomBackdrop = rememberBottomBackdrop(backdrop)
     val scope = rememberCoroutineScope()
     val density = LocalDensity.current
     val maxX = with(density) { dragBounds.first.toPx() }
@@ -146,12 +147,13 @@ internal fun CommentGlassPill(
             Modifier
                 .matchParentSize()
                 .drawBackdrop(
-                    backdrop = backdrop,
+                    backdrop = bottomBackdrop,
                     shape = { shape },
                     effects = {
                         vibrancy()
                         blur(commentBlurDp(state.press.value).dp.toPx())
-                        lens(GlassTokens.PanelRefractionHeightDp.dp.toPx(), GlassTokens.PanelRefractionAmountDp.dp.toPx(),
+                        lens(androidx.compose.ui.util.lerp(GlassBottomTokens.RefractionHeightDp, GlassBottomTokens.PressedRefractionHeightDp, state.press.value).dp.toPx(),
+                            androidx.compose.ui.util.lerp(GlassBottomTokens.RefractionAmountDp, GlassBottomTokens.PressedRefractionAmountDp, state.press.value).dp.toPx(),
                             chromaticAberration = GlassTokens.ChromaticAberration)
                     },
                     highlight = { Highlight.Default.copy(alpha = commentHighlightAlpha(state.press.value)) },
@@ -242,10 +244,10 @@ internal fun dragStretch(dx: Float, dy: Float, maxX: Float, maxY: Float, amount:
 }
 
 /** 材质端点（2026-10-13 用户拍板翻转）：**静止清透 → 交互磨砂**（按住更白、更不透）。 */
-internal val commentRestSurfaceAlpha get() = GlassTokens.ContainerAlpha
-internal const val commentRestBlurDp = GlassTokens.BlurDp
-internal val commentActiveSurfaceAlpha get() = GlassTokens.PanelPressedSurfaceAlpha
-internal const val commentActiveBlurDp = GlassTokens.PanelPressedBlurDp
+internal val commentRestSurfaceAlpha get() = GlassBottomTokens.SurfaceAlpha
+internal const val commentRestBlurDp = GlassBottomTokens.BlurDp
+internal val commentActiveSurfaceAlpha get() = GlassBottomTokens.PressedSurfaceAlpha
+internal const val commentActiveBlurDp = GlassBottomTokens.PressedBlurDp
 
 internal fun commentSurfaceAlpha(progress: Float): Float =
     commentRestSurfaceAlpha + (commentActiveSurfaceAlpha - commentRestSurfaceAlpha) * progress.coerceIn(0f, 1f)
@@ -255,11 +257,11 @@ internal fun commentBlurDp(progress: Float): Float =
 
 /** 边缘光随交互增强（Solid 档 0.28 为静止基线）。 */
 internal fun commentHighlightAlpha(progress: Float): Float =
-    GlassPanelStyle.Solid.highlightAlpha + 0.10f * progress.coerceIn(0f, 1f)
+    GlassPanelStyle.Bottom.highlightAlpha + 0.10f * progress.coerceIn(0f, 1f)
 
-internal fun commentShadowAlpha(): Float = GlassPanelStyle.Solid.shadowAlpha
+internal fun commentShadowAlpha(): Float = GlassPanelStyle.Bottom.shadowAlpha
 
-internal fun commentInnerShadowAlpha(): Float = GlassPanelStyle.Solid.innerShadowAlpha
+internal fun commentInnerShadowAlpha(): Float = GlassPanelStyle.Bottom.innerShadowAlpha
 
 // ── 手势状态机 ────────────────────────────────────────────────────────────
 

@@ -21,7 +21,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 import cn.tonglu.app.ui.glass.GlassTokens
 import com.kyant.backdrop.Backdrop
 
@@ -53,6 +53,6 @@ internal fun TabletNavigationRail(
         }
     }
     val panel = modifier.width(84.dp).semantics { contentDescription = "主导航侧栏" }
-    if (glass) GlassActionPanel(backdrop, modifier = panel, content = content)
+    if (glass) GlassBottomActionPanel(backdrop, modifier = panel, content = content)
     else Surface(modifier = panel, shape = RoundedCornerShape(24.dp), color = AppColors.SurfaceOpaque) { Column(content = content) }
 }

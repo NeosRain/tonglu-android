@@ -4,6 +4,7 @@ import android.view.WindowManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -77,7 +78,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.window.DialogWindowProvider
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
-import cn.tonglu.app.ui.glass.GlassActionPanel
+import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 
 /** 笔记 / 草稿统一用的强调色（紫色）。和书架、阅读器里的那一抹紫保持一致。 */
 internal val NoteMarkdownAccent = Color(0xFF7C3AED)
@@ -171,7 +172,7 @@ internal fun NoteEditorDialog(
                 }
 
                 Box(Modifier.weight(1f).fillMaxWidth()) {
-                    Box(Modifier.fillMaxSize().layerBackdrop(editorBackdrop)) {
+                    Box(Modifier.fillMaxSize().layerBackdrop(editorBackdrop).background(MaterialTheme.colorScheme.background)) {
                     if (preview) {
                         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                             Box(Modifier.padding(horizontal = 18.dp, vertical = 14.dp)) {
@@ -188,7 +189,7 @@ internal fun NoteEditorDialog(
                     }
 
                 if (!preview) {
-                    Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 8.dp)) {
+                    Column(Modifier.align(Alignment.BottomCenter).padding(horizontal = 10.dp, vertical = 8.dp).widthIn(max = 720.dp)) {
                     when (panel) {
                         NotePanel.Emoji -> EmojiPanel(
                             onPick = { emoji ->
@@ -205,7 +206,7 @@ internal fun NoteEditorDialog(
                         )
                         NotePanel.None -> Unit
                     }
-                    GlassActionPanel(editorBackdrop) {
+                    GlassBottomActionPanel(editorBackdrop) {
                     EditorToolbar(
                         accent = accent,
                         onWrap = { pre, suf, hint -> value = value.wrapInline(pre, suf, hint) },
