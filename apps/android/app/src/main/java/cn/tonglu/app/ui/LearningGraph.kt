@@ -1,6 +1,16 @@
 package cn.tonglu.app.ui
 
 import android.view.WindowManager
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -57,7 +67,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -91,7 +100,7 @@ import kotlinx.coroutines.launch
  * 注：本文件自带一套颜色常量。`TongluApp.kt` 里的 Canvas/Muted/NavInk 都是
  * 文件私有（private），跨文件拿不到，所以这里按同值重新声明，别再改成 import。
  */
-private val GraphCanvas get() = AppColors.Canvas
+private val GraphCanvas get() = AppColors.CanvasOpaque
 private val GraphInk get() = AppColors.TextPrimary
 private val GraphMuted get() = AppColors.TextMuted
 private val GraphFallback get() = AppColors.Accent
@@ -336,6 +345,7 @@ internal fun LearningGraphScreen(
         onDismissRequest = { dismiss() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
+        ThemeSystemBars()
         val view = LocalView.current
         SideEffect {
             (view.parent as? DialogWindowProvider)?.window?.apply {
@@ -371,7 +381,8 @@ internal fun LearningGraphScreen(
                     }
                 }
 
-                Box(Modifier.fillMaxSize()) {
+                BoxWithConstraints(Modifier.fillMaxSize()) {
+                val panelMaxHeight = maxHeight * .55f
                 Box(Modifier.fillMaxSize().layerBackdrop(graphBackdrop)) {
                 Canvas(
                     Modifier
@@ -463,65 +474,67 @@ internal fun LearningGraphScreen(
                 }
                 }
 
-                val pickedNode = nodes.getOrNull(selected)
-                val picked = pickedNode?.article
-                // 分类（大圆点）以前也只会被「选中」，底卡却只给文章渲染 —— 用户点分类球就是没反应。
-                // 这里把分类下的文章按从属边（strength 0.9）捞出来，直接在底卡里列出来点开。
-                val sectionArticles = remember(selected, nodes, edges) {
-                    if (pickedNode?.isSection != true) emptyList()
-                    else edges.filter { abs(it.strength - 0.9f) < 0.001f && (it.a == selected || it.b == selected) }
-                        .map { if (it.a == selected) it.b else it.a }
-                        .mapNotNull { nodes.getOrNull(it)?.takeIf { node -> !node.isSection }?.article }
-                }
-                if (picked != null || sectionArticles.isNotEmpty()) {
-                    GlassBottomActionPanel(
-                        backdrop = graphBackdrop,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp).widthIn(max = 720.dp).fillMaxWidth(),
-                    ) {
-                        Column(Modifier.padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
-                            if (picked != null) {
-                                Text(picked.title, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                                Text(
-                                    picked.summary.ifBlank { picked.author },
-                                    fontSize = 12.sp, color = GraphMuted,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                                Row(
-                                    Modifier.padding(top = 6.dp),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                ) {
-                                    // 先播退场动画再打开文章，和「今日更新」的手感一致
-                                    TextButton(onClick = { dismiss { onOpenArticle(picked) } }) { Text("阅读这篇") }
-                                    TextButton(onClick = { selected = -1 }) { Text("取消选中") }
-                                }
-                            } else {
-                                Text(pickedNode?.label.orEmpty(), fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
-                                Text(
-                                    "${sectionArticles.size} 篇资料 · 点标题直接读",
-                                    fontSize = 12.sp, color = GraphMuted,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                                sectionArticles.take(4).forEach { article ->
-                                    TextButton(
-                                        onClick = { dismiss { onOpenArticle(article) } },
-                                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp),
-                                        modifier = Modifier.fillMaxWidth(),
-                                    ) {
-                                        Text(
-                                            article.title,
-                                            fontSize = 13.sp, color = GraphInk,
-                                            maxLines = 1, overflow = TextOverflow.Ellipsis,
-                                            modifier = Modifier.weight(1f),
+                AnimatedContent(
+                    targetState = selected,
+                    modifier = Modifier.align(Alignment.BottomCenter).padding(16.dp)
+                        .widthIn(max = 720.dp).fillMaxWidth(),
+                    transitionSpec = {
+                        ((fadeIn(tween(180)) + slideInVertically(tween(220)) { it / 8 }) togetherWith
+                            (fadeOut(tween(120)) + slideOutVertically(tween(180)) { it / 12 }))
+                            .using(SizeTransform(clip = false))
+                    },
+                    contentAlignment = Alignment.BottomCenter,
+                    label = "graph-selection",
+                ) { shownSelection ->
+                    val pickedNode = nodes.getOrNull(shownSelection)
+                    if (pickedNode != null) {
+                        val picked = pickedNode.article
+                        val sectionArticles = remember(shownSelection, nodes, edges) {
+                            if (!pickedNode.isSection) emptyList()
+                            else edges.filter {
+                                abs(it.strength - 0.9f) < 0.001f &&
+                                    (it.a == shownSelection || it.b == shownSelection)
+                            }.map { if (it.a == shownSelection) it.b else it.a }
+                                .mapNotNull { nodes.getOrNull(it)?.article }
+                        }
+                        // 退场中的卡片保留原内容，但不允许再打开已取消的选择。
+                        val interactive = shownSelection == selected && !closing
+                        GlassBottomActionPanel(backdrop = graphBackdrop) {
+                            Column(Modifier.heightIn(max = panelMaxHeight)
+                                .padding(start = 16.dp, end = 16.dp, top = 14.dp, bottom = 6.dp)) {
+                                Column(Modifier.weight(1f, fill = false)
+                                    .verticalScroll(rememberScrollState())) {
+                                    Text(pickedNode.label, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                                    Text(
+                                        picked?.summary?.ifBlank { picked.author }
+                                            ?: "${sectionArticles.size} 篇资料 · 点标题直接读",
+                                        fontSize = 12.sp, color = GraphMuted,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                    if (picked == null) {
+                                        sectionArticles.forEach { article ->
+                                            TextButton(
+                                                enabled = interactive,
+                                                onClick = { dismiss { onOpenArticle(article) } },
+                                                contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
+                                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                            ) {
+                                                Text(article.title, fontSize = 13.sp, color = GraphInk,
+                                                    modifier = Modifier.weight(1f))
+                                            }
+                                        }
+                                        if (sectionArticles.isEmpty()) Text(
+                                            "这个分类还没有资料，可以试试其他圆点",
+                                            fontSize = 12.sp, color = GraphMuted,
+                                            modifier = Modifier.padding(vertical = 12.dp),
                                         )
                                     }
                                 }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(
-                                        if (sectionArticles.size > 4) "还有 ${sectionArticles.size - 4} 篇 · 也可以直接点文章圆点" else "大圆点是分类，小圆点是文章",
-                                        fontSize = 11.sp, color = GraphMuted,
-                                        modifier = Modifier.weight(1f),
-                                    )
-                                    TextButton(onClick = { selected = -1 }) { Text("取消选中") }
+                                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.End) {
+                                    if (picked != null) TextButton(enabled = interactive,
+                                        onClick = { dismiss { onOpenArticle(picked) } }) { Text("阅读这篇") }
+                                    TextButton(enabled = interactive, onClick = { selected = -1 }) { Text("取消选中") }
                                 }
                             }
                         }

@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "d926b60faa82768be400e102d3fb97fc7186ed63",
+  "sourceCommit": "7a70f87968f0aff8cdda084c2b2eca4b708802c6",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 19358,
-      "sha256": "6723c442bd6459cbd89741418cc7ef3bfb5bf6bc35cca83f55a411bcf9c83feb"
+      "sha256": "74b28b88d943d34f19664130fa30aa3de7d7a00043ae213672f1e120c628458c"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -112,8 +112,8 @@
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/LearningMotionPreviewActivity.kt",
-      "bytes": 23443,
-      "sha256": "68b6fa2aad18fe25448c98965b9c45e64757c697186a815374a0cc8064140bc8"
+      "bytes": 25334,
+      "sha256": "9847f19ad0fb5d7c742e72877ae163ea44697a55efd0de26c4bc9363eccddcbc"
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/UpdateQaActivity.kt",
@@ -982,8 +982,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/AiScopePanel.kt",
-      "bytes": 13661,
-      "sha256": "f3c9e67d5bd83f183e0d4be486cdf47b8162b858716f8f29d535137a764a4c72"
+      "bytes": 13673,
+      "sha256": "e030f41d853bee71a810479e31b9eaa42d9a933b4c1ee4dbe24ecff915c39172"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/AppColors.kt",
@@ -1222,8 +1222,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/EnglishAiSupport.kt",
-      "bytes": 24471,
-      "sha256": "2e6c44acdc0ca07828ad46365fbf6df43211d4e3ddc8e7a47302dff09a3fcb1f"
+      "bytes": 24483,
+      "sha256": "6bd9da1a5b77b23e811dfb30ca1b9c792783204ad3be967683676d55d45c2608"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/EnglishCardActions.kt",
@@ -1237,8 +1237,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/exam/ExamCalendarScreen.kt",
-      "bytes": 33015,
-      "sha256": "ee87c24e331a0eae7e0d32898f0a278a51d520135e847e3e0f21f1fcd9153fbe"
+      "bytes": 37566,
+      "sha256": "1018866891fedc4789c7023a3213412dae34dec97cc5e9e07d70a61e33942de0"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/exam/ExamLink.kt",
@@ -1497,8 +1497,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/LearningGraph.kt",
-      "bytes": 27233,
-      "sha256": "0bcdfb37aac0096cc19acfb44f12c01a5b92128a4d5a7d32b8886b1ff8e04769"
+      "bytes": 27931,
+      "sha256": "b029d511d8ceb4e3e64b9232f284506c6b601e6b3e40cf22e97fcd9ac4fa7a81"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/LearningSearchDialog.kt",

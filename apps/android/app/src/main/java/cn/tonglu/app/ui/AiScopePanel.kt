@@ -125,7 +125,7 @@ internal fun AiScopeDialog(
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
                 Row(Modifier.fillMaxWidth().heightIn(min = 60.dp).padding(horizontal = 8.dp),
                     verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(onClick = { dismiss() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
+                    IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
                     Text(title, Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
                     TextButton(onClick = {
                         // 顺序要紧：先把在飞的那条掐掉、再清会话。反过来的话，

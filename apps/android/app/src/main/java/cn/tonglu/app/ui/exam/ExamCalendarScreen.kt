@@ -6,6 +6,29 @@ import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.themeColor
 import cn.tonglu.app.ui.noticeForeground
 import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.runtime.SideEffect
+import cn.tonglu.app.ui.rememberOverlayMotion
+import cn.tonglu.app.ui.overlayMotion
+import cn.tonglu.app.ui.OverlayEnter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -35,7 +58,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -101,7 +125,7 @@ internal fun ExamCalendarScreen(
     var month by remember { mutableIntStateOf(calendar.get(Calendar.MONTH) + 1) }
     var selectedDate by remember { mutableStateOf<String?>(null) }
     var groups by remember { mutableStateOf(setOf<String>()) }
-    var adding by remember { mutableStateOf(false) }
+    var adding by rememberSaveable { mutableStateOf(false) }
     var detail by remember { mutableStateOf<ExamEvent?>(null) }
     // 四六级官方入口：App 内浏览器（和题库页「官方考试网」同一条路，见 CampusBrowserScreen）。
     // 独立窗口承载 —— 关掉浏览器回到考试日历，滚动位置与筛选都还在。
@@ -562,31 +586,85 @@ private fun MonthGrid(
  * 但**格式必须校验并如实提示**，不能让用户存进去一个算不出天数的日期。
  */
 @Composable
-private fun AddExamDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var date by remember { mutableStateOf("") }
-    val valid = title.isNotBlank() && ExamCountdown.dateToEpochDay(date) != null
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(color = AppColors.Surface, shape = RoundedCornerShape(16.dp)) {
-            Column(Modifier.fillMaxWidth().padding(20.dp)) {
-                Text("添加考试", fontWeight = FontWeight.SemiBold)
-                OutlinedTextField(
-                    title, { title = it }, Modifier.fillMaxWidth().padding(top = 12.dp),
-                    label = { Text("考试名称") }, singleLine = true,
+internal fun AddExamDialog(onDismiss: () -> Unit, onConfirm: (String, String) -> Unit) {
+    var title by rememberSaveable { mutableStateOf("") }
+    var date by rememberSaveable { mutableStateOf("") }
+    var confirmed by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val validDate = ExamCountdown.dateToEpochDay(date.trim()) != null
+    val valid = title.isNotBlank() && validDate
+    val motion = rememberOverlayMotion(
+        onClose = { confirmed?.let { onConfirm(it.first, it.second) } ?: onDismiss() },
+        predictive = false, selfDrag = true,
+    )
+    val dialogBack = remember { mutableStateOf<() -> Unit>({ motion.requestClose() }) }
+    Dialog(onDismissRequest = { dialogBack.value() }, properties = DialogProperties(
+        usePlatformDefaultWidth = false, decorFitsSystemWindows = false,
+    )) {
+        val view = LocalView.current
+        val focus = LocalFocusManager.current
+        val keyboard = LocalSoftwareKeyboardController.current
+        val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        fun requestBack() {
+            if (imeVisible) keyboard?.hide()
+            else motion.requestClose()
+        }
+        SideEffect { dialogBack.value = { requestBack() } }
+        fun submit() {
+            if (valid && motion.canHandleBack) {
+                confirmed = title.trim() to date.trim()
+                focus.clearFocus(force = true)
+                keyboard?.hide()
+                motion.requestClose()
+            }
+        }
+        SideEffect { (view.parent as? DialogWindowProvider)?.window?.setWindowAnimations(0) }
+        BoxWithConstraints(
+            Modifier.fillMaxSize().safeDrawingPadding().imePadding().padding(20.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                modifier = Modifier.widthIn(max = 560.dp).fillMaxWidth().heightIn(max = maxHeight)
+                    .overlayMotion(motion, onBack = { requestBack() }, enter = OverlayEnter.Bottom),
+                color = AppColors.SurfaceOpaque, shape = RoundedCornerShape(24.dp),
+            ) {
+                val fields = TextFieldDefaults.colors(
+                    focusedContainerColor = AppColors.CanvasOpaque,
+                    unfocusedContainerColor = AppColors.CanvasOpaque,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    errorIndicatorColor = Color.Transparent,
+                    disabledIndicatorColor = Color.Transparent,
                 )
-                OutlinedTextField(
-                    date, { date = it }, Modifier.fillMaxWidth().padding(top = 8.dp),
-                    label = { Text("考试日期（如 2026-12-19）") }, singleLine = true,
-                )
-                if (date.isNotBlank() && ExamCountdown.dateToEpochDay(date) == null) {
-                    Text("日期格式不对，请按 2026-12-19 这样填", fontSize = 12.sp, color = themeColor(Color(0xFFD93A3A), AppColors.Danger),
-                        modifier = Modifier.padding(top = 4.dp))
-                }
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { onDismiss() }) { Text("取消", color = themeColor(Color(0xFF6B7280), AppColors.TextMuted)) }
-                    TextButton(enabled = valid, onClick = { onConfirm(title.trim(), date.trim()) }) {
-                        Text("添加")
+                Column(Modifier.padding(20.dp)) {
+                    Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())) {
+                        Text("添加考试", style = MaterialTheme.typography.titleLarge, color = AppColors.TextPrimary)
+                        TextField(
+                            title, { title = it }, Modifier.fillMaxWidth().padding(top = 16.dp),
+                            label = { Text("考试名称") }, singleLine = true,
+                            shape = RoundedCornerShape(20.dp), colors = fields,
+                            enabled = motion.canHandleBack,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Next),
+                            keyboardActions = KeyboardActions(onNext = { focus.moveFocus(FocusDirection.Down) }),
+                        )
+                        TextField(
+                            date, { date = it }, Modifier.fillMaxWidth().padding(top = 12.dp),
+                            label = { Text("考试日期") }, placeholder = { Text("例如 2026-12-19") },
+                            singleLine = true, shape = RoundedCornerShape(20.dp), colors = fields,
+                            enabled = motion.canHandleBack, isError = date.isNotBlank() && !validDate,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii, imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { submit() }),
+                        )
+                        AnimatedVisibility(visible = date.isNotBlank() && !validDate) {
+                            Text("请输入有效日期，例如 2026-12-19", fontSize = 12.sp,
+                                color = AppColors.Danger, modifier = Modifier.padding(top = 8.dp))
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 12.dp),
+                        horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        TextButton(enabled = motion.canHandleBack, onClick = { motion.requestClose() }) {
+                            Text("取消", color = AppColors.TextPrimary)
+                        }
+                        Button(enabled = valid && motion.canHandleBack, onClick = { submit() }) { Text("添加") }
                     }
                 }
             }

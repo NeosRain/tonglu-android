@@ -82,7 +82,22 @@ class LearningMotionPreviewActivity : ComponentActivity() {
                                 if (timetableRequests > 0) Text("课表入口请求：$timetableRequests", style = MaterialTheme.typography.labelSmall)
                                 Box(Modifier.weight(1f)) {
                                     if (intent.getBooleanExtra("bottomChrome", false)) {
-                                        BottomChromePreview()
+                                        BottomChromePreview(longGraphCategory = intent.getBooleanExtra("graphLongCategory", false))
+                                    } else if (intent.getBooleanExtra("examForm", false)) {
+                                        var showing by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(true) }
+                                        var result by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("") }
+                                        var saves by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
+                                        Column {
+                                            Text("本地示例 · 不保存到考试库 · 确认次数：$saves")
+                                            Text(result)
+                                            TextButton(onClick = { showing = true }) { Text("再次添加考试") }
+                                        }
+                                        if (showing) cn.tonglu.app.ui.exam.AddExamDialog(
+                                            onDismiss = { result = "已取消"; showing = false },
+                                            onConfirm = { title, date ->
+                                                saves++; result = "$title · $date"; showing = false
+                                            },
+                                        )
                                     } else if (intent.getBooleanExtra("catalogMotion", false)) {
                                         var closed by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
                                         if (closed) Text("题库目录走查已返回")
@@ -228,7 +243,7 @@ class LearningMotionPreviewActivity : ComponentActivity() {
 
 /** Uses production chrome; all editor actions remain in memory and never publish. */
 @Composable
-private fun BottomChromePreview() {
+private fun BottomChromePreview(longGraphCategory: Boolean = false) {
     var count by remember { mutableIntStateOf(3) }
     var selected by remember { mutableIntStateOf(0) }
     var route by remember { mutableStateOf("") }
@@ -241,6 +256,7 @@ private fun BottomChromePreview() {
         author = "本地示例", kind = "ARTICLE", sourceUrl = "", licenseId = "ORIGINAL", licenseUrl = "",
         attribution = "项目自编示例", changeNote = "", sourceRevision = "1", updatedAt = "", featured = false, order = 0,
         body = (1..30).joinToString("\n\n") { "Soft light fills the forest. We read a short note and learn something new every day." }) }
+    var graphArticle by remember { mutableStateOf<cn.tonglu.app.data.LearningArticle?>(null) }
     val backdrop = com.kyant.backdrop.backdrops.rememberLayerBackdrop()
     val tabs = if (count == 3) listOf("首页", "学习", "我的") else listOf("首页", "学习", "广场", "社团", "我的")
     val icon = androidx.compose.material.icons.Icons.Default.Home
@@ -275,10 +291,14 @@ private fun BottomChromePreview() {
             else GlassBottomBar(tabs, icons, icons, selected, { selected = it }, backdrop, { 0f }, Modifier.align(Alignment.BottomCenter))
         }
         if (route == "rail") TabletNavigationRail(tabs, icons, icons, selected, { selected = it }, backdrop, true)
-        if (route == "reader") ArticleReader(article, store, false, {}, { route = "" })
+        if (route == "reader") ArticleReader(graphArticle ?: article, store, false, {}, { route = "" })
         if (route == "graph") LearningGraphScreen(cn.tonglu.app.data.LearningCatalog(1, "qa", listOf(
-            cn.tonglu.app.data.LearningSection("qa-bottom", null, "本地示例", "本地示例", "blue", 0)), listOf(article)),
-            onOpenArticle = { route = "reader" }, onClose = { route = "" })
+            cn.tonglu.app.data.LearningSection("qa-bottom", null, "本地示例", "本地示例", "blue", 0)),
+            if (longGraphCategory) List(12) { i -> article.copy(
+                id = "qa-graph-$i", title = "本地示例 · 资料${i + 1} · 分类完整列表与大字换行检查",
+                sectionId = "qa-bottom", summary = "本地示例 · 仅用于界面走查，不会保存到资料库",
+            ) } else listOf(article)),
+            onOpenArticle = { graphArticle = it; route = "reader" }, onClose = { route = "" })
         if (route == "note") NoteEditorDialog("本地示例 · 便携笔记", "", body,
             onSave = { body = it; route = "" }, onDelete = null, onDismiss = { route = "" })
         if (route == "post") PostComposerDialog(onPublish = { _, _, _, done -> done(); route = "" },

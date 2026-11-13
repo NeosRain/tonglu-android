@@ -70,8 +70,8 @@ android {
         //              今日/整周小组件裁切与清晰度；网盘容量口径与分享链。
         // M0 内测候选：Android 收口首页/学习/我的，社区入口隐藏，数据与后端保留。
         // 每日预览进preview、每周正式进stable；0.16起预览序号1–98、正式槽99。
-        versionCode = 270002
-        versionName = "0.27.0-beta.2"
+        versionCode = 270003
+        versionName = "0.27.0-beta.3"
         if (updateQa) {
             applicationId = "cn.tonglu.app.updateqa"
             versionCode = providers.gradleProperty("updateQaCode").get().toInt().also { require(it in 1..2_100_000_000) }
