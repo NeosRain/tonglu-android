@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "ed649b695a19508289f988975720a40ec6085c17",
+  "sourceCommit": "8ff543af0d15aa91759361b521a45b2ed845bdc9",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -37,8 +37,8 @@
     },
     {
       "path": "apps/android/app/build.gradle.kts",
-      "bytes": 19351,
-      "sha256": "6200e0d21d74e2957cec76048015ada5f41e390be82ff16ee127a9b9adfaf548"
+      "bytes": 19358,
+      "sha256": "179110f89e3ad13d40beefb71b6463b38eee9e62fe9cfdbc4a7379d6aa0383db"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -1612,8 +1612,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ProfileScreen.kt",
-      "bytes": 48931,
-      "sha256": "971502944cab1cb18d27664b68987c72aade8912e3badc19816effad59c634b2"
+      "bytes": 55409,
+      "sha256": "03d298864b89ea2d4c036761303d9a87aabdffc1a6db339f5c4d4cbb0b85f58b"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/profile/ThemeModePicker.kt",

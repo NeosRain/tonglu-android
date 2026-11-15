@@ -1,23 +1,24 @@
 package cn.tonglu.app.ui.profile
 
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import cn.tonglu.app.ui.OverlayMotion
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.overlayMotion
+import cn.tonglu.app.ui.rememberOverlayMotion
+
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 
 import android.os.Build
-import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
-import androidx.compose.ui.input.nestedscroll.NestedScrollSource
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.layout.layout
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalDensity
-import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -53,6 +54,122 @@ private val Canvas get() = AppColors.Canvas
 private val Accent get() = AppColors.Accent
 private val Muted get() = AppColors.TextMuted
 private val Danger get() = AppColors.Danger
+
+// White glyphs on these blocks all exceed 3:1 contrast.
+private val ProfileGreen = Color(0xFF2F9E8F)
+private val ProfileOrange = Color(0xFFD46F1F)
+private val ProfileBlue = Color(0xFF3578C8)
+private val ProfilePurple = Color(0xFF7956B5)
+private val ProfileGray = Color(0xFF667085)
+
+private data class ProfileFeature(
+    val title: String,
+    val icon: ImageVector,
+    val color: Color,
+    val unread: Int = 0,
+    val onClick: () -> Unit,
+)
+
+@Composable
+private fun ProfileIcon(icon: ImageVector, color: Color, modifier: Modifier = Modifier) {
+    Surface(modifier.size(44.dp), shape = RoundedCornerShape(14.dp), color = color) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun ProfileFeatureGrid(features: List<ProfileFeature>) {
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val columns = if (maxWidth < 600.dp) 4 else maxOf(4, (maxWidth / 96.dp).toInt())
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            features.chunked(columns).forEach { row ->
+                Row(Modifier.fillMaxWidth()) {
+                    row.forEach { feature ->
+                        Column(
+                            Modifier.weight(1f).launchOrigin().clickable(onClick = feature.onClick)
+                                .padding(vertical = 12.dp, horizontal = 2.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Box {
+                                ProfileIcon(feature.icon, feature.color)
+                                if (feature.unread > 0) {
+                                    Surface(Modifier.align(Alignment.TopEnd).offset(x = 10.dp, y = (-6).dp),
+                                        shape = RoundedCornerShape(12.dp), color = AppColors.Accent,
+                                        contentColor = AppColors.OnAccent) {
+                                        Text(feature.unread.toString(), color = AppColors.OnAccent,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                                    }
+                                }
+                            }
+                            Text(feature.title, style = MaterialTheme.typography.labelMedium,
+                                color = AppColors.TextPrimary, textAlign = TextAlign.Center)
+                        }
+                    }
+                    repeat(columns - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProfileCategoryRow(
+    title: String,
+    summary: String,
+    icon: ImageVector,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth().launchOrigin().clickable(onClick = onClick).padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        ProfileIcon(icon, color)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, color = AppColors.TextPrimary)
+            Text(summary, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary,
+                maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+        Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, contentDescription = null,
+            tint = AppColors.TextSecondary, modifier = Modifier.size(22.dp))
+    }
+}
+
+@Composable
+private fun ProfileCategoryPage(title: String, onClose: () -> Unit, content: LazyListScope.() -> Unit) {
+    val motion = rememberOverlayMotion(
+        onClose = { OverlayDismissGuard.arm(); onClose() },
+        predictive = OverlayMotion.enabledState, selfDrag = true,
+    )
+    Dialog(onDismissRequest = { motion.requestClose() },
+        properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false),
+            color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+                contentAlignment = Alignment.TopCenter) {
+                Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                        IconButton(onClick = { motion.requestClose() }) {
+                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回我的", tint = AppColors.TextPrimary)
+                        }
+                    }
+                    LazyColumn(Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        item {
+                            Text(title, style = MaterialTheme.typography.headlineLarge,
+                                fontWeight = FontWeight.Bold, color = AppColors.TextPrimary,
+                                modifier = Modifier.padding(top = 8.dp, bottom = 10.dp))
+                        }
+                        content()
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 internal fun ProfileScreen(
@@ -103,7 +220,7 @@ internal fun ProfileScreen(
     topInset: Dp = 0.dp,
 ) {
     var showFeedback by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
-    if (showFeedback) FeedbackDialog(onClose = { showFeedback = false })
+    var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
     val session = state.session
     // 这个 Composable 是独立函数（不在外层那个 scope 的作用域里），导出/导入要用自己的。
     val scope = rememberCoroutineScope()
@@ -114,8 +231,6 @@ internal fun ProfileScreen(
     ) { uri -> avatarCropUri = uri }
     // 这里在 ProfileScreen 内部，取不到 TongluApp 里的 closeLayer，直接调守卫。
     // （裁剪页是全屏的，关闭时同样会穿透到顶栏。）
-    avatarCropUri?.let { uri -> AvatarCropDialog(uri, onClose = { OverlayDismissGuard.arm(); avatarCropUri = null },
-        onConfirm = { cropped -> OverlayDismissGuard.arm(); avatarCropUri = null; onAvatar(cropped) }) }
     var exactAlarmAllowed by remember { mutableStateOf(true) }
     LaunchedEffect(context) {
         exactAlarmAllowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -194,11 +309,6 @@ internal fun ProfileScreen(
             else pendingRestore = parsed
         }
     }
-    if (confirmAcademicSync) AlertDialog(onDismissRequest = { OverlayDismissGuard.arm(); confirmAcademicSync = false },
-        title = { Text("立即同步课表与成绩") },
-        text = { Text("把本机与云端两份记录合并后重新上传，用于换机恢复。示例数据和学校登录 Cookie 不会上传。同一门课两边都改过时保留本机记录。") },
-        confirmButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false; onAcademicSync() }) { Text("开始同步") } },
-        dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false }) { Text("取消") } })
     LazyColumn(Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = topInset + 18.dp, bottom = LocalMainNavigationBottomPadding.current),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -257,424 +367,378 @@ internal fun ProfileScreen(
                     TextButton(onClick = onOpenAccountSettings, enabled = !state.busy) { Text("个人资料") }
                 }
             }
-            ProfileCard(insideMargin = PaddingValues(16.dp), modifier = Modifier.fillMaxWidth().clickable { showFeedback = true }) {
-                Text("反馈与建议 →", color = Accent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text("不用登录，直接告诉我们哪里需要改进", color = Muted, style = MaterialTheme.typography.bodySmall)
-            }
             }
         }
-        item { Text("常用", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        item { Text("常用功能", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Row(Modifier.fillMaxWidth().clickable(onClick = onOpenLaboratory), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("实验室", style = MaterialTheme.typography.titleMedium)
-                        Text("广场、社团与更多可选功能", color = Muted)
+            ProfileCard(insideMargin = PaddingValues(12.dp)) {
+                val features = buildList {
+                    add(ProfileFeature("我的成绩", Icons.Rounded.Assessment, ProfileBlue, onClick = onOpenScores))
+                    add(ProfileFeature("校园认证", Icons.Rounded.VerifiedUser, ProfileGreen, onClick = onCampusVerification))
+                    add(ProfileFeature("实验室", Icons.Rounded.Science, ProfilePurple, onClick = onOpenLaboratory))
+                    add(ProfileFeature("反馈建议", Icons.Rounded.Feedback, ProfileOrange, onClick = { showFeedback = true }))
+                    if (session != null) {
+                        add(ProfileFeature("我的等级", Icons.Rounded.EmojiEvents, ProfileOrange, onClick = onOpenMyLevel))
+                        add(ProfileFeature("我的消息", Icons.Rounded.Notifications, ProfileBlue, state.noticeUnread, onOpenNotices))
                     }
-                    Text("进入", color = Accent)
                 }
+                ProfileFeatureGrid(features)
             }
         }
-
-        // —— 等级与消息（docs/plan/66）——
-        // 未登录时不显示这两项：等级和信任等级都挂在账号上，没账号就是没有，
-        // 显示一个「Lv1 新生」会让人以为等级是自动的、不用登录也有。
-        if (state.session != null) item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Text("等级与消息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .clickable(onClick = onOpenMyLevel),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("我的等级", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            state.myLevel?.let { "Lv${it.level} ${it.levelName} · 学习 ${it.expLearn} · 社区 ${it.expSocial}" }
-                                ?: "成长等级、信任等级、经验来源都在这里",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text("查看", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .clickable(onClick = onOpenNotices),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("我的消息", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "信任等级变动、内容处置、规则更新都会在这里说明原因",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    if (state.noticeUnread > 0) {
-                        // 未读数直接写数字，不用小红点 —— 用户要能知道有 3 条还是 30 条。
-                        Text("${state.noticeUnread} 条未读", color = Accent, style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        Text("查看", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-
+        item { Text("设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
+        item {
+            ProfileCard(insideMargin = PaddingValues(0.dp)) {
+                ProfileCategoryRow("课表与提醒",
+                    if (remindEnabled) "课前提醒已开启 · 提前 $remindLead 分钟" else "课前提醒已关闭",
+                    Icons.Rounded.EventNote, ProfileGreen) { settingsPage = "课表与提醒" }
+                HorizontalDivider(color = AppColors.Divider, modifier = Modifier.padding(start = 76.dp, end = 16.dp))
+                ProfileCategoryRow("外观与动画",
+                    if (glassNav) "液态玻璃已开启" else "液态玻璃已关闭",
+                    Icons.Rounded.Palette, ProfilePurple) { settingsPage = "外观与动画" }
+                HorizontalDivider(color = AppColors.Divider, modifier = Modifier.padding(start = 76.dp, end = 16.dp))
+                ProfileCategoryRow("账号与数据",
+                    session?.let { "已登录 @${it.username}" } ?: "未登录",
+                    Icons.Rounded.ManageAccounts, ProfileBlue) { settingsPage = "账号与数据" }
+                HorizontalDivider(color = AppColors.Divider, modifier = Modifier.padding(start = 76.dp, end = 16.dp))
+                ProfileCategoryRow("应用更新", "当前版本 ${cn.tonglu.app.BuildConfig.VERSION_NAME}",
+                    Icons.Rounded.SystemUpdate, ProfileGray) { settingsPage = "应用更新" }
             }
         }
         item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Row(Modifier.fillMaxWidth().clickable(onClick = onCampusVerification), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("校园身份认证", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                        Text("校园邮箱 · 学信网报告 · 人工认证", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
-                    }
-                    Text("查看", color = Accent)
-                }
-            }
-        }
-        item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 12.dp)
-                        .clickable(onClick = onOpenScores),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("我的成绩", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            if (scoreCount == 0) "尚未导入，点进去可从教务带一份回来" else "已记录 $scoreCount 次考试",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text(if (scoreCount == 0) "导入" else "查看", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-        item { Text("学习", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        item {
-            // 考试倒计时开关（`docs/plan/54` M2）。关掉 = 首页不留任何入口（连引导卡都不留），
-            // 但**已加入的备考一条都不删**，再打开就回来 —— 关显示 ≠ 删数据。
-            ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
-                Text("首页", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("考试倒计时", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "在课表上方显示最近的考试 · 关闭后首页不显示，已添加的考试仍保留在考试日历里",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    androidx.compose.material3.Switch(checked = examCountdown, onCheckedChange = onExamCountdownChange)
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-        item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Text("课表", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp).clickable(onClick = onEditPeriods),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("作息时间表", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            (if (PeriodTable.isCustom()) "已自定义" else "教务默认") +
-                                " · 第 1 节 ${PeriodTable.slot(1)?.start ?: "--:--"}–${PeriodTable.slot(1)?.end ?: "--:--"}，共 ${PeriodTable.maxPeriod()} 节",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text("修改", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp)
-                        .clickable(enabled = state.courses.isNotEmpty()) { confirmClearSchedule = true },
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            "清空课表",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = if (state.courses.isEmpty()) Muted else MaterialTheme.colorScheme.onSurface,
-                        )
-                        Text(
-                            if (state.courses.isEmpty()) {
-                                "本机没有课表数据"
-                            } else {
-                                "删除全部 ${state.courses.size} 门课程，换账号前先清干净"
-                            },
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text(
-                        if (state.courses.isEmpty()) "无可清空" else "清空",
-                        color = if (state.courses.isEmpty()) Muted else Danger,
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(top = 14.dp)
-                        .clickable(onClick = onRestoreImportPrompt),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("首页导入提示", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "在首页重新显示「从教务导入」提示卡 · 关过之后想再看就用它",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    Text("恢复", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-        item {
-            ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
-                Text("上课提醒", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("课前提醒", style = MaterialTheme.typography.bodyLarge)
-                        Text("课前弹通知，告诉你还有多少分钟上课", color = Muted, style = MaterialTheme.typography.bodySmall)
-                    }
-                    androidx.compose.material3.Switch(checked = remindEnabled, onCheckedChange = onRemindEnabledChange)
-                }
-                if (remindEnabled && !exactAlarmAllowed) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            "系统未允许「闹钟和提醒」，通知可能会晚几分钟",
-                            color = noticeForeground(Color(0xFFB45309)),
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.weight(1f),
-                        )
-                        TextButton(onClick = {
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                runCatching {
-                                    context.startActivity(
-                                        android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
-                                            data = android.net.Uri.parse("package:${context.packageName}")
-                                        },
-                                    )
-                                }.onFailure {
-                                    backupNotice = "无法打开提醒授权页，请在系统设置中允许闹钟和提醒。"
-                                    android.widget.Toast.makeText(context, backupNotice, android.widget.Toast.LENGTH_LONG).show()
-                                }
-                            }
-                        }) { Text("去开启") }
-                    }
-                }
-                if (remindEnabled) {
-                    Text("提前多久提醒", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        listOf(5, 10, 15, 20, 30, 45).forEach { lead ->
-                            Surface(
-                                color = if (remindLead == lead) Accent else Canvas,
-                                shape = RoundedCornerShape(14.dp),
-                                modifier = Modifier.clickable { onRemindLeadChange(lead) },
-                            ) {
-                                Text(
-                                    "$lead 分",
-                                    color = if (remindLead == lead) AppColors.OnAccent else MaterialTheme.colorScheme.onSurface,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-                TextButton(onClick = {
-                    runCatching {
-                        cn.tonglu.app.notify.ClassReminder.show(
-                            context,
-                            cn.tonglu.app.notify.ClassAlarm(
-                                fireAt = System.currentTimeMillis(),
-                                courseName = "高等数学（测试）",
-                                location = "文萃楼 402",
-                                teacher = null,
-                                startText = "18:00",
-                                endText = "19:40",
-                                leadMinutes = 20,
-                            ),
-                        )
-                    }.onFailure {
-                        backupNotice = "测试通知发送失败，请检查系统通知权限。"
-                        android.widget.Toast.makeText(context, backupNotice, android.widget.Toast.LENGTH_LONG).show()
-                    }
-                }) { Text("发一条测试通知", color = Accent) }
-            }
-        }
-        item { Text("外观", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        item {
-            ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().padding(top = 10.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("液态玻璃界面", style = MaterialTheme.typography.bodyLarge)
-                        Text("顶栏与底栏统一玻璃效果 · 上滑自动收起底栏", color = Muted, style = MaterialTheme.typography.bodySmall)
-                    }
-                    androidx.compose.material3.Switch(checked = glassNav, onCheckedChange = onGlassNavChange)
-                }
-                Spacer(Modifier.height(10.dp))
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("预测性返回", style = MaterialTheme.typography.bodyLarge)
-                        Text(
-                            "按住屏幕左边缘往右拖时，界面跟着手指走 · 关闭后仍保留淡入淡出",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
-                    androidx.compose.material3.Switch(checked = predictiveBack, onCheckedChange = onPredictiveBackChange)
-                }
-                Spacer(Modifier.height(10.dp))
-                ThemeModePicker()
-                ProfileSettingsDetail("主题与壁纸", "主题色、背景与透明度") {
-                    cn.tonglu.app.ui.theme.ThemeSettingsCard()
-                }
-                ProfileSettingsDetail("启动与动画", "开屏外观与播放方式") {
-                cn.tonglu.app.ui.startup.StartupSettingsCard(
-                    session?.userId?.takeIf { it.isNotBlank() }
-                        ?: session?.username?.takeIf { it.isNotBlank() }
-                        ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER,
-                )
-                }
-                ProfileSettingsDetail("应用更新", "版本信息与更新选项") {
-                    cn.tonglu.app.ui.update.UpdateSettingsCard()
-                }
-                Spacer(Modifier.height(8.dp))
-            }
-        }
-        item { Text("账号与数据", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        if (session != null) item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Row(
-                    Modifier.fillMaxWidth().clickable(onClick = onOpenAccountSettings),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text("账号设置", fontWeight = FontWeight.SemiBold)
-                        Text("改昵称、换头像；等级与校园身份在这里看",
-                            color = Muted, style = MaterialTheme.typography.bodySmall)
-                    }
-                    Text("进入", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        }
-        if (session != null) item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("课表与成绩同步", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (syncEnabled) "已开启 · 本机变更自动上传，用于换机恢复"
-                            else "已关闭 · 本机数据不会上传",
-                            color = Muted, style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
-                    androidx.compose.material3.Switch(checked = syncEnabled, onCheckedChange = onSyncEnabledChange)
-                }
-                Text(
-                    "本机课表 ${state.courses.size} 条 · 成绩 ${state.scores.size} 条 · 只同步课表、成绩与学期设置，" +
-                        "校园登录信息（Cookie）与示例数据都留在本机",
-                    color = Muted, style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                val syncStatus = state.academicSyncStatus.takeIf {
-                    state.academicSyncSessionId == session.sessionId
-                }
-                Text(
-                    if (!syncEnabled) "自动上传已关闭" else syncStatus ?: "当前登录会话尚无上传成功记录，可点击下方确认同步",
-                    color = Muted, style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.padding(top = 8.dp),
-                )
-                // 「立即同步」只在开关打开时可用：关着还能点，等于给了个人人看不懂的状态
-                // （点了到底算不算开启同步？）—— 要同步就先开开关，语义才唯一。
-                TextButton(onClick = { confirmAcademicSync = true }, enabled = !state.busy && syncEnabled) {
-                    Text(if (state.busy) "同步处理中…" else "立即同步一次")
-                }
-            }
-        }
-        item {
-            ProfileCard(insideMargin = PaddingValues(16.dp)) {
-                Text("个人数据备份", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                Text(
-                    "导出本机的课表、成绩、阅读、作答与学习计划，换机或重装后可导入回来。" +
-                        "文件不含校园登录信息（Cookie）、企业微信凭据、AI 密钥和登录令牌 —— " +
-                        "可以放心存到自己的网盘。",
-                    color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp),
-                )
-                Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FilledTonalButton(
-                        onClick = {
-                            backupExporter.launch("tonglu-backup-${java.time.LocalDate.now()}.json")
-                        },
-                        modifier = Modifier.weight(1f),
-                    ) { Text("导出备份") }
-                    FilledTonalButton(
-                        onClick = { backupImporter.launch(arrayOf("application/json", "text/plain", "*/*")) },
-                        modifier = Modifier.weight(1f),
-                    ) { Text("导入备份") }
-                }
-                Text(
-                    "导入是「本机为空才写入」，不会覆盖你现有的数据；想用备份替换本机，先清空再导入。",
-                    color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 10.dp),
-                )
-                backupNotice?.let { note ->
-                    Text(note, color = Accent, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
-                }
-            }
-        }
-        item {
-            if (state.session == null) {
-                FilledTonalButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登录应用账号（可选）") }
-            } else {
-                FilledTonalButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth()) { Text("退出登录") }
-            }
             Text("苔米林为非官方项目，与辽东学院及学校平台无隶属关系。", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
     }
+
+    settingsPage?.let { page ->
+        ProfileCategoryPage(page, onClose = { settingsPage = null }) {
+            when (page) {
+                "课表与提醒" -> {
+                    item {
+                        // 考试倒计时开关（`docs/plan/54` M2）。关掉 = 首页不留任何入口（连引导卡都不留），
+                        // 但**已加入的备考一条都不删**，再打开就回来 —— 关显示 ≠ 删数据。
+                        ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
+                            Text("首页", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("考试倒计时", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "在课表上方显示最近的考试 · 关闭后首页不显示，已添加的考试仍保留在考试日历里",
+                                        color = Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                androidx.compose.material3.Switch(checked = examCountdown, onCheckedChange = onExamCountdownChange)
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                    item {
+                        ProfileCard(insideMargin = PaddingValues(16.dp)) {
+                            Text("课表", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 10.dp).clickable(onClick = onEditPeriods),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("作息时间表", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        (if (PeriodTable.isCustom()) "已自定义" else "教务默认") +
+                                            " · 第 1 节 ${PeriodTable.slot(1)?.start ?: "--:--"}–${PeriodTable.slot(1)?.end ?: "--:--"}，共 ${PeriodTable.maxPeriod()} 节",
+                                        color = Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                Text("修改", color = Accent, style = MaterialTheme.typography.bodyMedium)
+                            }
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 14.dp)
+                                    .clickable(enabled = state.courses.isNotEmpty()) { confirmClearSchedule = true },
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text(
+                                        "清空课表",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (state.courses.isEmpty()) Muted else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        if (state.courses.isEmpty()) {
+                                            "本机没有课表数据"
+                                        } else {
+                                            "删除全部 ${state.courses.size} 门课程，换账号前先清干净"
+                                        },
+                                        color = Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                Text(
+                                    if (state.courses.isEmpty()) "无可清空" else "清空",
+                                    color = if (state.courses.isEmpty()) Muted else Danger,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 14.dp)
+                                    .clickable(onClick = onRestoreImportPrompt),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("首页导入提示", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "在首页重新显示「从教务导入」提示卡 · 关过之后想再看就用它",
+                                        color = Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                Text("恢复", color = Accent, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                    item {
+                        ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
+                            Text("上课提醒", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("课前提醒", style = MaterialTheme.typography.bodyLarge)
+                                    Text("课前弹通知，告诉你还有多少分钟上课", color = Muted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                androidx.compose.material3.Switch(checked = remindEnabled, onCheckedChange = onRemindEnabledChange)
+                            }
+                            if (remindEnabled && !exactAlarmAllowed) {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(top = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        "系统未允许「闹钟和提醒」，通知可能会晚几分钟",
+                                        color = noticeForeground(Color(0xFFB45309)),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.weight(1f),
+                                    )
+                                    TextButton(onClick = {
+                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                                            runCatching {
+                                                context.startActivity(
+                                                    android.content.Intent(android.provider.Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                                                        data = android.net.Uri.parse("package:${context.packageName}")
+                                                    },
+                                                )
+                                            }.onFailure {
+                                                backupNotice = "无法打开提醒授权页，请在系统设置中允许闹钟和提醒。"
+                                                android.widget.Toast.makeText(context, backupNotice, android.widget.Toast.LENGTH_LONG).show()
+                                            }
+                                        }
+                                    }) { Text("去开启") }
+                                }
+                            }
+                            if (remindEnabled) {
+                                Text("提前多久提醒", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 12.dp))
+                                Row(
+                                    Modifier.fillMaxWidth().padding(top = 8.dp).horizontalScroll(rememberScrollState()),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                ) {
+                                    listOf(5, 10, 15, 20, 30, 45).forEach { lead ->
+                                        Surface(
+                                            color = if (remindLead == lead) Accent else Canvas,
+                                            shape = RoundedCornerShape(14.dp),
+                                            modifier = Modifier.clickable { onRemindLeadChange(lead) },
+                                        ) {
+                                            Text(
+                                                "$lead 分",
+                                                color = if (remindLead == lead) AppColors.OnAccent else MaterialTheme.colorScheme.onSurface,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            TextButton(onClick = {
+                                runCatching {
+                                    cn.tonglu.app.notify.ClassReminder.show(
+                                        context,
+                                        cn.tonglu.app.notify.ClassAlarm(
+                                            fireAt = System.currentTimeMillis(),
+                                            courseName = "高等数学（测试）",
+                                            location = "文萃楼 402",
+                                            teacher = null,
+                                            startText = "18:00",
+                                            endText = "19:40",
+                                            leadMinutes = 20,
+                                        ),
+                                    )
+                                }.onFailure {
+                                    backupNotice = "测试通知发送失败，请检查系统通知权限。"
+                                    android.widget.Toast.makeText(context, backupNotice, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }) { Text("发一条测试通知", color = Accent) }
+                        }
+                    }
+                }
+                "外观与动画" -> {
+                    item {
+                        ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 10.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("液态玻璃界面", style = MaterialTheme.typography.bodyLarge)
+                                    Text("顶栏与底栏统一玻璃效果 · 上滑自动收起底栏", color = Muted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                androidx.compose.material3.Switch(checked = glassNav, onCheckedChange = onGlassNavChange)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("预测性返回", style = MaterialTheme.typography.bodyLarge)
+                                    Text(
+                                        "按住屏幕左边缘往右拖时，界面跟着手指走 · 关闭后仍保留淡入淡出",
+                                        color = Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                androidx.compose.material3.Switch(checked = predictiveBack, onCheckedChange = onPredictiveBackChange)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            ThemeModePicker()
+                            ProfileSettingsDetail("主题与壁纸", "主题色、背景与透明度") {
+                                cn.tonglu.app.ui.theme.ThemeSettingsCard()
+                            }
+                            ProfileSettingsDetail("启动与动画", "开屏外观与播放方式") {
+                            cn.tonglu.app.ui.startup.StartupSettingsCard(
+                                session?.userId?.takeIf { it.isNotBlank() }
+                                    ?: session?.username?.takeIf { it.isNotBlank() }
+                                    ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER,
+                            )
+                            }
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+                "账号与数据" -> {
+                    if (session != null) item {
+                        ProfileCard(insideMargin = PaddingValues(16.dp)) {
+                            Row(
+                                Modifier.fillMaxWidth().clickable(onClick = onOpenAccountSettings),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("账号设置", fontWeight = FontWeight.SemiBold)
+                                    Text("改昵称、换头像；等级与校园身份在这里看",
+                                        color = Muted, style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text("进入", color = Accent, style = MaterialTheme.typography.bodyMedium)
+                            }
+                        }
+                    }
+                    if (session != null) item {
+                        ProfileCard(insideMargin = PaddingValues(16.dp)) {
+                            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("课表与成绩同步", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (syncEnabled) "已开启 · 本机变更自动上传，用于换机恢复"
+                                        else "已关闭 · 本机数据不会上传",
+                                        color = Muted, style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                    )
+                                }
+                                androidx.compose.material3.Switch(checked = syncEnabled, onCheckedChange = onSyncEnabledChange)
+                            }
+                            Text(
+                                "本机课表 ${state.courses.size} 条 · 成绩 ${state.scores.size} 条 · 只同步课表、成绩与学期设置，" +
+                                    "校园登录信息（Cookie）与示例数据都留在本机",
+                                color = Muted, style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            val syncStatus = state.academicSyncStatus.takeIf {
+                                state.academicSyncSessionId == session.sessionId
+                            }
+                            Text(
+                                if (!syncEnabled) "自动上传已关闭" else syncStatus ?: "当前登录会话尚无上传成功记录，可点击下方确认同步",
+                                color = Muted, style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 8.dp),
+                            )
+                            // 「立即同步」只在开关打开时可用：关着还能点，等于给了个人人看不懂的状态
+                            // （点了到底算不算开启同步？）—— 要同步就先开开关，语义才唯一。
+                            TextButton(onClick = { confirmAcademicSync = true }, enabled = !state.busy && syncEnabled) {
+                                Text(if (state.busy) "同步处理中…" else "立即同步一次")
+                            }
+                        }
+                    }
+                    item {
+                        ProfileCard(insideMargin = PaddingValues(16.dp)) {
+                            Text("个人数据备份", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "导出本机的课表、成绩、阅读、作答与学习计划，换机或重装后可导入回来。" +
+                                    "文件不含校园登录信息（Cookie）、企业微信凭据、AI 密钥和登录令牌 —— " +
+                                    "可以放心存到自己的网盘。",
+                                color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp),
+                            )
+                            Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                FilledTonalButton(
+                                    onClick = {
+                                        backupExporter.launch("tonglu-backup-${java.time.LocalDate.now()}.json")
+                                    },
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("导出备份") }
+                                FilledTonalButton(
+                                    onClick = { backupImporter.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                                    modifier = Modifier.weight(1f),
+                                ) { Text("导入备份") }
+                            }
+                            Text(
+                                "导入是「本机为空才写入」，不会覆盖你现有的数据；想用备份替换本机，先清空再导入。",
+                                color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 10.dp),
+                            )
+                            backupNotice?.let { note ->
+                                Text(note, color = Accent, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 8.dp))
+                            }
+                        }
+                    }
+                    item {
+                        if (state.session == null) {
+                            FilledTonalButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登录应用账号（可选）") }
+                        } else {
+                            FilledTonalButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth()) { Text("退出登录") }
+                        }
+                    }
+                }
+                "应用更新" -> item { cn.tonglu.app.ui.update.UpdateSettingsCard() }
+            }
+        }
+    }
+
+    // 确认框及反馈/裁剪层在分类窗口之后创建，保持在全屏子页上方。
+    if (showFeedback) FeedbackDialog(onClose = { showFeedback = false })
+    avatarCropUri?.let { uri -> AvatarCropDialog(uri, onClose = { OverlayDismissGuard.arm(); avatarCropUri = null },
+        onConfirm = { cropped -> OverlayDismissGuard.arm(); avatarCropUri = null; onAvatar(cropped) }) }
+    if (confirmAcademicSync) AlertDialog(onDismissRequest = { OverlayDismissGuard.arm(); confirmAcademicSync = false },
+        title = { Text("立即同步课表与成绩") },
+        text = { Text("把本机与云端两份记录合并后重新上传，用于换机恢复。示例数据和学校登录 Cookie 不会上传。同一门课两边都改过时保留本机记录。") },
+        confirmButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false; onAcademicSync() }) { Text("开始同步") } },
+        dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false }) { Text("取消") } })
 
     // 清空课表：不可撤销，问一次
     // 导入备份：先让用户看清「这份文件带了哪几类」，再执行（不覆盖本机）
