@@ -12,15 +12,75 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.rounded.Login
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Article
+import androidx.compose.material.icons.rounded.BookmarkBorder
+import androidx.compose.material.icons.rounded.Forum
+import androidx.compose.material.icons.rounded.Groups
 import cn.tonglu.app.data.*
 import cn.tonglu.app.ui.clubs.*
 import cn.tonglu.app.ui.square.*
 
-private data class LabFeature(val id: String, val title: String, val description: String)
+private data class LabFeature(val id: String, val title: String, val description: String,
+    val icon: ImageVector, val tint: Color)
 private val labFeatures = listOf(
-    LabFeature("square", "广场", "校园讨论、发帖与交流"),
-    LabFeature("clubs", "社团", "社团频道、活动与成员交流"),
+    LabFeature("square", "广场", "校园讨论、发帖与交流", Icons.Rounded.Forum, Color(0xFF2F9E8F)),
+    LabFeature("clubs", "社团", "社团频道、活动与成员交流", Icons.Rounded.Groups, Color(0xFFD46F1F)),
 )
+
+/** 分组列表里的彩色图标块（ColorOS / iOS 设置页同款）。 */
+@Composable
+private fun FeatureTile(icon: ImageVector, tint: Color, size: Dp = 40.dp) {
+    Box(Modifier.size(size).clip(RoundedCornerShape(12.dp)).background(tint), contentAlignment = Alignment.Center) {
+        Icon(icon, null, tint = Color.White, modifier = Modifier.size(size * .55f))
+    }
+}
+
+/** 页头：大标题 + 副标题，右侧一枚主操作胶囊。 */
+@Composable
+private fun CommunityHeader(title: String, subtitle: String, action: String, actionIcon: ImageVector?,
+    onBack: (() -> Unit)?, onAction: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 20.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        if (onBack != null) IconButton(onClick = onBack) {
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回实验室", tint = AppColors.TextPrimary)
+        }
+        Column(Modifier.weight(1f)) {
+            Text(title, color = AppColors.TextPrimary, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = AppColors.TextSecondary, fontSize = 13.sp, lineHeight = 18.sp)
+        }
+        Button(onClick = onAction, modifier = Modifier.launchOrigin(), shape = RoundedCornerShape(50),
+            colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent, contentColor = AppColors.OnAccent),
+            contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
+            if (actionIcon != null) { Icon(actionIcon, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)) }
+            Text(action, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        }
+    }
+}
+
+/** 快捷入口胶囊：图标 + 文字，浅色底。 */
+@Composable
+private fun ShortcutPill(label: String, icon: ImageVector, onClick: () -> Unit) {
+    Surface(onClick = onClick, modifier = Modifier.launchOrigin(), shape = RoundedCornerShape(50), color = AppColors.Surface,
+        border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Divider)) {
+        Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(6.dp))
+            Text(label, color = AppColors.TextPrimary, fontSize = 14.sp)
+        }
+    }
+}
 
 @Composable
 internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
@@ -32,25 +92,41 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
     } }
     var module by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().background(AppColors.CanvasOpaque).safeDrawingPadding()
-        .verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        TextButton(onClick = onClose) { Text("返回") }
-        Text("实验室", style = MaterialTheme.typography.headlineSmall)
-        Text("在这里选择你想尝试的功能。关闭入口会保留已有内容，开关只在本机生效。", color = AppColors.TextMuted)
-        labFeatures.forEach { feature ->
-            Surface(shape = MaterialTheme.shapes.medium, color = AppColors.Surface) {
-                Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(feature.title, style = MaterialTheme.typography.titleMedium)
-                            Text(feature.description, color = AppColors.TextMuted)
-                        }
-                        Switch(checked = enabled[feature.id] == true, onCheckedChange = { checked ->
+        .verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 8.dp)) {
+        IconButton(onClick = onClose) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回", tint = AppColors.TextPrimary) }
+        Column(Modifier.widthIn(max = 720.dp).fillMaxWidth().align(Alignment.CenterHorizontally).padding(horizontal = 4.dp)) {
+            Text("实验室", color = AppColors.TextPrimary, fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.padding(top = 4.dp))
+            Text("选择你想尝试的功能。关闭入口会保留已有内容，开关只在本机生效。", color = AppColors.TextSecondary,
+                fontSize = 14.sp, lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp, bottom = 20.dp))
+            Text("可选功能", color = AppColors.TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(start = 16.dp, bottom = 8.dp))
+            Surface(shape = RoundedCornerShape(24.dp), color = AppColors.SurfaceOpaque) {
+                Column {
+                    labFeatures.forEachIndexed { index, feature ->
+                        val on = enabled[feature.id] == true
+                        fun toggle(checked: Boolean) {
                             preferences.edit().putBoolean(feature.id, checked).apply()
                             enabled[feature.id] = checked
-                        })
-                    }
-                    if (enabled[feature.id] == true) TextButton(onClick = { module = feature.id }) {
-                        Text("进入${feature.title}")
+                        }
+                        Row(Modifier.fillMaxWidth().clickable { toggle(!on) }.padding(horizontal = 16.dp, vertical = 14.dp),
+                            verticalAlignment = Alignment.CenterVertically) {
+                            FeatureTile(feature.icon, feature.tint)
+                            Column(Modifier.weight(1f).padding(horizontal = 14.dp)) {
+                                Text(feature.title, color = AppColors.TextPrimary, fontSize = 17.sp, fontWeight = FontWeight.Medium)
+                                Text(feature.description, color = AppColors.TextSecondary, fontSize = 13.sp, lineHeight = 18.sp)
+                            }
+                            Switch(checked = on, onCheckedChange = ::toggle, colors = SwitchDefaults.colors(
+                                checkedTrackColor = AppColors.Accent, checkedThumbColor = AppColors.OnAccent))
+                        }
+                        androidx.compose.animation.AnimatedVisibility(on) {
+                            Row(Modifier.fillMaxWidth().launchOrigin().clickable { module = feature.id }
+                                .padding(start = 70.dp, end = 16.dp, top = 2.dp, bottom = 14.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Text("进入${feature.title}", color = AppColors.Accent, fontSize = 15.sp, modifier = Modifier.weight(1f))
+                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null, tint = AppColors.Accent)
+                            }
+                        }
+                        if (index < labFeatures.lastIndex) HorizontalDivider(Modifier.padding(start = 70.dp), color = AppColors.Divider)
                     }
                 }
             }
@@ -94,14 +170,17 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
     }
     DisposableEffect(Unit) { onDispose { viewModel.closePost() } }
     Column(Modifier.fillMaxSize().background(AppColors.CanvasOpaque).padding(top = topInset).then(if (mainSearch != null) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
-        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (mainSearch == null) TextButton(onClick = onClose) { Text("返回实验室") }
-            Text(if (module == "square") "广场" else "社团", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            TextButton(onClick = {
+        CommunityHeader(
+            title = if (module == "square") "广场" else "社团",
+            subtitle = if (module == "square") "校园动态、求助、二手与学习资源" else "找到同好，参加社团活动",
+            action = if (state.session == null) "登录" else if (module == "square") "发帖" else "创建社团",
+            actionIcon = if (state.session == null) Icons.AutoMirrored.Rounded.Login else Icons.Rounded.Add,
+            onBack = if (mainSearch == null) onClose else null,
+            onAction = {
                 if (state.session == null) viewModel.openLogin()
                 else if (module == "square") showPostDialog = true else showClubCreate = true
-            }) { Text(if (state.session == null) "登录" else if (module == "square") "发帖" else "创建社团") }
-        }
+            },
+        )
         if (module == "clubs" && clubWorkspace.target != null) ClubWorkspaceHeader(
             clubWorkspace, state.session != null, viewModel::joinClub,
             membership = state.clubMembership().of(clubWorkspace.target!!.id))
@@ -110,15 +189,26 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
             colors = TextFieldDefaults.colors(focusedContainerColor = AppColors.ChipIdle, unfocusedContainerColor = AppColors.ChipIdle, focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
-        if (module == "square" && state.session != null) Row {
-            TextButton(onClick = { showMyPosts = true }) { Text("我的内容") }
-            TextButton(onClick = { showFavorites = true }) { Text("我的收藏") }
+        if (module == "square" && state.session != null) Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ShortcutPill("我的内容", Icons.Rounded.Article) { showMyPosts = true }
+            ShortcutPill("我的收藏", Icons.Rounded.BookmarkBorder) { showFavorites = true }
         }
         Box(Modifier.weight(1f)) {
             if (module == "square") SquareScreen(state, effectiveSearch, onRefresh = viewModel::refreshPosts,
                 onReport = { reportTarget = it },
                 onOpen = { detailPostId = it.id; viewModel.openPost(it.id) }, onOpenPack = { openedPack = it })
-            else if (state.session == null) Text("登录后查看和加入社团", Modifier.padding(24.dp))
+            else if (state.session == null) Column(Modifier.fillMaxSize().padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                FeatureTile(Icons.Rounded.Groups, Color(0xFFD46F1F), 64.dp)
+                Text("登录后加入社团", color = AppColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(top = 18.dp))
+                Text("查看社团频道、报名活动，和同好一起交流。", color = AppColors.TextSecondary, fontSize = 14.sp,
+                    lineHeight = 21.sp, modifier = Modifier.padding(top = 6.dp, bottom = 20.dp))
+                Button(onClick = viewModel::openLogin, shape = RoundedCornerShape(50),
+                    colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent, contentColor = AppColors.OnAccent),
+                    contentPadding = PaddingValues(horizontal = 32.dp, vertical = 12.dp)) { Text("登录或注册", fontSize = 15.sp) }
+            }
             else {
                     ClubsScreen(
                         state,

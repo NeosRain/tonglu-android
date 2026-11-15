@@ -112,6 +112,12 @@ class MainActivity : ComponentActivity() {
         }.apply { isDaemon = true }.start()
     }
 
+    /** 一镜到底的兜底来源：记下主窗口最近一次按下的位置（不拦截事件）。 */
+    override fun dispatchTouchEvent(ev: android.view.MotionEvent): Boolean {
+        if (ev.actionMasked == android.view.MotionEvent.ACTION_DOWN) cn.tonglu.app.ui.LaunchOrigin.touch(ev.x, ev.y)
+        return super.dispatchTouchEvent(ev)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Keep the phone's portrait preference; large screens now have a window-adaptive layout.

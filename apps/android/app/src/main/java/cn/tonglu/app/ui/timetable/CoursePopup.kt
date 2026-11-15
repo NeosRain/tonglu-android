@@ -1,6 +1,7 @@
 package cn.tonglu.app.ui
 
 import android.view.WindowManager
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -49,6 +50,7 @@ internal fun coursePopupTransform(source: Rect, target: Rect, progress: Float): 
 /** One motion for course details and move confirmation. All exit paths finish the reverse animation. */
 @Composable
 internal fun CoursePopup(origin: Rect, onDismiss: () -> Unit, dismissEnabled: Boolean = true,
+    onCardBounds: (Rect) -> Unit = {},
     content: @Composable ColumnScope.(close: () -> Unit) -> Unit) {
     val motion = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -88,7 +90,7 @@ internal fun CoursePopup(origin: Rect, onDismiss: () -> Unit, dismissEnabled: Bo
                     area = Rect(at.x, at.y, at.x + c.size.width, at.y + c.size.height)
                 }, contentAlignment = Alignment.Center) {
                 Surface(Modifier.widthIn(max = 520.dp).fillMaxWidth().heightIn(max = 640.dp)
-                    .onSizeChanged { cardSize = it }.graphicsLayer {
+                    .onSizeChanged { cardSize = it }.onGloballyPositioned { onCardBounds(it.boundsInWindow()) }.graphicsLayer {
                         val target = Rect(area.center.x - cardSize.width / 2f, area.center.y - cardSize.height / 2f,
                             area.center.x + cardSize.width / 2f, area.center.y + cardSize.height / 2f)
                         val transform = coursePopupTransform(origin, target, motion.value)
@@ -111,12 +113,11 @@ internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List
     val course = selection.course
     var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showClassNotes by remember { mutableStateOf(false) }
-    var openingClassNotes by remember { mutableStateOf(false) }
+    val cardBounds = remember { arrayOf(Rect.Zero) }
     val accent = courseColor(course.name)
-    if (!showClassNotes) CoursePopup(selection.origin, onDismiss = {
-        if (openingClassNotes) { openingClassNotes = false; showClassNotes = true }
-        else { onDismiss(); afterClose?.invoke() }
-    }) { close ->
+    // 一镜到底：笔记直接从这张卡片展开（不再先缩回课表格子、再从右侧推入），关闭时收回到课表上这门课。
+    if (!showClassNotes) CoursePopup(selection.origin, onDismiss = { onDismiss(); afterClose?.invoke() },
+        onCardBounds = { cardBounds[0] = it }) { close ->
         Column(Modifier.fillMaxWidth().background(accent).padding(22.dp)) {
             Text(course.name, color = AppColors.OnAccent, fontSize = 22.sp, lineHeight = 29.sp,
                 fontWeight = FontWeight.SemiBold, maxLines = 4,
@@ -138,7 +139,9 @@ internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List
             if (onDelete != null) TextButton(onClick = { afterClose = { onDelete(course) }; close() }) {
                 Text("删除课程", color = AppColors.Danger)
             }
-            TextButton(onClick = { openingClassNotes = true; close() }) { Text("课堂笔记", color = AppColors.Accent) }
+            TextButton(onClick = { LaunchOrigin.arm(cardBounds[0], selection.origin); showClassNotes = true }) {
+                Text("课堂笔记", color = AppColors.Accent)
+            }
             if (onEdit != null) TextButton(onClick={afterClose={onEdit(course)};close()}) { Text("编辑",color=AppColors.Accent) }
             Spacer(Modifier.weight(1f))
             TextButton(onClick = close) { Text("完成", color = AppColors.Accent) }

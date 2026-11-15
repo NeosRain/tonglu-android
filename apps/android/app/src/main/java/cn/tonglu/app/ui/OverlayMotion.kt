@@ -34,6 +34,12 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
@@ -134,6 +140,10 @@ object OverlayMotion {
 
     /** 退出时长。比进场略快 —— 返回本来就该是「立刻走」的动作。 */
     const val EXIT_MS = 170
+
+    /** 一镜到底的展开/收回时长：要看得清从哪来、回哪去，比普通进场长一些。 */
+    const val ORIGIN_ENTER_MS = 380
+    const val ORIGIN_EXIT_MS = 320
 
     /** 回弹时长（松手但没拖够）。 */
     const val SETTLE_MS = 160
@@ -617,8 +627,14 @@ class OverlayMotionState internal constructor(
     /** 供原有 `BackHandler(enabled = ...)` 使用：退出中不再响应返回键。 */
     val canHandleBack: Boolean get() = !closing
 
+    internal val isClosing: Boolean get() = closing
+
+    /** 一镜到底来源（窗口坐标：进场矩形 to 收回矩形），见 [LaunchOrigin]。null = 沿用进场方向。 */
+    internal var origin: Pair<Rect, Rect>? = null
+
     internal suspend fun runEnter() {
-        enter.animateTo(1f, tween(OverlayMotion.ENTER_MS, easing = FastOutSlowInEasing))
+        enter.animateTo(1f, if (origin != null) tween(OverlayMotion.ORIGIN_ENTER_MS, easing = EmphasizedDecelerate)
+            else tween(OverlayMotion.ENTER_MS, easing = FastOutSlowInEasing))
     }
 
     /**
@@ -636,7 +652,8 @@ class OverlayMotionState internal constructor(
         // 其余关闭路径（返回按钮、点遮罩、返回键）没有位移，归位本来也不影响观感。
         if (!edge.committed) edge.cancel()
         scope.launch {
-            enter.animateTo(0f, tween(OverlayMotion.EXIT_MS, easing = FastOutSlowInEasing))
+            enter.animateTo(0f, tween(if (origin != null) OverlayMotion.ORIGIN_EXIT_MS else OverlayMotion.EXIT_MS,
+                easing = FastOutSlowInEasing))
             OverlayDismissGuard.arm()
             closeAction()
         }
@@ -658,11 +675,12 @@ fun rememberOverlayMotion(
     backEnabled: Boolean = true,
 ): OverlayMotionState {
     val scope = rememberCoroutineScope()
+    val touchSize = with(LocalDensity.current) { 96.dp.toPx() }
     // key 里**只放** selfDrag：predictive 和 onClose 都是可变的（理由见
     // OverlayMotionState 里各自的注释），进 key 会让 state 反复重建、
     // 表现为这一层不停重播进场动画。
     val state = remember(selfDrag) {
-        OverlayMotionState(predictive, onClose, selfDrag, scope)
+        OverlayMotionState(predictive, onClose, selfDrag, scope).also { it.origin = LaunchOrigin.take(touchSize) }
     }
     LaunchedEffect(state, predictive) { state.predictive = predictive }
     LaunchedEffect(state, backEnabled) { state.shellBackEnabled = backEnabled }
@@ -779,7 +797,8 @@ fun Modifier.overlayMotion(
 ): Modifier {
     ThemeSystemBars()
     cn.tonglu.app.ui.focus.RegisterPomodoroWindow()
-    if (enter == OverlayEnter.Right && !fade) {
+    val origin = state.origin
+    if ((enter == OverlayEnter.Right && !fade) || origin != null) {
         val view = LocalView.current
         // These are full-page navigation windows. Compose already animates the opaque page;
         // a platform dim/exit animation otherwise leaves the revealed parent dark afterwards.
@@ -802,7 +821,13 @@ fun Modifier.overlayMotion(
     val enterCorner = remember {
         RoundedCornerShape(topStart = 16.dp, bottomStart = 16.dp, topEnd = 0.dp, bottomEnd = 0.dp)
     }
+    // 本层左上角的窗口坐标：来源矩形换算成层内坐标用。写数组不写 State，避免每次布局触发重组。
+    val layerAt = remember { floatArrayOf(0f, 0f) }
+    val originCorner = with(LocalDensity.current) { 20.dp.toPx() }
     return this
+        .then(if (origin != null) Modifier.onGloballyPositioned { c ->
+            val at = c.positionInWindow(); layerAt[0] = at.x; layerAt[1] = at.y
+        } else Modifier)
         // 自识别拖动**所有层都开着**（不再只看 selfDrag）。
         //
         // 原来只给弹层开，理由是「内层能吃到系统进度，不用自己认」。这条在**某些设备上不成立** ——
@@ -819,7 +844,22 @@ fun Modifier.overlayMotion(
         // 在函数体里先读成 `Float` 再进 lambda，就是「整页每帧重组」（BUGS A16）。
         .graphicsLayer {
             val e = state.enterState.value
-            if (enter == OverlayEnter.Right) {
+            if (origin != null) {
+                // 一镜到底：从来源矩形展开，关闭时收回（可能是另一处，见 LaunchOrigin.arm 的 exit）。
+                // 到位后完全复原，跟手返回照旧叠加在下面的 applyEdgeBack 上。
+                if (e < 1f) {
+                    val from = (if (state.isClosing) origin.second else origin.first).translate(-layerAt[0], -layerAt[1])
+                    val frame = originFrame(from, size, e, originCorner)
+                    transformOrigin = TransformOrigin(0f, 0f)
+                    scaleX = frame.scale; scaleY = frame.scale
+                    translationX = frame.translationX; translationY = frame.translationY
+                    shape = OriginClipShape(frame.clip, frame.radius)
+                    clip = true
+                    alpha = (e / .2f).coerceIn(0f, 1f)
+                } else {
+                    clip = false
+                }
+            } else if (enter == OverlayEnter.Right) {
                 // 整页从右边缘推入。**不淡出**：中间帧屏幕左侧本来就是上一页
                 // （还没被盖住的那部分），再叠一层半透明就是花脸（applyEdgeBack 的 `fade` 同理）。
                 translationX = (1f - e) * size.width
@@ -842,3 +882,6 @@ fun Modifier.overlayMotion(
             applyEdgeBack(if (state.predictive) edgeProgress.value else 0f, state.edge.fromLeft, fade)
         }
 }
+
+/** 强调型减速曲线：起步快、落点柔和，展开到全屏时不显得「砸」下来。 */
+private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)

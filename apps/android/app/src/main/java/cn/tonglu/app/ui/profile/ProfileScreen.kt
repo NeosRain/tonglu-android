@@ -41,7 +41,12 @@ import cn.tonglu.app.ui.noticeForeground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Card as MiuixCard
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.KeyboardArrowRight
+import androidx.compose.ui.graphics.graphicsLayer
 import top.yukonga.miuix.kmp.basic.Text
 
 private val Canvas get() = AppColors.Canvas
@@ -206,7 +211,7 @@ internal fun ProfileScreen(
                     Text("扫一扫登录电脑", color = Accent)
                 }
             }
-            MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(18.dp)) {
+            ProfileCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(18.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     // 🔴 未登录时头像**也可点**，直接拉起登录/注册。
                     // 之前这里是 `enabled = session != null`，于是未登录用户点头像毫无反应，
@@ -252,7 +257,7 @@ internal fun ProfileScreen(
                     TextButton(onClick = onOpenAccountSettings, enabled = !state.busy) { Text("个人资料") }
                 }
             }
-            MiuixCard(insideMargin = PaddingValues(16.dp), modifier = Modifier.fillMaxWidth().clickable { showFeedback = true }) {
+            ProfileCard(insideMargin = PaddingValues(16.dp), modifier = Modifier.fillMaxWidth().clickable { showFeedback = true }) {
                 Text("反馈与建议 →", color = Accent, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text("不用登录，直接告诉我们哪里需要改进", color = Muted, style = MaterialTheme.typography.bodySmall)
             }
@@ -260,7 +265,7 @@ internal fun ProfileScreen(
         }
         item { Text("常用", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Row(Modifier.fillMaxWidth().clickable(onClick = onOpenLaboratory), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("实验室", style = MaterialTheme.typography.titleMedium)
@@ -275,7 +280,7 @@ internal fun ProfileScreen(
         // 未登录时不显示这两项：等级和信任等级都挂在账号上，没账号就是没有，
         // 显示一个「Lv1 新生」会让人以为等级是自动的、不用登录也有。
         if (state.session != null) item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Text("等级与消息", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier
@@ -323,7 +328,7 @@ internal fun ProfileScreen(
             }
         }
         item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Row(Modifier.fillMaxWidth().clickable(onClick = onCampusVerification), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("校园身份认证", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -334,8 +339,7 @@ internal fun ProfileScreen(
             }
         }
         item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
-                Text("我的成绩", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Row(
                     Modifier
                         .fillMaxWidth()
@@ -360,7 +364,7 @@ internal fun ProfileScreen(
         item {
             // 考试倒计时开关（`docs/plan/54` M2）。关掉 = 首页不留任何入口（连引导卡都不留），
             // 但**已加入的备考一条都不删**，再打开就回来 —— 关显示 ≠ 删数据。
-            MiuixCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
+            ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
                 Text("首页", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -381,7 +385,7 @@ internal fun ProfileScreen(
             }
         }
         item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Text("课表", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp).clickable(onClick = onEditPeriods),
@@ -450,7 +454,7 @@ internal fun ProfileScreen(
             }
         }
         item {
-            MiuixCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
+            ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
                 Text("上课提醒", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp),
@@ -535,8 +539,7 @@ internal fun ProfileScreen(
         }
         item { Text("外观", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         item {
-            MiuixCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
-                Text("外观", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+            ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
                 Row(
                     Modifier.fillMaxWidth().padding(top = 10.dp),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -566,19 +569,25 @@ internal fun ProfileScreen(
                 }
                 Spacer(Modifier.height(10.dp))
                 ThemeModePicker()
-                cn.tonglu.app.ui.theme.ThemeSettingsCard()
+                ProfileSettingsDetail("主题与壁纸", "主题色、背景与透明度") {
+                    cn.tonglu.app.ui.theme.ThemeSettingsCard()
+                }
+                ProfileSettingsDetail("启动与动画", "开屏外观与播放方式") {
                 cn.tonglu.app.ui.startup.StartupSettingsCard(
                     session?.userId?.takeIf { it.isNotBlank() }
                         ?: session?.username?.takeIf { it.isNotBlank() }
                         ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER,
                 )
-                cn.tonglu.app.ui.update.UpdateSettingsCard()
+                }
+                ProfileSettingsDetail("应用更新", "版本信息与更新选项") {
+                    cn.tonglu.app.ui.update.UpdateSettingsCard()
+                }
                 Spacer(Modifier.height(8.dp))
             }
         }
         item { Text("账号与数据", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
         if (session != null) item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Row(
                     Modifier.fillMaxWidth().clickable(onClick = onOpenAccountSettings),
                     verticalAlignment = Alignment.CenterVertically,
@@ -593,7 +602,7 @@ internal fun ProfileScreen(
             }
         }
         if (session != null) item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("课表与成绩同步", fontWeight = FontWeight.SemiBold)
@@ -628,7 +637,7 @@ internal fun ProfileScreen(
             }
         }
         item {
-            MiuixCard(insideMargin = PaddingValues(16.dp)) {
+            ProfileCard(insideMargin = PaddingValues(16.dp)) {
                 Text("个人数据备份", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Text(
                     "导出本机的课表、成绩、阅读、作答与学习计划，换机或重装后可导入回来。" +
@@ -637,13 +646,13 @@ internal fun ProfileScreen(
                     color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp),
                 )
                 Row(Modifier.fillMaxWidth().padding(top = 12.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = {
                             backupExporter.launch("tonglu-backup-${java.time.LocalDate.now()}.json")
                         },
                         modifier = Modifier.weight(1f),
                     ) { Text("导出备份") }
-                    OutlinedButton(
+                    FilledTonalButton(
                         onClick = { backupImporter.launch(arrayOf("application/json", "text/plain", "*/*")) },
                         modifier = Modifier.weight(1f),
                     ) { Text("导入备份") }
@@ -659,9 +668,9 @@ internal fun ProfileScreen(
         }
         item {
             if (state.session == null) {
-                OutlinedButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登录应用账号（可选）") }
+                FilledTonalButton(onClick = onLogin, modifier = Modifier.fillMaxWidth()) { Text("登录应用账号（可选）") }
             } else {
-                OutlinedButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth()) { Text("退出登录") }
+                FilledTonalButton(onClick = { confirmLogout = true }, modifier = Modifier.fillMaxWidth()) { Text("退出登录") }
             }
             Text("苔米林为非官方项目，与辽东学院及学校平台无隶属关系。", color = Muted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.fillMaxWidth().padding(top = 12.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
         }
@@ -800,5 +809,37 @@ internal fun ProfileScreen(
             },
             dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmLogout = false }) { Text("取消") } },
         )
+    }
+}
+
+/** A single neutral grouped surface, with no inherited brown/grey card tint. */
+@Composable
+private fun ProfileCard(
+    modifier: Modifier = Modifier,
+    insideMargin: PaddingValues = PaddingValues(18.dp),
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
+        color = AppColors.SurfaceOpaque, contentColor = AppColors.TextPrimary) {
+        Column(Modifier.padding(insideMargin), content = content)
+    }
+}
+
+@Composable
+private fun ProfileSettingsDetail(title: String, summary: String, content: @Composable () -> Unit) {
+    var expanded by rememberSaveable(title) { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth().animateContentSize()) {
+        Row(Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+                Text(summary, style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary)
+            }
+            Icon(Icons.AutoMirrored.Outlined.KeyboardArrowRight,
+                if (expanded) "收起$title" else "展开$title",
+                Modifier.size(22.dp).graphicsLayer { rotationZ = if (expanded) 90f else 0f },
+                tint = AppColors.TextSecondary)
+        }
+        AnimatedVisibility(expanded) { Column(Modifier.padding(bottom = 12.dp)) { content() } }
     }
 }

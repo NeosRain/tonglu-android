@@ -22,7 +22,6 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -544,7 +543,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                 val noteColumns = if (maxWidth >= 1100.dp) 4 else if (maxWidth >= 700.dp) 3 else 2
                 SharedTransitionLayout(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
                 AnimatedContent(targetState = editorOpen,
-                    // Move the card surface first; exchange text after the bounds settle.
+                    // Shared bounds carry the card and its content together, with no blank handoff.
                     transitionSpec = {
                         if (morphNoteId == null) {
                             if (targetState) slideInHorizontally(tween(320)) { it } togetherWith ExitTransition.None
@@ -552,15 +551,12 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                         } else EnterTransition.None togetherWith ExitTransition.None
                     },
                     modifier = Modifier.fillMaxSize(), label = "class-note-editor") { editing ->
-                    val documentAlpha by transition.animateFloat(
-                        transitionSpec = { if (targetState == EnterExitState.Visible) tween(90, delayMillis = 380) else tween(100) },
-                        label = "note-document-handoff",
-                    ) { state -> if (state == EnterExitState.Visible) 1f else 0f }
                     if (editing) {
                         Column(Modifier.fillMaxSize().sharedBounds(
                             rememberSharedContentState(key = "note-${morphNoteId ?: "new"}"),
                             animatedVisibilityScope = this@AnimatedContent,
-                            enter = EnterTransition.None, exit = ExitTransition.None,
+                            enter = fadeIn(tween(220, delayMillis = 60)), exit = fadeOut(tween(120)),
+                            renderInOverlayDuringTransition = false,
                             boundsTransform = { _, _ -> tween(380) })
                             .background(AppColors.CanvasOpaque)
                             // Keep document pixels out of the chrome, including while the IME resizes it.
@@ -568,7 +564,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             .clipToBounds().padding(horizontal = editorSidePadding)
                             .verticalScroll(rememberScrollState()).padding(vertical = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Column(Modifier.fillMaxWidth().graphicsLayer { alpha = documentAlpha },
+                            Column(Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             val current = notes.firstOrNull { it.id == (if (editorOpen) editingNoteId else morphNoteId) }
                             current?.let { Text(SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.getDefault()).format(Date(it.time)),
@@ -622,17 +618,17 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                     }
                     items(visibleNotes, key = { it.id }) { note ->
                         Surface(shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque,
-                            modifier = Modifier.animateItem().sharedBounds(
+                            modifier = (if (note.id == morphNoteId) Modifier else Modifier.animateItem()).sharedBounds(
                                 rememberSharedContentState(key = "note-${note.id}"),
                                 animatedVisibilityScope = this@AnimatedContent,
-                                enter = EnterTransition.None, exit = ExitTransition.None,
+                                enter = fadeIn(tween(220, delayMillis = 60)), exit = fadeOut(tween(120)),
+                                renderInOverlayDuringTransition = false,
                                 boundsTransform = { _, _ -> tween(380) })
                                 .graphicsLayer { alpha = if (editorOpen && note.id != morphNoteId) 0f else 1f }.clickable(enabled = !editorOpen) {
                                 beginNote(note)
                             },
                             contentColor = AppColors.TextPrimary) {
-                            Column(Modifier.fillMaxWidth().padding(16.dp)
-                                .graphicsLayer { alpha = if (note.id == morphNoteId) documentAlpha else 1f },
+                            Column(Modifier.fillMaxWidth().padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(9.dp)) {
                             Text(SimpleDateFormat("MM月dd日 HH:mm", Locale.getDefault()).format(Date(note.time)),
                                 fontSize = 11.sp, color = AppColors.TextSecondary)

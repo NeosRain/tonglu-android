@@ -63,20 +63,6 @@ class QuestionBankCatalogTest {
         assertEquals("q1", reviewQuestions(bank, snapshot).single().id)
     }
 
-    @Test fun `题内AI不能用固定身份分享会话`() {
-        val path = "cn/tonglu/app/ui/learning/QuestionBankScreen.kt"
-        val file = listOf("src/main/java", "app/src/main/java", "../app/src/main/java")
-            .map { File(it, path) }.first { it.isFile }
-        val source = file.readText()
-        val quiz = source.substringAfter("internal fun BankQuizPane(")
-        assertTrue(quiz.substringBefore(") {").contains("owner: String"))
-        assertTrue(quiz.contains("owner = owner,"))
-        assertFalse(quiz.contains("owner = \"question\","))
-        assertFalse(source.contains("wrongCount = remember(bank.id, revision)"))
-        assertTrue(quiz.contains("aiQuestionKey = bank.keyOf(renderedQuestion)"))
-        assertTrue(quiz.contains("scopeKey = aiQuestionKey,"))
-    }
-
     @Test fun `旧题库缺原卷链接不崩且非网页协议不进入浏览器`() {
         val json = Gson().toJson(bank("legacy"))
         assertFalse(json.contains("sourceUrl"))

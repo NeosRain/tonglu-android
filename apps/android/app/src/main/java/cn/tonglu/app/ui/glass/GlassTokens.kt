@@ -144,14 +144,14 @@ internal object GlassTokens {
     /** 透镜折射位移量（dp） */
     const val SearchLensAmountDp = 8f
     /** 搜索框比外层稍凝实，形成独立的圆润磨砂面。 */
-    val SearchSurfaceAlpha: Float get() = if (DarkGlass) .90f else .86f
+    val SearchSurfaceAlpha: Float get() = if (DarkGlass) .28f else .60f
     /** 常驻高光：够亮才像一块玻璃，不是一块灰板 */
     val SearchHighlightAlpha: Float get() = if (DarkGlass) .22f else .40f
     val SearchShadowAlpha: Float get() = if (DarkGlass) .24f else .12f
     const val SearchInnerShadowRadiusDp = 4f
     const val SearchInnerShadowAlpha = 0.04f
     /** 36dp高搜索框采用完整圆角。 */
-    const val SearchCornerDp = 18f
+    const val SearchCornerDp = 14f
     /** 清除按钮直径与叉号尺寸：原来 16dp/11dp 太浅，几乎看不见 */
     const val SearchClearSizeDp = 18f
     const val SearchClearIconDp = 12f

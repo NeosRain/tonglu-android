@@ -41,12 +41,14 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
+import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.blur
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
-import com.kyant.backdrop.shadow.InnerShadow
 import com.kyant.backdrop.shadow.Shadow
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.graphics.RectangleShape
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Offset
 
 /**
  * 液态玻璃顶栏容器。
@@ -81,28 +83,26 @@ fun GlassTopBar(
     val statusHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isLight = !GlassTokens.DarkGlass
     val containerColor = if (isLight) GlassTokens.ContainerLight else GlassTokens.ContainerDark
+    val hairline = (if (isLight) Color.Black else Color.White).copy(alpha = if (isLight) .07f else .10f)
 
     Box(
         modifier
             .drawBackdrop(
-                backdrop = backdrop,
-                shape = { RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp) },
+                backdrop = rememberBottomBackdrop(backdrop),
+                // 连同状态栏一整块铺下来的矩形（ColorOS / iOS 的导航栏做法）：
+                // 底部圆角 + 投影在全宽栏上读成「两端被裁掉的一条板子」，平板上尤其明显。
+                shape = { RectangleShape },
                 effects = {
                     vibrancy()
-                    blur(GlassTokens.BlurDp.dp.toPx())
+                    blur(28.dp.toPx())
                 },
-                // 与底栏同一套常驻光影，两条栏才是「同一块玻璃」
-                highlight = { Highlight.Default.copy(alpha = GlassTokens.RestHighlightAlpha) },
-                shadow = { Shadow(alpha = GlassTokens.RestShadowAlpha) },
-                innerShadow = {
-                    InnerShadow(
-                        radius = GlassTokens.RestInnerShadowRadiusDp.dp,
-                        alpha = GlassTokens.RestInnerShadowAlpha
-                    )
-                },
+                highlight = { Highlight.Default.copy(alpha = 0f) },
+                shadow = { Shadow(alpha = 0f) },
                 onDrawSurface = {
-                    drawFrostSurface(containerColor, GlassTokens.ContainerAlpha)
-                    drawRect(containerColor.copy(alpha = 0.96f), size = Size(size.width, statusHeight.toPx()))
+                    drawFrostSurface(containerColor, if (GlassTokens.DarkGlass) .48f else .42f)
+                    drawRect(containerColor.copy(alpha = if (GlassTokens.DarkGlass) .48f else .42f), size = Size(size.width, statusHeight.toPx()))
+                    // 底边一条发丝线代替投影：分层清楚，又不会在内容上压出一道灰带。
+                    drawLine(hairline, Offset(0f, size.height - .5f), Offset(size.width, size.height - .5f), 1f)
                 }
             )
             .fillMaxWidth()

@@ -568,7 +568,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
             val windowWidth = maxWidth
             // Use the actual window: split-screen and landscape phones must not be treated as tablets by model name.
             val useRail = maxWidth >= 600.dp && maxHeight >= 480.dp
-            val railSpace = if (useRail) 108.dp else 0.dp
+            val railSpace = if (useRail) TabletRailWidth else 0.dp
             CompositionLocalProvider(LocalMainNavigationBottomPadding provides
                 if (useRail) WindowInsets.safeDrawing.asPaddingValues().calculateBottomPadding() + 20.dp else 116.dp) {
             Column(
@@ -755,23 +755,27 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 // 背景一片空白 —— 玻璃会变成一块实心板，就白做了。
                 GlassTopBar(
                     backdrop = liquidBackdrop,
+                    // 平板：顶栏从侧栏右边开始，和侧栏拼成一整块「L」形磨砂外框。
                     modifier = Modifier
-                        .align(Alignment.TopCenter).padding(start = railSpace),
+                        .align(Alignment.TopCenter)
+                        .padding(start = railSpace),
+                    contentPadding = if (useRail) 24.dp else 12.dp,
                 ) {
                     // 返回穿透冷却期：整条顶栏这一小会儿点不动（见 OverlayDismissGuard）。
                     // 判一次、传给三个控件，而不是各自去读 —— 免得出现「搜索框解禁了、头像还没有」的错位。
                     val topBarCooling = OverlayDismissGuard.cooling()
-                    Box(Modifier.weight(1f)) {
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    // 左：头像 → 个人资料。用户点名「搜索框右移一点，左边改成头像」。
-                    TopBarAvatar(
+                    Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    Row(Modifier.widthIn(max = if (useRail) 720.dp else Dp.Unspecified).fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically) {
+                    // 手机左侧是头像 → 个人资料（用户点名「搜索框右移一点，左边改成头像」）；平板头像在侧栏顶部。
+                    if (!useRail) TopBarAvatar(
                         name = state.session?.displayName,
                         path = state.session?.avatarUrl,
                         enabled = !topBarCooling,
                         size = 34.dp,
                         onClick = { if (state.session == null) viewModel.openLogin() else showAccountSettings = true },
                     )
-                    Spacer(Modifier.width(8.dp))
+                    if (!useRail) Spacer(Modifier.width(8.dp))
                     SearchField(
                         value = search,
                         onValueChange = { search = it },
@@ -808,7 +812,16 @@ private fun TongluAppContent(viewModel: AppViewModel) {
             }
             if (useRail && !navigationImeVisible) TabletNavigationRail(
                 tabs, filledIcons, outlinedIcons, mainPager.targetPage, tabNavigator::select, liquidBackdrop, useGlassNav,
-                Modifier.align(Alignment.CenterStart).windowInsetsPadding(WindowInsets.safeDrawing).padding(horizontal = 12.dp, vertical = 16.dp),
+                Modifier.align(Alignment.TopStart),
+                header = {
+                    if (useGlassNav) TopBarAvatar(
+                        name = state.session?.displayName,
+                        path = state.session?.avatarUrl,
+                        enabled = !OverlayDismissGuard.cooling(),
+                        size = 40.dp,
+                        onClick = { if (state.session == null) viewModel.openLogin() else showAccountSettings = true },
+                    )
+                },
             )
             }
         }
@@ -1266,21 +1279,8 @@ private fun SearchField(
     val glassSurface = if (dark) GlassTokens.ContainerDark else GlassTokens.ContainerLight
     val hintInk = if (onGlass) AppColors.TextSecondary else Muted
     val decor: Modifier = if (onGlass && backdrop != null) {
-        Modifier.drawBackdrop(
-            backdrop = backdrop,
-            shape = { shape },
-            effects = {
-                vibrancy()
-                blur(GlassTokens.SearchBlurDp.dp.toPx())
-                lens(GlassTokens.SearchLensRadiusDp.dp.toPx(), GlassTokens.SearchLensAmountDp.dp.toPx(),
-                    chromaticAberration = GlassTokens.ChromaticAberration)
-            },
-            highlight = { Highlight.Default.copy(alpha = GlassTokens.SearchHighlightAlpha) },
-            shadow = { Shadow(alpha = GlassTokens.SearchShadowAlpha) },
-            innerShadow = { InnerShadow(radius = GlassTokens.SearchInnerShadowRadiusDp.dp,
-                alpha = GlassTokens.SearchInnerShadowAlpha) },
-            onDrawSurface = { drawFrostSurface(glassSurface, GlassTokens.SearchSurfaceAlpha) },
-        )
+        // The outer bar supplies the frost; keep the field a quiet rounded inset.
+        Modifier.clip(shape).background(glassSurface.copy(alpha = if (dark) .24f else .46f))
     } else {
         // 非玻璃模式：老老实实一块实色方框
         Modifier.clip(shape).background(fieldColor(onGlass, flat))

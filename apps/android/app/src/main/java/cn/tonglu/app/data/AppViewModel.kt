@@ -2513,6 +2513,10 @@ private fun CreateCourseRequest.toLocalCourse(): CourseDto = CourseDto(
 internal fun Throwable.toFriendlyMessage(): String = when (this) {
     is java.net.SocketTimeoutException -> "连接超时，请稍后重试。本机课表和成绩仍可使用。"
     is java.net.UnknownHostException, is java.net.ConnectException -> "暂时无法连接服务器。本机课表和成绩仍可使用。"
+    // 其余网络异常（connection closed / unexpected end of stream / reset…）带的是网络库的英文原文，
+    // 不能直接给用户看；应用自己抛的 IOException 写的是中文说明，照常显示。
+    is java.io.IOException -> message?.takeIf { text -> text.any { it in '\u4e00'..'\u9fff' } }
+        ?: "网络连接中断，请稍后重试。本机课表和成绩仍可使用。"
     is HttpException -> {
         val body = runCatching { response()?.errorBody()?.string() }.getOrNull()
         val message = runCatching {
