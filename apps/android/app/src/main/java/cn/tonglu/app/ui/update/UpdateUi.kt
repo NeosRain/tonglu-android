@@ -1,6 +1,8 @@
 package cn.tonglu.app.ui.update
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -15,6 +17,7 @@ import androidx.compose.ui.unit.dp
 import cn.tonglu.app.BuildConfig
 import cn.tonglu.app.data.update.AppUpdates
 import cn.tonglu.app.data.update.UpdateChannel
+import cn.tonglu.app.data.update.UpdateRelease
 import cn.tonglu.app.data.update.UpdateTransfer
 import cn.tonglu.app.data.update.UpdateUiState
 import cn.tonglu.app.ui.AppColors
@@ -36,7 +39,10 @@ internal fun AppUpdateHost() {
             Text(release.notes, color = AppColors.TextSecondary)
             UpdateTransferStatus(state)
             Text("下载后由系统确认安装", color = AppColors.TextMuted)
-            state.error?.let { Text(it, color = AppColors.Danger) }
+            state.error?.let {
+                Text(it, color = AppColors.Danger)
+                BrowserDownload(release)
+            }
         } },
         confirmButton = { TextButton(enabled = !state.downloading && !state.checking, onClick = {
             if (state.ready) AppUpdates.install(c) else AppUpdates.download(c, release)
@@ -79,8 +85,19 @@ internal fun UpdateSettingsCard() {
                 state.release?.let { release -> TextButton(onClick = { if (state.ready) AppUpdates.install(c) else AppUpdates.download(c, release) }, enabled = !state.downloading) { Text(if (state.ready) "安装更新" else "下载 ${release.versionName}") } }
                 if (Build.VERSION.SDK_INT >= 33) TextButton(onClick = { permission.launch(Manifest.permission.POST_NOTIFICATIONS) }) { Text("开启通知") }
             }
+            if (state.error != null) state.release?.let { BrowserDownload(it) }
         }
     }
+}
+
+@Composable
+private fun BrowserDownload(release: UpdateRelease) {
+    val c = LocalContext.current
+    TextButton(onClick = {
+        c.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(AppUpdates.browserDownloadUrl(release))))
+    }) { Text("用浏览器下载") }
+    Text("也可以用浏览器下载安装包后手动安装，数据会保留",
+        color = AppColors.TextMuted, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
@@ -94,7 +111,12 @@ private fun UpdateTransferStatus(state: UpdateUiState) {
     }
     Text(message, color = AppColors.TextSecondary)
     state.transferNotice?.let { Text(it, color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
-    if (state.downloading && state.transfer != UpdateTransfer.CheckingBase)
-        Text("下载中 ${state.progress}%", color = AppColors.Accent)
+    if (state.downloading && state.transfer != UpdateTransfer.CheckingBase) {
+        LinearProgressIndicator(progress = { state.progress / 100f }, modifier = Modifier.fillMaxWidth(), color = AppColors.Accent)
+        Text("下载中 ${state.progress}% · ${mb(state.downloadedBytes)} / ${mb(state.transferBytes ?: 0)}", color = AppColors.Accent)
+    }
+    if (!state.downloading && !state.ready && state.downloadedBytes > 0)
+        Text("可继续下载 · ${mb(state.downloadedBytes)} / ${mb(state.transferBytes ?: 0)}",
+            color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
     if (state.ready) Text("安装包已校验，可以安装", color = AppColors.Accent)
 }

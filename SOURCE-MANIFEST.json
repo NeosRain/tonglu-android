@@ -1,5 +1,5 @@
 {
-  "sourceCommit": "8ff543af0d15aa91759361b521a45b2ed845bdc9",
+  "sourceCommit": "0c1b0d4113d4e58c7f854942e1217fc1da7ac83a",
   "license": "GPL-3.0-only",
   "scope": "Android source only; no private repository history",
   "modifiedFiles": [
@@ -38,7 +38,7 @@
     {
       "path": "apps/android/app/build.gradle.kts",
       "bytes": 19358,
-      "sha256": "179110f89e3ad13d40beefb71b6463b38eee9e62fe9cfdbc4a7379d6aa0383db"
+      "sha256": "1077d94e30df0568662cdb4b2c3da13491109232c8873319c38af93dfa84f10f"
     },
     {
       "path": "apps/android/app/schemas/cn.tonglu.app.data.english.EnglishDatabase/1.json",
@@ -117,8 +117,8 @@
     },
     {
       "path": "apps/android/app/src/debug/java/cn/tonglu/app/ui/UpdateQaActivity.kt",
-      "bytes": 3985,
-      "sha256": "3b10c0e92d5766ee7d80c5a19525b976a249783f24df455ff56c12b6d219419d"
+      "bytes": 4368,
+      "sha256": "5f5047c0bd7e651e119575941d95a721b837c74b8298b31a50214e9aed8ad448"
     },
     {
       "path": "apps/android/app/src/main/AndroidManifest.xml",
@@ -902,8 +902,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/AppUpdates.kt",
-      "bytes": 21694,
-      "sha256": "b17775c9e2837bda4fbb15bc09a338bc046f560263057a1b8c3ce8a456468eb7"
+      "bytes": 22823,
+      "sha256": "5c0c77894a44075dac95be2b410640bd6772f21250fc34895a2bd250d006bc77"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateApkCache.kt",
@@ -914,6 +914,11 @@
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateChannel.kt",
       "bytes": 781,
       "sha256": "6d74756d634eb995764ad3cb5d3f3fa3d6cd87f8ced337b0d34c2805f4e2b260"
+    },
+    {
+      "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateDownloader.kt",
+      "bytes": 6768,
+      "sha256": "eaa622b152819d4717d1f6aeadafb592ff3a5103c0fd1f6e3c0c71240262795d"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateManifestCheck.kt",
@@ -927,8 +932,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/update/UpdateRelease.kt",
-      "bytes": 3819,
-      "sha256": "890866a19455f8ca7d61636118092a5793ed6b81ae2abf5af75a98141ba59756"
+      "bytes": 5002,
+      "sha256": "f37a5e0ea10d438cb0b148fa6ff90532de9042e53142931e6f186f77870886bc"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/data/UsernamePolicy.kt",
@@ -1897,8 +1902,8 @@
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/update/UpdateUi.kt",
-      "bytes": 6731,
-      "sha256": "105c492540b82074632da4a472c93e40b6df95ad3256fb4e6b9d1355841d0b4c"
+      "bytes": 7901,
+      "sha256": "d952b751abbeca6cdff41297effca472d5f0eff8c607e932b338aea7036c5a54"
     },
     {
       "path": "apps/android/app/src/main/java/cn/tonglu/app/ui/WeeklyTimetablePager.kt",
@@ -2481,6 +2486,11 @@
       "sha256": "301108cb7cec8dc166b148c0e5208f6b539772565ecbd58c2b526c60faafef70"
     },
     {
+      "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdateDownloaderTest.kt",
+      "bytes": 8651,
+      "sha256": "37dd69b47d903aa8cda6e6f9b435a898adbcbff1ec3825d1abc48ddd424c3d51"
+    },
+    {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdateManifestCheckTest.kt",
       "bytes": 3282,
       "sha256": "022e34979b55622543d13205766cca84f5c02a8b0fa430edc75e38c1a611b37b"
@@ -2492,8 +2502,8 @@
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/data/update/UpdateReleaseTest.kt",
-      "bytes": 3129,
-      "sha256": "a2d48b48a463d70e07dc855e66f686641907f1b5f2214fc7d478b05f784feb19"
+      "bytes": 5542,
+      "sha256": "0e3249706b5dbd642f9dec53b76b830499670cabc76c79b8d298db4c60c740c5"
     },
     {
       "path": "apps/android/app/src/test/java/cn/tonglu/app/notify/DeadlineReminderPlanTest.kt",

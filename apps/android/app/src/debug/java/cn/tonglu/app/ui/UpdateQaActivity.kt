@@ -30,13 +30,17 @@ class UpdateQaActivity : ComponentActivity() {
             val uri = URI(it)
             require(uri.scheme == "http" && uri.host == "127.0.0.1" && uri.port == 18765 && uri.userInfo == null && uri.fragment == null && uri.rawQuery == null)
         }
-        fun patch(o: JSONObject) = UpdatePatch(o.getLong("baseCode"), o.getString("baseSha256"), url(o), o.getString("sha256"), o.getLong("size"))
+        // 走查样本的镜像同样只允许本机回环地址，用来验证「主源失败 → 自动换镜像续传」。
+        fun mirrors(o: JSONObject): List<String> = o.optJSONArray("mirrors")?.let { array ->
+            List(array.length()) { url(JSONObject().put("url", array.getString(it))) }
+        }.orEmpty()
+        fun patch(o: JSONObject) = UpdatePatch(o.getLong("baseCode"), o.getString("baseSha256"), url(o), o.getString("sha256"), o.getLong("size"), mirrors(o))
         val candidates = fixture.getJSONArray("deltas").let { array -> List(array.length()) { patch(array.getJSONObject(it)) } }
         val release = UpdateRelease(fixture.getLong("versionCode"), fixture.getString("versionName"), url(fixture),
-            fixture.getString("sha256"), fixture.getLong("size"), 24, "仅本机更新闭环样本", candidates.firstOrNull(), candidates)
+            fixture.getString("sha256"), fixture.getLong("size"), 24, "仅本机更新闭环样本", candidates.firstOrNull(), candidates, mirrors(fixture))
         val updateDirectory = File(requireNotNull(getExternalFilesDir(null)), "app-updates")
         // Only this separate QA package's target files; run-as cannot access the OEM's FUSE mount.
-        listOf("apk", "tmld", "apk.pending").forEach { extension ->
+        listOf("apk", "tmld", "apk.pending", "apk.part", "tmld.part").forEach { extension ->
             val file = File(updateDirectory, "${release.versionCode}.$extension")
             check(!file.exists() || file.delete()) { "无法清理本次走查的旧下载" }
         }

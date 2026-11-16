@@ -23,7 +23,7 @@ internal enum class UpdateTransfer { CheckingBase, Delta, Full }
 internal data class UpdateUiState(val checking: Boolean = false, val release: UpdateRelease? = null,
     val error: String? = null, val downloading: Boolean = false, val ready: Boolean = false, val progress: Int = 0,
     val channel: UpdateChannel = UpdateChannel.Stable, val transfer: UpdateTransfer? = null,
-    val transferBytes: Long? = null, val transferNotice: String? = null)
+    val transferBytes: Long? = null, val transferNotice: String? = null, val downloadedBytes: Long = 0)
 
 /** 设备级更新状态，不接触账号、校园 Cookie 或个人数据库。 */
 internal object AppUpdates {
@@ -36,11 +36,16 @@ internal object AppUpdates {
         .connectTimeout(12, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS).build()
+    private val downloadClient = OkHttpClient.Builder()
+        .protocols(listOf(Protocol.HTTP_1_1))
+        .connectTimeout(15, TimeUnit.SECONDS)
+        .readTimeout(30, TimeUnit.SECONDS).build()
     private val mutable = MutableStateFlow(UpdateUiState(channel = UpdateChannel.saved(null, BuildConfig.VERSION_NAME)))
     val state = mutable.asStateFlow()
     private var restored = false
     private var generation = 0
     private var checkJob: Job? = null
+    private var restoreJob: Job? = null
     fun channel(c: Context): UpdateChannel {
         val preferences = prefs(c)
         val selected = UpdateChannel.saved(preferences.getString("channel", null), BuildConfig.VERSION_NAME)
@@ -51,6 +56,7 @@ internal object AppUpdates {
         if (mutable.value.downloading || selected == channel(c)) return
         generation++
         checkJob?.cancel()
+        restoreJob?.cancel()
         prefs(c).edit().putString("channel", selected.key).apply()
         mutable.value = UpdateUiState(channel = selected)
         c.getSystemService(NotificationManager::class.java).cancel(702)
@@ -97,8 +103,9 @@ internal object AppUpdates {
                 val edit = prefs(c).edit().putString("latest_manifest.${selected.key}", release.toJson())
                 if (result.warning == null) edit.putLong("checked.${selected.key}", System.currentTimeMillis())
                 edit.apply()
-                mutable.value = if (mutable.value.ready && mutable.value.release?.versionCode == release.versionCode)
-                    mutable.value.copy(checking = false, error = result.warning)
+                mutable.value = if (mutable.value.release?.versionCode == release.versionCode &&
+                    mutable.value.release?.sha256 == release.sha256 && (mutable.value.ready || mutable.value.downloadedBytes > 0))
+                    mutable.value.copy(checking = false, release = release, error = result.warning)
                 else UpdateUiState(release = release.takeIf { isNewerThanInstalled(it) }, channel = selected, error = result.warning)
                 if (notify && isNewerThanInstalled(release)) notifyUpdate(c, release)
             } catch (e: Exception) {
@@ -114,46 +121,65 @@ internal object AppUpdates {
         if (mutable.value.downloading) return
         val c = context.applicationContext
         checkJob?.cancel()
+        val pendingRestore = restoreJob
+        pendingRestore?.cancel()
         mutable.value = UpdateUiState(release = release, downloading = true, channel = channel(c), transfer = UpdateTransfer.CheckingBase)
         scope.launch {
             try {
+                pendingRestore?.join()
                 check(isNewerThanInstalled(release)) { "更新版本不高于当前版本，请重新检查" }
                 val hasBase = release.availablePatches.any { it.baseCode == BuildConfig.VERSION_CODE.toLong() }
                 val patch = if (hasBase) release.patchForInstalled(BuildConfig.VERSION_CODE.toLong(), ApkDelta.sha256(File(c.applicationInfo.sourceDir))) else null
                 val selected = release.copy(patch = patch)
+                val previous = try {
+                    prefs(c).getString("downloadRelease", null)?.let { parseUpdateRelease(it) }
+                } catch (e: Exception) {
+                    Log.w("AppUpdates", "旧下载记录不可用，重新选择下载方式", e)
+                    null
+                }
+                // 全量回退后再次点下载，应直接接上全量断点，避免重新尝试已失败的补丁。
+                val resumeFull = previous != null && previous.versionCode == release.versionCode && previous.sha256 == release.sha256 &&
+                    !prefs(c).getBoolean("downloadIsPatch", false) &&
+                    File(updateFile(c, release.versionCode).path + ".part").exists()
                 val notice = when {
+                    resumeFull -> "继续下载完整更新。"
                     patch != null -> null
                     hasBase -> "现有安装包与增量基包不一致，本次下载完整更新。"
                     else -> "当前版本没有匹配的增量包，本次下载完整更新。"
                 }
-                startDownload(c, selected, patch != null, notice)
-                while (mutable.value.downloading) {
-                    refreshDownload(c, selected, prefs(c).getBoolean("downloadIsPatch", false)); delay(1200)
-                }
+                startDownload(c, selected, patch != null && !resumeFull, notice)
             } catch (cancelled: CancellationException) { throw cancelled }
             catch (e: Exception) {
                 Log.w("AppUpdates", "下载更新失败", e)
-                mutable.value = mutable.value.copy(downloading = false, transfer = null, transferBytes = null, error = e.message ?: "无法下载更新")
+                mutable.value = mutable.value.copy(downloading = false, ready = false,
+                    error = (e as? UpdateDownloadException)?.userMessage ?: e.message ?: "无法下载更新")
             }
         }
     }
 
-    private fun startDownload(c: Context, release: UpdateRelease, isPatch: Boolean, notice: String? = null) {
+    private suspend fun startDownload(c: Context, release: UpdateRelease, isPatch: Boolean, notice: String? = null) {
         val patch = if (isPatch) requireNotNull(release.patch) else null
         val file = if (isPatch) patchFile(c, release.versionCode) else updateFile(c, release.versionCode)
-        if (file.exists()) check(file.delete()) { "无法移除旧的更新文件" }
-        val request = DownloadManager.Request(Uri.parse(patch?.url ?: release.url))
-            .addRequestHeader("User-Agent", userAgent).setTitle("苔米林 ${release.versionName}")
-            .setDescription(if (isPatch) "下载增量更新" else "下载应用更新")
-            .setMimeType(if (isPatch) "application/octet-stream" else "application/vnd.android.package-archive")
-            .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            .setDestinationUri(Uri.fromFile(file))
-        val id = c.getSystemService(DownloadManager::class.java).enqueue(request)
-        prefs(c).edit().putLong("downloadId", id).putString("downloadRelease", release.toJson())
+        prefs(c).edit().remove("downloadId").putString("downloadRelease", release.toJson())
             .putString("downloadChannel", channel(c).key).putBoolean("downloadIsPatch", isPatch).apply()
         mutable.value = UpdateUiState(release = release, downloading = true, channel = channel(c),
             transfer = if (isPatch) UpdateTransfer.Delta else UpdateTransfer.Full,
             transferBytes = patch?.size ?: release.size, transferNotice = notice)
+        try {
+            downloadResumable(downloadClient, patch?.downloadUrls ?: release.downloadUrls, file,
+                patch?.size ?: release.size, userAgent) { bytes ->
+                mutable.value = mutable.value.copy(downloadedBytes = bytes,
+                    progress = (bytes * 100 / (patch?.size ?: release.size)).toInt().coerceIn(0, 100))
+            }
+            completeDownload(c, release, isPatch)
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            if (!isPatch) throw e
+            Log.w("AppUpdates", "增量更新失败，改为完整更新", e)
+            if (file.exists() && !file.delete()) Log.w("AppUpdates", "增量失败后缓存清理失败")
+            val reason = (e as? UpdateDownloadException)?.userMessage ?: e.message ?: "补丁无法使用"
+            startDownload(c, release, false, "增量更新未完成，已自动改为完整更新：$reason")
+        }
     }
 
     @Synchronized fun restore(context: Context) {
@@ -163,20 +189,40 @@ internal object AppUpdates {
         val selected = channel(c)
         val epoch = generation
         mutable.value = mutable.value.copy(channel = selected)
-        scope.launch {
+        // 遗留系统任务不再查询；仅清掉标识，不删除用户的其他下载。
+        prefs(c).edit().remove("downloadId").apply()
+        restoreJob = scope.launch {
             cleanInstalledApks(c)
             try {
+                coroutineContext.ensureActive()
                 val saved = prefs(c).getString("latest_manifest.${selected.key}", null)?.let { parseUpdateRelease(it) }
-                if (epoch != generation) return@launch
+                if (epoch != generation || mutable.value.downloading) return@launch
                 mutable.value = UpdateUiState(release = saved?.takeIf { isNewerThanInstalled(it) }, channel = selected)
                 val download = prefs(c).getString("downloadRelease", null)?.let { parseUpdateRelease(it) }
                 if (download != null && prefs(c).getString("downloadChannel", "stable") == selected.key && isNewerThanInstalled(download)) {
                     val isPatch = prefs(c).getBoolean("downloadIsPatch", false)
-                    mutable.value = UpdateUiState(release = download, downloading = true, channel = selected,
+                    val size = if (isPatch) download.patch?.size ?: download.size else download.size
+                    val file = if (isPatch) patchFile(c, download.versionCode) else updateFile(c, download.versionCode)
+                    val part = File(file.path + ".part")
+                    val partial = part.length().coerceAtMost(size)
+                    mutable.value = UpdateUiState(release = download, channel = selected,
                         transfer = if (isPatch) UpdateTransfer.Delta else UpdateTransfer.Full,
-                        transferBytes = if (isPatch) download.patch?.size else download.size)
-                    while (mutable.value.downloading) {
-                        refreshDownload(c, download, prefs(c).getBoolean("downloadIsPatch", false)); delay(1200)
+                        transferBytes = size, downloadedBytes = partial, progress = (partial * 100 / size).toInt())
+                    // 重启后只验证已完整的文件，联网续传仍由用户点选。
+                    if (!file.exists() && part.exists() && part.length() == size)
+                        downloadResumable(downloadClient, emptyList(), file, size, userAgent, onProgress = {})
+                    if (updateFile(c, download.versionCode).exists() || file.exists() && file.length() == size) {
+                        try {
+                            completeDownload(c, download, isPatch) {
+                                coroutineContext.ensureActive()
+                                epoch == generation && !mutable.value.downloading
+                            }
+                        }
+                        catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.w("AppUpdates", "恢复的更新文件未通过校验", e)
+                            mutable.value = mutable.value.copy(ready = false, error = e.message ?: "更新校验失败，请重新下载")
+                        }
                     }
                 }
             } catch (e: Exception) {
@@ -189,38 +235,26 @@ internal object AppUpdates {
         }
     }
 
-    private fun refreshDownload(c: Context, release: UpdateRelease, isPatch: Boolean) {
+    private fun completeDownload(c: Context, release: UpdateRelease, isPatch: Boolean, canPublish: () -> Boolean = { true }) {
+        if (isPatch && !updateFile(c, release.versionCode).exists())
+            ApkDelta.apply(File(c.applicationInfo.sourceDir), patchFile(c, release.versionCode),
+                updateFile(c, release.versionCode), release)
         try {
-            c.getSystemService(DownloadManager::class.java).query(DownloadManager.Query().setFilterById(prefs(c).getLong("downloadId", -1))).use { cursor ->
-                check(cursor.moveToFirst()) { "下载任务已被移除，请重新下载" }
-                val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                val bytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR))
-                mutable.value = mutable.value.copy(progress = (bytes * 100 / (if (isPatch) release.patch!!.size else release.size)).toInt().coerceIn(0, 100))
-                if (status == DownloadManager.STATUS_FAILED) error("下载失败，错误码 ${cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_REASON))}")
-                if (status == DownloadManager.STATUS_SUCCESSFUL) {
-                    if (isPatch) {
-                        if (!updateFile(c, release.versionCode).exists())
-                            ApkDelta.apply(File(c.applicationInfo.sourceDir), patchFile(c, release.versionCode),
-                                updateFile(c, release.versionCode), release)
-                    }
-                    verify(c, updateFile(c, release.versionCode), release)
-                    if (isPatch && patchFile(c, release.versionCode).exists() &&
-                        !patchFile(c, release.versionCode).delete())
-                        Log.w("AppUpdates", "已校验安装包，但增量缓存清理失败")
-                    mutable.value = mutable.value.copy(downloading = false, ready = true, progress = 100)
-                }
-            }
+            verify(c, updateFile(c, release.versionCode), release)
         } catch (e: Exception) {
-            Log.w("AppUpdates", "更新下载或校验失败", e)
-            if (isPatch) {
-                if (patchFile(c, release.versionCode).exists() && !patchFile(c, release.versionCode).delete())
-                    Log.w("AppUpdates", "增量失败后缓存清理失败")
-                runCatching { startDownload(c, release, false, "增量更新未完成，已自动改为完整更新：${e.message ?: "补丁无法使用"}") }
-                    .onFailure { Log.w("AppUpdates", "增量失败后全量下载也无法启动", it)
-                        mutable.value = mutable.value.copy(downloading = false, ready = false, error = it.message ?: "无法下载完整更新") }
-            } else mutable.value = mutable.value.copy(downloading = false, ready = false, error = e.message ?: "更新校验失败")
+            // 坏文件留着只会让每次启动都重复校验失败；删掉后下次从头下载。
+            if (!updateFile(c, release.versionCode).delete()) Log.w("AppUpdates", "校验失败的安装包清理失败")
+            throw e
         }
+        if (!canPublish()) return
+        if (isPatch && patchFile(c, release.versionCode).exists() && !patchFile(c, release.versionCode).delete())
+            Log.w("AppUpdates", "已校验安装包，但增量缓存清理失败")
+        mutable.value = mutable.value.copy(downloading = false, ready = true, progress = 100,
+            downloadedBytes = mutable.value.transferBytes ?: release.size, error = null)
     }
+
+    /** 走到浏览器下载，多半是应用内连不上主源，所以这里反过来优先给国内镜像。 */
+    fun browserDownloadUrl(release: UpdateRelease): String = (release.mirrors + release.url).first()
 
     /** A completed upgrade no longer needs its installer; keep active and still-installable downloads. */
     private fun cleanInstalledApks(c: Context) {
@@ -228,18 +262,8 @@ internal object AppUpdates {
             val external = c.getExternalFilesDir(null) ?: return
             val download = prefs(c).getString("downloadRelease", null)?.let { parseUpdateRelease(it) }
             val protected = mutableSetOf<Long>()
-            if (download != null) {
-                if (isNewerThanInstalled(download)) protected += download.versionCode
-                val id = prefs(c).getLong("downloadId", -1)
-                if (id >= 0) c.getSystemService(DownloadManager::class.java)
-                    .query(DownloadManager.Query().setFilterById(id)).use { cursor ->
-                        if (cursor.moveToFirst()) {
-                            val status = cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS))
-                            if (status in setOf(DownloadManager.STATUS_PENDING, DownloadManager.STATUS_RUNNING, DownloadManager.STATUS_PAUSED))
-                                protected += download.versionCode
-                        }
-                    }
-            }
+            if (download != null && isNewerThanInstalled(download)) protected += download.versionCode
+            // 清理器只匹配完整 .apk，本身不会匹配 .apk.part 或 .tmld.part。
             val result = pruneInstalledUpdateApks(external, BuildConfig.VERSION_CODE.toLong(), protected)
             if (result.removed > 0) Log.i("AppUpdates", "已清理${result.removed}个旧安装包，释放${result.bytes}字节")
             result.failures.forEach { Log.w("AppUpdates", "旧安装包清理失败：$it") }
