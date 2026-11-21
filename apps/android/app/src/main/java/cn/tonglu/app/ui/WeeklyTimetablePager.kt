@@ -1,6 +1,7 @@
 package cn.tonglu.app.ui
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -25,10 +26,12 @@ internal fun WeeklyTimetablePager(
     allCourses: List<CourseDto>, selectedWeek: Int, currentWeek: Int?, termStart: String?,
     search: String, nowMinutes: Int, onWeekChange: (Int) -> Unit, expanded: Boolean,
     modifier: Modifier = Modifier, onImport: (() -> Unit)? = null,
+    dateEpochDay: Long = ScheduleText.todayEpochDay(),
     onLongPressCourse: (CourseDto) -> Unit,
     onTapCourse: (CourseDto, Rect) -> Unit = { _, _ -> },
     onRescheduleCourse: ((CourseDto, CourseDto, (Boolean, String) -> Unit) -> Unit)? = null,
 ) {
+    val today = remember(dateEpochDay) { ScheduleText.todayWeekday() }
     var dragging by remember { mutableStateOf(false) }
     val lastWeek = maxOf(20, selectedWeek, currentWeek ?: 0,
         allCourses.maxOfOrNull { it.weeks.maxOrNull() ?: it.endWeek } ?: 0)
@@ -64,43 +67,54 @@ internal fun WeeklyTimetablePager(
             it.location.orEmpty().contains(search, true) || it.teacher.orEmpty().contains(search, true) }
     }
     val courseEnd = remember(allCourses) { allCourses.maxOfOrNull { it.weeks.maxOrNull() ?: it.endWeek } }
-    HorizontalPager(state = pager, modifier = modifier.fillMaxWidth(),
-        beyondViewportPageCount = 0, key = { it }, verticalAlignment = Alignment.Top, userScrollEnabled = !dragging && !(expanded && onRescheduleCourse != null)) { page ->
-        val courses = remember(matching, page) { matching.filter { page == 0 || it.activeInWeek(page) } }
-        val finished = page > 0 && courseEnd != null && page > courseEnd
-        val message = when {
-            allCourses.isEmpty() -> "还没有导入课表"
-            finished -> "本学期已上完"
-            search.isNotBlank() -> "没有匹配的课程"
-            else -> "这一周没有课"
-        }
-        Column(Modifier.fillMaxWidth()
-            .then(if (expanded && onRescheduleCourse == null) Modifier.fillMaxHeight().verticalScroll(rememberScrollState())
-                else if (expanded) Modifier.fillMaxHeight() else Modifier)
-            .padding(horizontal = if (expanded) 10.dp else 2.dp)) {
-            if (courses.isEmpty()) {
-                Column(Modifier.fillMaxWidth().heightIn(min = 132.dp).padding(vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center) {
-                    MiuixText(message, color = AppColors.TextMuted)
-                    if (!finished && onImport != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Button(onClick = onImport, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent)) {
-                            MiuixText("从教务导入", color = AppColors.OnAccent)
+    Box(modifier.fillMaxWidth()) {
+        HorizontalPager(state = pager, modifier = Modifier.fillMaxWidth(),
+            beyondViewportPageCount = 0, key = { it }, verticalAlignment = Alignment.Top, userScrollEnabled = !dragging && !(expanded && onRescheduleCourse != null)) { page ->
+            val courses = remember(matching, page) { matching.filter { page == 0 || it.activeInWeek(page) } }
+            val finished = page > 0 && courseEnd != null && page > courseEnd
+            val message = when {
+                allCourses.isEmpty() -> "还没有导入课表"
+                finished -> "本学期已上完"
+                search.isNotBlank() -> "没有匹配的课程"
+                else -> "这一周没有课"
+            }
+            Column(Modifier.fillMaxWidth()
+                .then(if (expanded && onRescheduleCourse == null) Modifier.fillMaxHeight().verticalScroll(rememberScrollState())
+                    else if (expanded) Modifier.fillMaxHeight() else Modifier)
+                .padding(horizontal = if (expanded) 10.dp else 2.dp)
+                .padding(bottom = if (expanded && currentWeek != null && selectedWeek != currentWeek) 56.dp else 0.dp)) {
+                if (courses.isEmpty()) {
+                    Column(Modifier.fillMaxWidth().heightIn(min = 132.dp).padding(vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center) {
+                        MiuixText(message, color = AppColors.TextMuted)
+                        if (!finished && onImport != null) {
+                            Spacer(Modifier.height(8.dp))
+                            Button(onClick = onImport, colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent)) {
+                                MiuixText("从教务导入", color = AppColors.OnAccent)
+                            }
                         }
                     }
+                } else if (expanded && onRescheduleCourse != null) {
+                    TimetableEditGrid(courses, allCourses, Modifier.fillMaxSize(),
+                        weekStartMillis = if (page > 0) ScheduleText.weekStartOfTerm(termStart, page) else null,
+                        today = if (page > 0 && page == currentWeek) today else null,
+                        onTapCourse = onTapCourse, onDragging = { dragging = it }, onSave = onRescheduleCourse)
+                } else {
+                    TimetableGrid(courses = courses,
+                        today = if (page > 0 && page == currentWeek) today else null,
+                        expanded = expanded, nowMinutes = nowMinutes,
+                        weekStartMillis = if (page > 0) ScheduleText.weekStartOfTerm(termStart, page) else null,
+                        onLongPressCourse = onLongPressCourse, onTapCourse = onTapCourse)
                 }
-            } else if (expanded && onRescheduleCourse != null) {
-                TimetableEditGrid(courses, allCourses, Modifier.fillMaxSize(),
-                    weekStartMillis = if (page > 0) ScheduleText.weekStartOfTerm(termStart, page) else null,
-                    today = if (page > 0 && page == currentWeek) ScheduleText.todayWeekday() else null,
-                    onTapCourse = onTapCourse, onDragging = { dragging = it }, onSave = onRescheduleCourse)
-            } else {
-                TimetableGrid(courses = courses,
-                    today = if (page > 0 && page == currentWeek) ScheduleText.todayWeekday() else null,
-                    expanded = expanded, nowMinutes = nowMinutes,
-                    weekStartMillis = if (page > 0) ScheduleText.weekStartOfTerm(termStart, page) else null,
-                    onLongPressCourse = onLongPressCourse, onTapCourse = onTapCourse)
+            }
+        }
+        if (expanded && currentWeek != null && selectedWeek != currentWeek) {
+            Button(onClick = { latestOnWeekChange(currentWeek) },
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp),
+                shape = RoundedCornerShape(50),
+                colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent, contentColor = Color.White)) {
+                MiuixText("今", color = Color.White)
             }
         }
     }

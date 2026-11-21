@@ -164,10 +164,12 @@ internal fun LearningPlanPane(
     }
 
     /** 每个题组的**不同错题键**数（重答同一题只算一道）。 */
-    fun wrongCounts(): Map<String, Int> = attempts.asSequence()
-        .filter { !it.correct && it.questionKey.contains(':') }
-        .groupBy { it.questionKey.substringBefore(':') }
-        .mapValues { (_, rows) -> rows.map { it.questionKey }.toSet().size }
+    fun wrongCounts(): Map<String, Int> {
+        val wrongKeys = attempts.filter { !it.correct }.map { it.questionKey }.toSet()
+        return banks.associate { bank ->
+            bank.id to bank.questionList.count { bank.canGrade(it) && bank.keyOf(it) in wrongKeys }
+        }
+    }
 
     /** EF06 完成回写：基准之后、本任务题组的不同题目键数 ≥ 任务题数 → 自动勾掉。 */
     fun autoCompleteDone() {
@@ -175,12 +177,8 @@ internal fun LearningPlanPane(
         val after = plans.map { p ->
             if (!p.active) p else p.copy(tasks = p.tasks.map { t ->
                 // 只做「升级」：无题组/无基准/无目标题数的任务不自动判定（展示见 PlanTask.proof）。
-                if (t.isDone() || t.bankId == null || t.baselineAt == null) t
-                else {
-                    val required = t.requiredQuestionCount(banks)
-                    if (required > 0 && t.answeredDistinctSinceBaseline(attempts) >= required)
-                        t.copy(status = PlanTask.DONE) else t
-                }
+                if (!t.isDone() && t.proof(attempts, banks) == PlanTaskProof.VERIFIED)
+                    t.copy(status = PlanTask.DONE) else t
             })
         }
         if (after != plans) {
@@ -210,7 +208,7 @@ internal fun LearningPlanPane(
 
     fun generate(useAi: Boolean) {
         if (busy || plansLoading || plansLoadError != null || !practiceLoaded || banksLoadError != null) return
-        if (banks.none { it.questionList.isNotEmpty() }) {
+        if (banks.none { it.keySafe && it.questionList.any(it::canGrade) }) {
             notice = "本机还没有可做的题组：先到「做题」页挑一个下载，再来排计划。"
             return
         }
@@ -437,7 +435,7 @@ private fun PlanCard(
                         val done = proof?.showsDone == true
                         val manual = task.bankId == null
                         val required = task.requiredQuestionCount(banks)
-                        val answered = task.answeredDistinctSinceBaseline(attempts)
+                        val answered = task.answeredDistinctSinceBaseline(attempts, banks)
                         Surface(Modifier.width(taskWidth), shape = RoundedCornerShape(18.dp), color = colors.background) {
                             Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 val description = when {

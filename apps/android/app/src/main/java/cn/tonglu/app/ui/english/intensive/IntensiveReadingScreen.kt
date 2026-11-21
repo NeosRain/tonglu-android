@@ -33,7 +33,7 @@ import cn.tonglu.app.ui.rememberOverlayMotion
 import kotlinx.coroutines.CancellationException
 
 @Composable
-fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String) -> Unit) {
+fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String) -> Unit, onImport: () -> Unit) {
     val context = LocalContext.current
     val repository = remember { IntensiveRepository(context) }
     val preferences = remember(owner) { context.getSharedPreferences("intensive-" + owner, 0) }
@@ -65,7 +65,7 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
             lastId = id; preferences.edit().putString("lastArticle", id).apply()
         }
         catch (e: CancellationException) { throw e }
-        catch (e: Exception) { articleError = e.message?.take(180) ?: "原卷读取失败，请重试"; android.util.Log.e("Intensive", id, e) }
+        catch (e: Exception) { articleError = remoteCetErrorMessage(e); android.util.Log.e("Intensive", id, e) }
     }
     IntensiveWindow("考试精读", onClose) {
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -120,12 +120,17 @@ fun IntensiveReadingScreen(owner: String, onClose: () -> Unit, onLookup: (String
             }
         }
     }
-    if (openId != null) IntensiveWindow(article?.entry?.title ?: "正在打开文章", { openId = null }) {
+    val articleTitle = article?.entry?.title ?: if (articleError == null) "正在打开文章" else "原卷读取失败"
+    if (openId != null) IntensiveWindow(articleTitle, { openId = null }) {
         val current = article
         when {
             current != null -> IntensiveReader(current, preferences, owner, onLookup)
-            articleError != null -> Column(Modifier.padding(24.dp)) {
-                Text(articleError.orEmpty()); Button(onClick = { articleRetry++ }) { Text("重试") }
+            articleError != null -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Text(articleError.orEmpty())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = { articleRetry++ }) { Text("重试") }
+                    TextButton(onClick = { openId = null; onImport() }) { Text("去导入") }
+                }
             }
             else -> Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 CircularProgressIndicator()

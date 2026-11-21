@@ -4,6 +4,12 @@ import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import cn.tonglu.app.ui.timetable.*
+import cn.tonglu.app.ui.home.TodayGlassCourses
+import cn.tonglu.app.ui.home.courseTiming
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -38,6 +44,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -86,6 +93,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -277,30 +287,30 @@ internal fun TodayClassesCard(
     onEditCourse: ((CourseDto)->Unit)? = null,
     onLongPressCourse: (CourseDto) -> Unit = {},
 ) {
+    val cardMinute by rememberTimetableMinute()
     val today = ScheduleText.todayWeekday()
     // 点今日课程行看这门课的详情（2026-10-10：与课表格子保持一致）
     var selectedCourse by remember { mutableStateOf<CourseSelection?>(null) }
     var activeClassNotes by remember { mutableStateOf<CourseDto?>(null) }
-    val holidayNow = remember { Holidays.holidayAt(System.currentTimeMillis()) }
+    val dayKey = ScheduleText.todayEpochDay()
+    val holidayNow = remember(dayKey) { Holidays.holidayAt(System.currentTimeMillis()) }
     val todayCourses = remember(courses, today, week) { ScheduleBoard.ofDay(courses, today, week) }
     // 国定假期当天一律不上课（2026-10-05 用户报告）：当天课表**整体进入完成状态**，
     // 「今日还剩几节课」直接归零 —— 假期里的「2 小时 27 分后上课」全是错的。
     // 调课安排 App 猜不了，文案一律落到「以学校通知为准」。
     val onHoliday = holidayNow != null
-    // 上完一节就消失一节：只留下还没上完的（假期时全部按完成态处理）
-    val restCourses = if (onHoliday) emptyList() else todayCourses.filterNot { hasFinished(it, nowMinutes) }
-    // 首页摘要最多两条：正在上 + 下一节。完整那份在周课表里，这里不重列。
-    val summary = remember(restCourses, nowMinutes) { upcomingSummary(restCourses, nowMinutes) }
+    // 剩余数量随分钟更新，正文保留今天全部课程。
+    val restCourses = if (onHoliday) emptyList() else todayCourses.filterNot { courseTiming(it, cardMinute).state == TodayCourseState.Finished }
     val finishedCount = if (onHoliday) todayCourses.size else todayCourses.size - restCourses.size
-    val current = if (onHoliday) null else restCourses.firstOrNull { isOngoing(it, nowMinutes) }
-    val nextCourse = if (onHoliday) null else restCourses.firstOrNull { (periodMinutes(it.startPeriod, true) ?: 0) > nowMinutes }
+    val current = if (onHoliday) null else restCourses.firstOrNull { courseTiming(it, cardMinute).state == TodayCourseState.Ongoing }
+    val nextCourse = if (onHoliday) null else restCourses.firstOrNull { (periodMinutes(it.startPeriod, true) ?: 0) > cardMinute }
     // 「下次课」：今天没课、或今天放假时都要算（nextInDays 内部会跳过假期里的日子）
     val later = if (todayCourses.isEmpty() || onHoliday) {
-        ScheduleBoard.nextInDays(courses, today, week, nowMinutes)
+        ScheduleBoard.nextInDays(courses, today, week, cardMinute)
     } else null
     // 「上完课」那句小字：点一下换一条（每小时也会自然换一次）
     var lineTick by remember { mutableIntStateOf(0) }
-    val lineBase = remember(finishedCount, nowMinutes) { finishedCount * 7 + nowMinutes / 60 }
+    val lineBase = remember(finishedCount, cardMinute) { finishedCount * 7 + cardMinute / 60 }
 
     MiuixCard(insideMargin = PaddingValues(horizontal = 14.dp, vertical = 12.dp)) {
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -322,7 +332,7 @@ internal fun TodayClassesCard(
             val badge: Pair<String, Boolean>? = when {
                 current != null -> "正在上课" to true
                 nextCourse != null ->
-                    (ScheduleBoard.gapText((periodMinutes(nextCourse.startPeriod, true) ?: 0) - nowMinutes) + "上课") to false
+                    (ScheduleBoard.gapText((periodMinutes(nextCourse.startPeriod, true) ?: 0) - cardMinute) + "上课") to false
                 onHoliday && later != null ->
                     "${ScheduleBoard.gapText(later.second)}（${ScheduleText.shortWeekday(later.first.weekday)}）上课" to false
                 onHoliday -> "放假中" to false
@@ -379,9 +389,7 @@ internal fun TodayClassesCard(
               }
             }
         } else if (onHoliday) {
-            // 假期当天有排课：**不列那些已经不上的灰色行** ——
-            // 置灰列满一屏，一眼看过去反而像「今天还有这些课」（plan/56 §2.1）。
-            // 只说放假，再加一句能确定的下一次课。
+            // 假期仍保留学校排课，明确全部完成并以学校调课通知为准。
             MiuixText(
                 "今天是${holidayNow.name}（${holidayNow.rangeLabel()}），当天课程不上，调课安排以学校通知为准。",
                 color = SvMuted,
@@ -395,25 +403,24 @@ internal fun TodayClassesCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
+            TodayGlassCourses(todayCourses, forceFinished = true,
+                onTap = { course, origin -> selectedCourse = CourseSelection(course, origin) },
+                onLongPress = onLongPressCourse)
             if (busy) {
                 Spacer(Modifier.height(6.dp))
                 MiuixText("正在同步课表…", color = SvMuted, style = MaterialTheme.typography.labelSmall)
             }
         } else {
-            summary.forEach { course ->
-                TodayClassRow(
-                    course = course,
-                    ongoing = course == current,
-                    finished = false,
-                    isNext = course == nextCourse,
-                    minutesToStart = (periodMinutes(course.startPeriod, start = true) ?: 0) - nowMinutes,
-                    onLongPress = { onLongPressCourse(course) },
-                    onTap = {
-                        if (course == current) activeClassNotes = course
-                        else selectedCourse = CourseSelection(course, it)
-                    },
-                )
-            }
+            TodayGlassCourses(todayCourses,
+                onTap = { course, origin ->
+                    if (courseTiming(course, ScheduleText.nowMinutes()).state == TodayCourseState.Ongoing) {
+                        // 笔记入口也携带当前行的来源，保持连续展开。
+                        LaunchOrigin.arm(origin)
+                        activeClassNotes = course
+                    } else selectedCourse = CourseSelection(course, origin)
+                },
+                onLongPress = onLongPressCourse,
+            )
             if (finishedCount > 0) {
                 Spacer(Modifier.height(4.dp))
                 // 全上完 → 只说开心的；还有课 → 保留「已上完几节」的信息 + 一句人话
@@ -450,94 +457,6 @@ internal fun TodayClassesCard(
     activeClassNotes?.let { ClassNotesDialog(it, courses) { activeClassNotes = null } }
 }
 
-@Composable
-private fun TodayClassRow(
-    course: CourseDto,
-    ongoing: Boolean,
-    finished: Boolean,
-    isNext: Boolean,
-    minutesToStart: Int,
-    onLongPress: () -> Unit,
-    onTap: (Rect) -> Unit = {},
-) {
-    var tapBounds by remember(course.id) { mutableStateOf(Rect.Zero) }
-    val accent = courseColor(course.name)
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 3.dp)
-            .clip(RoundedCornerShape(12.dp))
-            // 与课表格子保持一致（2026-10-10）：点一下看这门课的详情，长按仍是删除确认。
-            .onGloballyPositioned { tapBounds = Rect(it.positionInWindow(), it.size.toSize()) }
-            .pointerInput(course) { detectTapGestures(onTap = { onTap(tapBounds) }, onLongPress = { onLongPress() }) }
-            .background(
-                when {
-                    ongoing -> accent.copy(alpha = 0.12f)
-                    isNext -> SvAccent.copy(alpha = 0.07f)
-                    else -> Color.Transparent
-                }
-            )
-            .alpha(if (finished) 0.42f else 1f)
-            .padding(horizontal = 8.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // 节次块（用课程色，一眼区分）
-        Column(
-            Modifier
-                .width(46.dp)
-                .clip(RoundedCornerShape(9.dp))
-                .background(accent)
-                .padding(vertical = 5.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            MiuixText("${course.startPeriod}-${course.endPeriod}", color = AppColors.OnAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-            MiuixText("节", color = AppColors.OnAccent.copy(alpha = 0.85f), fontSize = 9.sp)
-        }
-
-        Column(Modifier.weight(1f).padding(start = 10.dp)) {
-            MiuixText(
-                course.name,
-                fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.bodyLarge,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Spacer(Modifier.height(2.dp))
-            MiuixText(
-                listOfNotNull(
-                    course.timeText().takeIf { it.isNotBlank() },
-                    shortPlace(course.location),
-                    course.teacher?.takeIf { it.isNotBlank() },
-                ).joinToString(" · ").ifBlank { "地点老师待补充" },
-                color = SvMuted,
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-
-        val tag = when {
-            ongoing -> "正在上课"
-            finished -> "已结束"
-            isNext && minutesToStart in 1..599 -> "${ScheduleBoard.gapText(minutesToStart)}上课"
-            else -> null
-        }
-        if (tag != null) {
-            MiuixText(
-                tag,
-                color = when {
-                    ongoing -> accent
-                    finished -> SvMuted
-                    else -> SvAccent
-                },
-                fontSize = 10.sp,
-                fontWeight = if (ongoing) FontWeight.SemiBold else FontWeight.Normal,
-                modifier = Modifier.padding(start = 6.dp),
-            )
-        }
-    }
-}
-
 /* ------------------------------- 周课表（可伸缩） ------------------------------- */
 
 @Composable
@@ -550,11 +469,11 @@ private fun TimetableActions(
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { expanded = true }, modifier = Modifier.size(40.dp)) {
+        IconButton(onClick = { expanded = true }, modifier = Modifier.size(48.dp)) {
             Icon(Icons.Outlined.MoreHoriz, "课表设置与操作", tint = SvMuted)
         }
         if (expanded) {
-            val offset = with(LocalDensity.current) { 44.dp.roundToPx() }
+            val offset = with(LocalDensity.current) { 52.dp.roundToPx() }
             val actions = buildList<Pair<String, () -> Unit>> {
                 onManage?.let { add("管理课程" to it) }
                 onAdd?.let { add("添加课程" to it) }
@@ -592,16 +511,15 @@ internal fun WeekChips(selected: Int, currentWeek: Int?, onSelect: (Int) -> Unit
     LazyRow(
         modifier.fillMaxWidth(),
         state = scrollState,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         items((0..lastWeek).toList(), key = { it }) { index ->
             val isSelected = selected == index
             Box(
                 Modifier
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isSelected) SvAccent else themeColor(Color(0xFFF0F1F4), AppColors.ChipIdle))
-                    .clickable { onSelect(index) }
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .clickable(role = Role.Button) { onSelect(index) }
+                    .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+                    .padding(horizontal = 3.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 MiuixText(
                     when {
@@ -611,6 +529,10 @@ internal fun WeekChips(selected: Int, currentWeek: Int?, onSelect: (Int) -> Unit
                     },
                     color = if (isSelected) AppColors.OnAccent else SvMuted,
                     fontSize = 11.sp,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isSelected) SvAccent else themeColor(Color(0xFFF0F1F4), AppColors.ChipIdle))
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
                 )
             }
         }
@@ -697,7 +619,9 @@ internal fun TimetableCard(
             MiuixText(weekLabel, color = SvInk, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             onOpenScores?.let { open ->
                 Row(
-                    Modifier.clickable(onClick = open),
+                    Modifier.clickable(role = Role.Button, onClick = open)
+                        .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     MiuixText(
@@ -715,7 +639,9 @@ internal fun TimetableCard(
                 }
                 Spacer(Modifier.width(4.dp))
             }
-            IconButton(onClick=expand,modifier=Modifier.size(40.dp)) { Icon(Icons.Outlined.UnfoldMore,"打开完整课表",tint=SvAccent) }
+            IconButton(onClick = expand, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Outlined.UnfoldMore, "打开完整课表", tint = SvAccent)
+            }
             TimetableActions(onSetTermStart = onSetTermStart, onEditPeriods = onEditPeriods, onAdd = onAdd, onImport = onImport)
         }
         Spacer(Modifier.height(4.dp))
@@ -732,7 +658,7 @@ internal fun TimetableCard(
         )
         selectedCourse?.let { CourseDetailDialog(it, relatedCourses = allCourses, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
         Spacer(Modifier.height(6.dp))
-        // 拖拽把手：手势只认**小横条本体**（44dp 宽 + 纵向热区加宽到 44dp），
+        // 拖拽把手：手势只认小横条周围的 48dp 点击区，
         // 横条左右两侧不响应 —— 2026-10-10 用户反馈：之前挂在 fillMaxWidth 的 Column 上，
         // 「小横条所在一整条都能拖」，从卡片底部任何位置起手都会把卡片拖变形。
         // 点一下展开同样只在小横条上（与拖拽同区，意图最明确）。
@@ -742,9 +668,10 @@ internal fun TimetableCard(
         ) {
             Box(
                 Modifier
-                    .width(44.dp)
+                    .size(48.dp)
                     .clip(RoundedCornerShape(2.dp))
-                    .clickable(onClick = expand)
+                    .semantics { contentDescription = "展开课表" }
+                    .clickable(role = Role.Button, onClick = expand)
                     .pointerInput(threshold) {
                         detectVerticalDragGestures(
                             onDragStart = { dragging = true; dragAcc = 0f },
@@ -758,8 +685,8 @@ internal fun TimetableCard(
                             change.consume()
                             dragAcc = (dragAcc + dragAmount).coerceIn(-threshold * 3f, threshold * 3f)
                         }
-                    }
-                    .padding(vertical = 20.dp),
+                    },
+                contentAlignment = Alignment.Center,
             ) {
                 Box(
                     Modifier
@@ -810,10 +737,12 @@ internal fun FullscreenTimetableDialog(
                 Column(
                     Modifier
                         .fillMaxWidth()
-                        .clickable(onClick = close)
-                        .then(dragHandle)
                         .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-                        .padding(top = 10.dp, bottom = 10.dp),
+                        .semantics { contentDescription = "收起课表" }
+                        .clickable(role = Role.Button, onClick = close)
+                        .then(dragHandle)
+                        .heightIn(min = 48.dp)
+                        .padding(top = 10.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Box(
@@ -931,14 +860,16 @@ internal fun TimetableGrid(
     val groupsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> scheduleOverlapGroups(items) } }
     var overlapping by remember(courses) { mutableStateOf<CourseOverlapSelection?>(null) }
     val rowHeight = if (expanded) 76.dp else 56.dp
-    // Keep the period number and both bell times readable even in the compact home grid.
+    val slots = PeriodTable.slots()
+    val breaks = timetableBreaks(slots).filter { it.afterPeriod < maxPeriod }
+    val gridHeight = courseGridHeight(1, maxPeriod, rowHeight.value, breaks, 22f).dp
+    // 紧凑网格也保留上下课时间，不能只依赖课程弹窗。
     val timeColumnWidth = if (expanded) 48.dp else 42.dp
     val dayNames = listOf("一", "二", "三", "四", "五", "六", "日")
     // 列头日期与法定节假日都按「所选周」的周一算（此前锚死本周，切周后日期/休标不动）
     val weekStart = weekStartMillis
-    val dayMillis = 24L * 3600 * 1000
     val holidays = remember(weekStart) {
-        (1..7).associateWith { day -> weekStart?.let { Holidays.holidayAt(it + (day - 1) * dayMillis) } }
+        (1..7).associateWith { day -> weekStart?.let { Holidays.holidayAt(ScheduleText.plusDays(it, day - 1)) } }
     }
 
     Column(modifier.fillMaxWidth()) {
@@ -948,7 +879,7 @@ internal fun TimetableGrid(
             dayNames.forEachIndexed { index, name ->
                 val day = index + 1
                 val holiday = holidays[day]
-                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                Column(Modifier.weight(1f).background(if (day == today) SvAccent.copy(alpha = .06f) else Color.Transparent), horizontalAlignment = Alignment.CenterHorizontally) {
                     MiuixText(
                         if (day == today) "今天" else name,
                         color = if (day == today) SvAccent else SvMuted,
@@ -956,8 +887,9 @@ internal fun TimetableGrid(
                         fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
                     )
                     if (weekStart != null) MiuixText(
-                        ScheduleText.dateLabelAt(weekStart + (day - 1) * dayMillis).removeSuffix("日").replace("月", "/"),
-                        color = SvMuted.copy(alpha = 0.75f),
+                        ScheduleText.dateLabelAt(ScheduleText.plusDays(weekStart, day - 1)).removeSuffix("日").replace("月", "/"),
+                        color = if (day == today) SvAccent else SvMuted.copy(alpha = 0.75f),
+                        fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
                         fontSize = 8.sp,
                     )
                     if (holiday != null) {
@@ -975,69 +907,55 @@ internal fun TimetableGrid(
             }
         }
         Spacer(Modifier.height(4.dp))
-        Row(Modifier.fillMaxWidth()) {
-            // 节次 + 作息时间
-            Column(Modifier.width(timeColumnWidth)) {
-                (1..maxPeriod).forEach { period ->
-                    val slot = PeriodTable.slot(period)
-                    Column(
-                        Modifier.height(rowHeight),
-                        verticalArrangement = Arrangement.Center,
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                    ) {
-                        MiuixText("$period", color = SvMuted, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Medium)
-                        if (slot != null) {
-                            MiuixText(slot.start, color = SvMuted, fontSize = 8.sp, lineHeight = 10.sp, maxLines = 1)
-                            MiuixText(slot.end, color = SvMuted.copy(alpha = 0.8f), fontSize = 8.sp, lineHeight = 10.sp, maxLines = 1)
-                        }
+        BoxWithConstraints(Modifier.fillMaxWidth().height(gridHeight)) {
+            val dayWidth = (maxWidth - timeColumnWidth) / 7
+            // 节次、底格、课程和时间线共用含休息的纵坐标。
+            if (today != null) Box(Modifier.offset(x = timeColumnWidth + dayWidth * (today - 1))
+                .width(dayWidth).height(gridHeight).background(SvAccent.copy(alpha = .06f)))
+            breaks.forEach { rest ->
+                val covered = (1..7).filter { day -> groupsByDay[day].orEmpty().any {
+                    it.startPeriod <= rest.afterPeriod && it.endPeriod > rest.afterPeriod
+                } }.map { day -> (day - 1) / 7f to day / 7f }
+                TimetableBreakPill(rest.label, Modifier.offset(x = timeColumnWidth,
+                    y = (periodTop(rest.afterPeriod, rowHeight.value, breaks, 22f) + rowHeight.value).dp)
+                    .width(dayWidth * 7).maskTimetableBreak(covered))
+            }
+            (1..maxPeriod).forEach { period ->
+                (1..7).forEach { day ->
+                    Box(Modifier.offset(x = timeColumnWidth + dayWidth * (day - 1),
+                        y = periodTop(period, rowHeight.value, breaks, 22f).dp)
+                        .width(dayWidth).height(rowHeight).padding(2.dp).clip(RoundedCornerShape(14.dp))
+                        .background(AppColors.Canvas.copy(alpha = .35f)))
+                }
+                val slot = PeriodTable.slot(period)
+                Column(Modifier.offset(y = periodTop(period, rowHeight.value, breaks, 22f).dp)
+                    .width(timeColumnWidth).height(rowHeight),
+                    verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally) {
+                    MiuixText("$period", color = SvMuted, fontSize = 10.sp, lineHeight = 12.sp, fontWeight = FontWeight.Medium)
+                    if (slot != null) {
+                        MiuixText(slot.start, color = SvMuted, fontSize = 8.sp, lineHeight = 10.sp, maxLines = 1)
+                        MiuixText(slot.end, color = SvMuted.copy(alpha = .8f), fontSize = 8.sp, lineHeight = 10.sp, maxLines = 1)
                     }
                 }
             }
-            // 7 天
             (1..7).forEach { day ->
-                val holiday = holidays[day]
-                val dayGroups = groupsByDay[day].orEmpty()
-                Column(Modifier.weight(1f)) {
-                    var period = 1
-                    while (period <= maxPeriod) {
-                        val group = dayGroups.firstOrNull { it.startPeriod == period }
-                        val course = group?.courses?.singleOrNull()
-                        // 法定节假日只是提示，不能代替学校校历、覆盖已导入的课程。
-                        val over = course != null && isCourseOver(course, today, nowMinutes)
-                        if (group == null) {
-                            val span = 1
-                            Box(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .height(rowHeight * span)
-                                    .padding(1.5.dp)
-                                    .clip(RoundedCornerShape(9.dp))
-                                    .background(if (holiday != null) themeColor(Color(0xFFF1F2F4), AppColors.ChipIdle) else themeColor(Color(0xFFF7F8FA), AppColors.Canvas)),
-                            )
-                            period += span
-                        } else {
-                            val span = (group.endPeriod - group.startPeriod + 1)
-                                .coerceAtLeast(1)
-                                .coerceAtMost(maxPeriod - period + 1)
-                            if (course == null) OverlappingCourseBlock(
-                                courses = group.courses, height = rowHeight * span,
-                                onOpen = { overlapping = CourseOverlapSelection(group.courses, it) },
-                            ) else CourseBlock(
-                                course = course,
-                                height = rowHeight * span,
-                                expanded = expanded,
-                                dimmed = over,
-                                holiday = holiday != null,
-                                onLongPress = { onLongPressCourse(course) },
-                                onTap = { onTapCourse(course, it) },
-                            )
-                            period += span
-                        }
+                groupsByDay[day].orEmpty().forEach { group ->
+                    val course = group.courses.singleOrNull()
+                    val end = group.endPeriod.coerceAtMost(maxPeriod)
+                    val height = courseGridHeight(group.startPeriod, end, rowHeight.value, breaks, 22f).dp
+                    Box(Modifier.offset(x = timeColumnWidth + dayWidth * (day - 1),
+                        y = periodTop(group.startPeriod, rowHeight.value, breaks, 22f).dp).width(dayWidth)) {
+                        if (course == null) OverlappingCourseBlock(group.courses, height,
+                            onOpen = { overlapping = CourseOverlapSelection(group.courses, it) })
+                        else CourseBlock(course, height, expanded,
+                            onLongPress = { onLongPressCourse(course) }, onTap = { onTapCourse(course, it) })
                     }
                 }
             }
+            TimetableNowLine(slots, rowHeight, today, timeColumnWidth, dayWidth)
         }
     }
+
     overlapping?.let { selection ->
         CourseOverlapDialog(selection, onSelect = onTapCourse, onDismiss = { overlapping = null })
     }
@@ -1047,14 +965,16 @@ internal fun TimetableGrid(
 @Composable
 private fun OverlappingCourseBlock(courses: List<CourseDto>, height: Dp, onOpen: (Rect) -> Unit) {
     var bounds by remember { mutableStateOf(Rect.Zero) }
-    Column(Modifier.fillMaxWidth().height(height).padding(1.5.dp)
+    Column(Modifier.fillMaxWidth().height(height).padding(2.dp)
         .onGloballyPositioned { val at = it.positionInWindow(); bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height) }
-        .clip(RoundedCornerShape(9.dp)).clickable { onOpen(bounds) },
+        .clip(RoundedCornerShape(14.dp)).clickable { onOpen(bounds) },
         verticalArrangement = Arrangement.spacedBy(1.dp)) {
         courses.take(2).forEach { course ->
-            Box(Modifier.fillMaxWidth().weight(1f).background(courseColor(course.name)).padding(3.dp),
+            val glass = glassColors(courseColor(course.name))
+            Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(14.dp))
+                .courseGlass(glass).border(1.dp, glass.border, RoundedCornerShape(14.dp)).padding(3.dp),
                 contentAlignment = Alignment.Center) {
-                Text(course.name, color = AppColors.OnAccent, fontWeight = FontWeight.SemiBold,
+                Text(course.name, color = glass.ink, fontWeight = FontWeight.SemiBold,
                     fontSize = 10.sp, lineHeight = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
             }
         }
@@ -1072,28 +992,24 @@ private fun CourseBlock(
     course: CourseDto,
     height: Dp,
     expanded: Boolean,
-    dimmed: Boolean,
-    holiday: Boolean,
     onLongPress: () -> Unit,
     onTap: (Rect) -> Unit = {},
 ) {
     var tapBounds by remember(course.id) { mutableStateOf(Rect.Zero) }
-    val base = if (holiday) themeColor(Color(0xFFDDE1E7), AppColors.ChipIdle) else courseColor(course.name)
-    // 已上完 → 整块降透明度（保留原色，一眼看出是已经上完的课）
-    val fg = if (holiday) themeColor(Color(0xFF454D59), AppColors.TextSecondary) else AppColors.OnAccent
+    val glass = glassColors(courseColor(course.name))
     Box(
         Modifier
             .fillMaxWidth()
             .height(height)
-            .padding(1.5.dp)
-            .clip(RoundedCornerShape(if (expanded) 11.dp else 9.dp))
+            .padding(2.dp)
+            .clip(RoundedCornerShape(14.dp))
             // 点击看详情（2026-10-10 用户要求）；长按删除保留不变。
             .onGloballyPositioned { tapBounds = Rect(it.positionInWindow(), it.size.toSize()) }
             .pointerInput(course) { detectTapGestures(onTap = { onTap(tapBounds) }, onLongPress = { onLongPress() }) }
-            .alpha(when { holiday -> 0.78f; dimmed -> 0.65f; else -> 1f })
-            .background(base),
+            .courseGlass(glass)
+            .border(1.dp, glass.border, RoundedCornerShape(14.dp)),
     ) {
-        CourseCardContent(course, foreground = fg, compact = !expanded)
+        CourseCardContent(course, foreground = glass.ink, compact = !expanded)
     }
 }
 
@@ -1168,7 +1084,7 @@ internal fun aiAnswer(
     }
     if (q.contains("明天")) {
         // 明天还在假期里就说放假，别拿课表骗人
-        val tomorrow = ScheduleText.startOfDay(System.currentTimeMillis()) + 24L * 3600 * 1000
+        val tomorrow = ScheduleText.plusDays(ScheduleText.startOfDay(System.currentTimeMillis()), 1)
         val tomorrowHoliday = Holidays.holidayAt(tomorrow)
         if (tomorrowHoliday != null) return "明天还在${tomorrowHoliday.name}假期里，没有课"
         val list = ScheduleBoard.ofDay(courses, today % 7 + 1, week)

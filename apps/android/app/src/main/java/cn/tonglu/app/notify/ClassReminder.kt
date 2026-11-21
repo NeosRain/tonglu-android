@@ -205,7 +205,7 @@ object ClassReminder {
         val out = mutableListOf<ClassAlarm>()
         val dayStart = ScheduleText.startOfDay(now)
         for (offset in 0 until LOOKAHEAD_DAYS) {
-            val base = dayStart + offset * 24L * 3600 * 1000
+            val base = ScheduleText.plusDays(dayStart, offset)
             if (Holidays.isHoliday(base)) continue
             val weekday = ScheduleText.weekdayOf(base)
             val week = ScheduleText.weekOf(termStart, base)
@@ -214,8 +214,8 @@ object ClassReminder {
                 .forEach { course ->
                     val slot = PeriodTable.slot(course.startPeriod) ?: return@forEach
                     val endSlot = PeriodTable.slot(course.endPeriod) ?: slot
-                    val startAt = base + PeriodTable.parseMinutes(slot.start) * 60_000L
-                    val endAt = base + PeriodTable.parseMinutes(endSlot.end) * 60_000L
+                    val startAt = ScheduleText.atMinuteOfDay(base, PeriodTable.parseMinutes(slot.start))
+                    val endAt = ScheduleText.atMinuteOfDay(base, PeriodTable.parseMinutes(endSlot.end))
                     if (startAt <= now) return@forEach
                     leads.forEach { lead ->
                         val fireAt = startAt - lead * 60_000L

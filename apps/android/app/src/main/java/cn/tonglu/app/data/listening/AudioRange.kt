@@ -29,3 +29,29 @@ object AudioRange {
         return Segment(startMs, endMs)
     }
 }
+
+/** 区间结束只触发一次。定位完成前读到的仍可能是上一次播放的位置。 */
+internal class AudioRangePlayback {
+    private var segment: AudioRange.Segment? = null
+    var isSeeking = false
+        private set
+
+    fun begin(segment: AudioRange.Segment) {
+        this.segment = segment
+        isSeeking = true
+    }
+
+    fun onSeekComplete(): Boolean = isSeeking.also { isSeeking = false }
+
+    fun onPosition(positionMs: Int): Boolean {
+        val current = segment ?: return false
+        if (isSeeking || positionMs < current.endMs) return false
+        clear()
+        return true
+    }
+
+    fun clear() {
+        segment = null
+        isSeeking = false
+    }
+}

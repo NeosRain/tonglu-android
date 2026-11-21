@@ -22,12 +22,14 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -418,21 +420,13 @@ internal fun ProfileScreen(
                         // 但**已加入的备考一条都不删**，再打开就回来 —— 关显示 ≠ 删数据。
                         ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
                             Text("首页", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("考试倒计时", style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "在课表上方显示最近的考试 · 关闭后首页不显示，已添加的考试仍保留在考试日历里",
-                                        color = Muted,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                                androidx.compose.material3.Switch(checked = examCountdown, onCheckedChange = onExamCountdownChange)
-                            }
+                            ProfileSwitchRow(
+                                title = "考试倒计时",
+                                summary = "在课表上方显示最近的考试 · 关闭后首页不显示，已添加的考试仍保留在考试日历里",
+                                checked = examCountdown,
+                                onCheckedChange = onExamCountdownChange,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
                             Spacer(Modifier.height(8.dp))
                         }
                     }
@@ -508,17 +502,13 @@ internal fun ProfileScreen(
                     item {
                         ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 14.dp)) {
                             Text("上课提醒", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("课前提醒", style = MaterialTheme.typography.bodyLarge)
-                                    Text("课前弹通知，告诉你还有多少分钟上课", color = Muted, style = MaterialTheme.typography.bodySmall)
-                                }
-                                androidx.compose.material3.Switch(checked = remindEnabled, onCheckedChange = onRemindEnabledChange)
-                            }
+                            ProfileSwitchRow(
+                                title = "课前提醒",
+                                summary = "课前弹通知，告诉你还有多少分钟上课",
+                                checked = remindEnabled,
+                                onCheckedChange = onRemindEnabledChange,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
                             if (remindEnabled && !exactAlarmAllowed) {
                                 Row(
                                     Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -553,17 +543,22 @@ internal fun ProfileScreen(
                                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 ) {
                                     listOf(5, 10, 15, 20, 30, 45).forEach { lead ->
-                                        Surface(
-                                            color = if (remindLead == lead) Accent else Canvas,
-                                            shape = RoundedCornerShape(14.dp),
-                                            modifier = Modifier.clickable { onRemindLeadChange(lead) },
+                                        Box(
+                                            Modifier.clickable(role = Role.Button) { onRemindLeadChange(lead) }
+                                                .sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                                            contentAlignment = Alignment.Center,
                                         ) {
-                                            Text(
-                                                "$lead 分",
-                                                color = if (remindLead == lead) AppColors.OnAccent else MaterialTheme.colorScheme.onSurface,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
-                                            )
+                                            Surface(
+                                                color = if (remindLead == lead) Accent else Canvas,
+                                                shape = RoundedCornerShape(14.dp),
+                                            ) {
+                                                Text(
+                                                    "$lead 分",
+                                                    color = if (remindLead == lead) AppColors.OnAccent else MaterialTheme.colorScheme.onSurface,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -593,33 +588,20 @@ internal fun ProfileScreen(
                 "外观与动画" -> {
                     item {
                         ProfileCard(insideMargin = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
-                            Row(
-                                Modifier.fillMaxWidth().padding(top = 10.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("液态玻璃界面", style = MaterialTheme.typography.bodyLarge)
-                                    Text("顶栏与底栏统一玻璃效果 · 上滑自动收起底栏", color = Muted, style = MaterialTheme.typography.bodySmall)
-                                }
-                                androidx.compose.material3.Switch(checked = glassNav, onCheckedChange = onGlassNavChange)
-                            }
+                            ProfileSwitchRow(
+                                title = "液态玻璃界面",
+                                summary = "顶栏与底栏统一玻璃效果 · 上滑自动收起底栏",
+                                checked = glassNav,
+                                onCheckedChange = onGlassNavChange,
+                                modifier = Modifier.padding(top = 10.dp),
+                            )
                             Spacer(Modifier.height(10.dp))
-                            Row(
-                                Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text("预测性返回", style = MaterialTheme.typography.bodyLarge)
-                                    Text(
-                                        "按住屏幕左边缘往右拖时，界面跟着手指走 · 关闭后仍保留淡入淡出",
-                                        color = Muted,
-                                        style = MaterialTheme.typography.bodySmall,
-                                    )
-                                }
-                                androidx.compose.material3.Switch(checked = predictiveBack, onCheckedChange = onPredictiveBackChange)
-                            }
+                            ProfileSwitchRow(
+                                title = "预测性返回",
+                                summary = "按住屏幕左边缘往右拖时，界面跟着手指走 · 关闭后仍保留淡入淡出",
+                                checked = predictiveBack,
+                                onCheckedChange = onPredictiveBackChange,
+                            )
                             Spacer(Modifier.height(10.dp))
                             ThemeModePicker()
                             ProfileSettingsDetail("主题与壁纸", "主题色、背景与透明度") {
@@ -886,6 +868,28 @@ private fun ProfileCard(
     Surface(modifier.fillMaxWidth(), shape = RoundedCornerShape(24.dp),
         color = AppColors.SurfaceOpaque, contentColor = AppColors.TextPrimary) {
         Column(Modifier.padding(insideMargin), content = content)
+    }
+}
+
+@Composable
+private fun ProfileSwitchRow(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            Text(summary, color = Muted, style = MaterialTheme.typography.bodySmall)
+        }
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 

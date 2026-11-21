@@ -1,7 +1,9 @@
 package cn.tonglu.app.data.listening
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -72,5 +74,40 @@ class AudioRangeTest {
         val rawEnd = 9_999_999
         assertEquals(true, rawEnd > 1_572_408)                // 原始值确实越轨
         assertEquals(1_572_408, AudioRange.clamp(1_500_000, rawEnd, 1_572_408)?.endMs)
+    }
+
+    @Test
+    fun `区间定位完成前忽略上一段的位置`() {
+        val playback = AudioRangePlayback()
+        playback.begin(AudioRange.Segment(1_000, 2_000))
+
+        assertFalse(playback.onPosition(2_500))
+        assertTrue(playback.onSeekComplete())
+        assertFalse(playback.onPosition(1_999))
+    }
+
+    @Test
+    fun `区间播到终点只暂停一次且可以重听`() {
+        val playback = AudioRangePlayback()
+        val segment = AudioRange.Segment(1_000, 2_000)
+        playback.begin(segment)
+        playback.onSeekComplete()
+
+        assertTrue(playback.onPosition(segment.endMs))
+        assertFalse(playback.onPosition(segment.endMs))
+
+        playback.begin(segment)
+        assertTrue(playback.onSeekComplete())
+        assertTrue(playback.onPosition(segment.endMs))
+    }
+
+    @Test
+    fun `手动取消区间后迟到的定位回调不能开始播放`() {
+        val playback = AudioRangePlayback()
+        playback.begin(AudioRange.Segment(1_000, 2_000))
+
+        playback.clear()
+
+        assertFalse(playback.onSeekComplete())
     }
 }

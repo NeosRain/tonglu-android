@@ -5,163 +5,297 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.media.PlaybackParams
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.File
 import java.io.IOException
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 private const val TAG = "ListeningAudio"
+internal const val LISTENING_AUDIO_TIMEOUT_MS = 8_000L
 
-/**
- * 播放：**只用系统 MediaPlayer，不引第三方播放器依赖**。
- *
- * 项目里原本一处音频播放都没有（连录音权限都没有），这是第一次引入。
- * 选 MediaPlayer 而不是 ExoPlayer，是因为这里只需要"播一个本地文件 + 变速 + 定位"，
- * 为一个功能拉一整套 media3 不划算。
- */
-class ListeningPlayer {
+internal class ListeningNetworkUnavailable : IOException(MESSAGE) {
+    companion object {
+        const val MESSAGE = "原音需联网，当前网络不可用"
+    }
+}
+
+internal suspend fun awaitListeningAudio(
+    hasNetwork: Boolean,
+    timeoutMs: Long = LISTENING_AUDIO_TIMEOUT_MS,
+    prepare: suspend () -> Unit,
+) {
+    if (!hasNetwork) throw ListeningNetworkUnavailable()
+    withTimeoutOrNull(timeoutMs) { prepare() } ?: throw ListeningNetworkUnavailable()
+}
+
+internal data class ListeningPlayback(
+    val durationMs: Int? = null,
+    val positionMs: Int = 0,
+    val isPlaying: Boolean = false,
+) {
+    val isLoaded: Boolean get() = durationMs != null
+}
+
+internal class ListeningSpeed {
+    private var value = 1.0f
+
+    fun change(speed: Float, isPlaying: Boolean, apply: (Float) -> Unit) {
+        value = speed.coerceIn(0.5f, 2.0f)
+        if (isPlaying) apply(value)
+    }
+
+    fun onPlay(apply: (Float) -> Unit) = apply(value)
+}
+
+/** 在主线程操作系统 MediaPlayer。准备、用户操作和媒体回调共用一份播放状态。 */
+internal class ListeningPlayer {
 
     private var player: MediaPlayer? = null
     private var source: File? = null
     private var urlSource: String? = null
-    private var speedValue = 1.0f
+    private val speed = ListeningSpeed()
 
-    /** 区间播放的「到点暂停」定时器（见 [playRange]）。 */
-    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var stopAt: Runnable? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var playRequested = false
+    private val range = AudioRangePlayback()
+    private val tick = object : Runnable {
+        override fun run() {
+            val mp = player ?: return
+            updatePlayback(mp)
+            if (player !== mp) return
+            if (range.onPosition(positionMs)) {
+                pause()
+                return
+            }
+            if (playRequested || isPlaying) handler.postDelayed(this, 100L)
+        }
+    }
 
-    /**
-     * 整条音轨自然播完时的回调（seek 到末尾也算）。
-     *
-     * 「先听后录」要靠它：本句播完 → 自动开始录音。用回调而不是界面轮询，
-     * 是因为轮询在变速/慢机上会漏过终点，回调由 MediaPlayer 自己触发更可靠。
-     * 只用于**整轨结束**；单句区间结束由界面按 endMs 判断（区间不是轨尾）。
-     */
-    var onCompleted: (() -> Unit)? = null
-
+    private val state = MutableStateFlow(ListeningPlayback())
+    val playback = state.asStateFlow()
     val isLoaded: Boolean get() = player != null
-    val isPlaying: Boolean get() = runCatching { player?.isPlaying == true }.getOrDefault(false)
-    val durationMs: Int get() = runCatching { player?.duration ?: 0 }.getOrDefault(0)
-    val positionMs: Int get() = runCatching { player?.currentPosition ?: 0 }.getOrDefault(0)
+    val isPlaying: Boolean get() = playback.value.isPlaying
+    val durationMs: Int get() = playback.value.durationMs ?: 0
+    val positionMs: Int get() = playback.value.positionMs
+
+    fun currentPositionMs(): Int {
+        player?.let(::updatePlayback)
+        return positionMs
+    }
+
+    /** 整轨自然结束。精听跟读用它在末句播完时进入录音。 */
+    var onCompleted: (() -> Unit)? = null
+    var onError: ((IOException) -> Unit)? = null
 
     /** 载入一个本地文件。重复载入同一个文件不会重新解码。 */
     @Throws(IOException::class)
     fun load(file: File) {
-        if (source == file && player != null) return
+        if (source == file && isLoaded) return
         release()
         val mp = MediaPlayer()
         try {
             mp.setDataSource(file.absolutePath)
             mp.prepare()
+            usePreparedPlayer(mp)
+            source = file
         } catch (cause: Exception) {
-            mp.release()
+            releaseMedia(mp)
             throw cause
         }
-        player = mp
-        source = file
-        mp.setOnCompletionListener { onCompleted?.invoke() }
-        applySpeed()
     }
 
-    /**
-     * 载入一个**远端音频**（http/https）。真题听力的原版录音就走这条路。
-     *
-     * 与 [load] 一样：重复载入同一个地址不会重新解码。**这是阻塞调用**（`prepare()`），
-     * 调用方要放到 IO 线程。
-     */
-    @Throws(IOException::class)
-    fun loadUrl(url: String) {
-        if (urlSource == url && player != null) return
+    /** 在主线程等待异步准备。超时、切题或离开页面时丢弃本次播放器。 */
+    suspend fun loadUrl(url: String, hasNetwork: Boolean) {
+        if (hasNetwork && urlSource == url && isLoaded) return
         release()
-        val mp = MediaPlayer()
+        var pending: MediaPlayer? = null
         try {
-            mp.setDataSource(url)
-            mp.prepare()
-        } catch (cause: Exception) {
-            mp.release()
-            throw cause
+            awaitListeningAudio(hasNetwork) {
+                suspendCancellableCoroutine<Unit> { result ->
+                    val mp = MediaPlayer()
+                    pending = mp
+                    mp.setOnPreparedListener { if (result.isActive) result.resume(Unit) }
+                    mp.setOnErrorListener { _, what, extra ->
+                        if (result.isActive) result.resumeWithException(mediaError(what, extra))
+                        true
+                    }
+                    mp.setDataSource(url)
+                    mp.prepareAsync()
+                }
+            }
+            val mp = checkNotNull(pending)
+            mp.setOnPreparedListener(null)
+            usePreparedPlayer(mp)
+            urlSource = url
+            pending = null
+        } finally {
+            // 释放尚在准备的远端流可能等待网络清理，不能挡住失败提示。
+            pending?.let { mp -> CoroutineScope(Dispatchers.IO).launch { releaseMedia(mp) } }
         }
+    }
+
+    private fun usePreparedPlayer(mp: MediaPlayer) {
+        val duration = mp.duration.coerceAtLeast(0)
         player = mp
-        urlSource = url
-        mp.setOnCompletionListener { onCompleted?.invoke() }
-        applySpeed()
+        state.value = ListeningPlayback(durationMs = duration)
+        mp.setOnErrorListener { _, what, extra ->
+            fail(mp, mediaError(what, extra))
+            true
+        }
+        mp.setOnSeekCompleteListener {
+            if (player === mp) {
+                if (range.onSeekComplete()) {
+                    start(mp)
+                } else {
+                    updatePlayback(mp)
+                }
+            }
+        }
+        mp.setOnCompletionListener {
+            if (player === mp && !range.isSeeking) {
+                playRequested = false
+                range.clear()
+                refreshPlayback()
+                if (player === mp) onCompleted?.invoke()
+            }
+        }
     }
 
-    fun play() {
-        try { player?.start() } catch (cause: Exception) { Log.e(TAG, "播放失败", cause) }
+    fun play(): Boolean {
+        val mp = player ?: return false
+        range.clear()
+        return start(mp)
     }
 
-    /**
-     * 只播**一段**（听力题「重听本题」用）。`MediaPlayer` 只在**整轨**播完时回调，
-     * 区间结束得自己盯 —— 用一个 Handler 每 120ms 看一次位置，到 `endMs` 就暂停。
-     */
+    /** 只播「重听本题」的时间轴区间。定位完成后才播，避免从旧位置出声。 */
     fun playRange(startMs: Int, endMs: Int) {
         val mp = player ?: return
-        cancelStop()
+        val segment = AudioRange.clamp(startMs, endMs, durationMs) ?: return
+        if (range.isSeeking) return
+        pause()
+        if (player !== mp) return
+        range.begin(segment)
         try {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                // ⚠️ 带 mode 的这个重载第一个参数是 **Long**（不带 mode 的那个才是 Int）
-                mp.seekTo(startMs.toLong(), MediaPlayer.SEEK_CLOSEST)
-            } else {
-                @Suppress("DEPRECATION")
-                mp.seekTo(startMs)
-            }
-            mp.start()
-        } catch (cause: Exception) {
-            Log.e(TAG, "区间播放失败", cause)
-            return
+            seekTo(mp, segment.startMs)
+        } catch (cause: IllegalStateException) {
+            fail(mp, IOException("区间播放失败", cause))
         }
-        val tick = object : Runnable {
-            override fun run() {
-                val pos = runCatching { mp.currentPosition }.getOrDefault(endMs)
-                val playing = runCatching { mp.isPlaying }.getOrDefault(false)
-                if (pos >= endMs || !playing) {
-                    runCatching { mp.pause() }
-                    stopAt = null
-                    return
-                }
-                handler.postDelayed(this, 120L)
-            }
-        }
-        stopAt = tick
-        handler.postDelayed(tick, 120L)
     }
 
-    private fun cancelStop() {
-        stopAt?.let { handler.removeCallbacks(it) }
-        stopAt = null
+    private fun start(mp: MediaPlayer): Boolean {
+        try {
+            mp.start()
+            speed.onPlay { applySpeed(mp, it) }
+        } catch (cause: IllegalStateException) {
+            fail(mp, IOException("播放失败", cause))
+            return false
+        }
+        playRequested = true
+        refreshPlayback()
+        return player === mp
     }
 
     fun pause() {
-        try { player?.takeIf { it.isPlaying }?.pause() } catch (cause: Exception) { Log.w(TAG, "暂停失败", cause) }
-    }
-
-    fun seek(ms: Int) {
-        try { player?.seekTo(ms.coerceIn(0, durationMs)) } catch (cause: Exception) { Log.w(TAG, "定位失败", cause) }
-    }
-
-    /** 变速但**保持音高**：不能用升降调冒充口音，也不能把句子变快后听不清。 */
-    fun speed(value: Float) {
-        speedValue = value.coerceIn(0.5f, 2.0f)
-        applySpeed()
-    }
-
-    private fun applySpeed() {
         val mp = player ?: return
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        range.clear()
         try {
-            mp.playbackParams = PlaybackParams().setSpeed(speedValue).setPitch(1.0f)
-        } catch (cause: Exception) {
-            Log.w(TAG, "变速失败，按原速播放", cause)
+            if (playRequested || mp.isPlaying) mp.pause()
+            playRequested = false
+            refreshPlayback()
+        } catch (cause: IllegalStateException) {
+            fail(mp, IOException("暂停失败", cause))
         }
     }
 
+    fun seek(ms: Int) {
+        val mp = player ?: return
+        try {
+            seekTo(mp, ms.coerceIn(0, durationMs))
+        } catch (cause: IllegalStateException) {
+            fail(mp, IOException("定位失败", cause))
+        }
+    }
+
+    private fun seekTo(mp: MediaPlayer, ms: Int) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            mp.seekTo(ms.toLong(), MediaPlayer.SEEK_CLOSEST)
+        } else {
+            @Suppress("DEPRECATION")
+            mp.seekTo(ms)
+        }
+    }
+
+    /** 保持音高。暂停时只记下倍速，写入非零 playbackParams 会启动 MediaPlayer。 */
+    fun speed(value: Float) {
+        val mp = player
+        if (mp == null) {
+            speed.change(value, isPlaying = false) {}
+        } else {
+            try {
+                speed.change(value, playRequested && mp.isPlaying) { applySpeed(mp, it) }
+            } catch (cause: IllegalStateException) {
+                fail(mp, IOException("读取播放状态失败", cause))
+            }
+        }
+    }
+
+    private fun applySpeed(mp: MediaPlayer, speed: Float) {
+        try {
+            mp.playbackParams = PlaybackParams().setSpeed(speed).setPitch(1.0f)
+        } catch (cause: IllegalArgumentException) {
+            Log.w(TAG, "播放器不支持该倍速", cause)
+        } catch (cause: IllegalStateException) {
+            Log.w(TAG, "无法调整播放倍速", cause)
+        }
+    }
+
+    private fun refreshPlayback() {
+        handler.removeCallbacks(tick)
+        tick.run()
+    }
+
+    private fun updatePlayback(mp: MediaPlayer) {
+        try {
+            state.value = playback.value.copy(positionMs = mp.currentPosition.coerceAtLeast(0), isPlaying = mp.isPlaying)
+        } catch (cause: IllegalStateException) {
+            fail(mp, IOException("读取播放状态失败", cause))
+        }
+    }
+
+    private fun fail(mp: MediaPlayer, cause: IOException) {
+        if (player !== mp) return
+        Log.w(TAG, "音频播放失败", cause)
+        release()
+        onError?.invoke(cause)
+    }
+
     fun release() {
-        cancelStop()
-        try { player?.release() } catch (cause: Exception) { Log.w(TAG, "释放播放器失败", cause) }
+        handler.removeCallbacks(tick)
+        val mp = player
         player = null
         source = null
         urlSource = null
+        playRequested = false
+        range.clear()
+        state.value = ListeningPlayback()
+        mp?.let(::releaseMedia)
     }
+}
+
+private fun mediaError(what: Int, extra: Int) = IOException("媒体错误（$what/$extra）")
+
+private fun releaseMedia(mp: MediaPlayer) {
+    try { mp.release() } catch (cause: IllegalStateException) { Log.w(TAG, "释放播放器失败", cause) }
 }
 
 /**

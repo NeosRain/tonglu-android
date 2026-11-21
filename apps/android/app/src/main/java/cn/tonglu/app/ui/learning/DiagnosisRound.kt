@@ -84,7 +84,7 @@ internal fun restoreDiagnosisPool(signature: String, banks: List<QuestionBank>):
     return identities.map { encoded ->
         val identity = diagnosisJson.fromJson(encoded, Array<String>::class.java)
         val bank = byBank[identity[0] to identity[1]] ?: return null
-        val question = bank.questionList.firstOrNull { it.id == identity[2] && it.gradable && it.keySafe } ?: return null
+        val question = bank.questionList.firstOrNull { it.id == identity[2] && bank.canGrade(it) && it.keySafe } ?: return null
         val pick = DiagnosisPick(bank, question)
         if (questionContentFingerprint(question) != identity[3]) return null
         pick

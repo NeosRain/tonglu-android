@@ -234,6 +234,19 @@ object ScheduleText {
         return ((calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7) + 1
     }
 
+    /** 按日历加减自然日；夏令时切换当天不是 24 小时，不能直接加毫秒。 */
+    fun plusDays(millis: Long, days: Int): Long =
+        Calendar.getInstance().apply { timeInMillis = millis; add(Calendar.DAY_OF_MONTH, days) }.timeInMillis
+
+    /** 某天 00:00 起的第 [minutes] 分钟（墙钟时刻）；夏令时切换当天也落在正确的钟点。 */
+    fun atMinuteOfDay(dayStart: Long, minutes: Int): Long = Calendar.getInstance().apply {
+        timeInMillis = dayStart
+        set(Calendar.HOUR_OF_DAY, minutes / 60)
+        set(Calendar.MINUTE, minutes % 60)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
     /** 给定时刻所在自然日的 00:00 */
     fun startOfDay(millis: Long): Long {
         val calendar = Calendar.getInstance().apply {
@@ -272,7 +285,7 @@ object ScheduleText {
         }.getOrNull() ?: return null
         val monday = weekStartMillis(start)
         if (now < monday) return null
-        val days = (startOfDay(now) - monday) / (24L * 3600 * 1000)
+        val days = Math.round((startOfDay(now) - monday) / (24.0 * 3600 * 1000))
         return (days / 7).toInt() + 1
     }
 
@@ -292,7 +305,7 @@ object ScheduleText {
     }
 
     fun dateLabel(weekday: Int, base: Long = System.currentTimeMillis()): String {
-        val millis = weekStartMillis(base) + (weekday - 1) * 24L * 3600 * 1000
+        val millis = plusDays(weekStartMillis(base), weekday - 1)
         val calendar = Calendar.getInstance().apply { timeInMillis = millis }
         return "${calendar.get(Calendar.MONTH) + 1}月${calendar.get(Calendar.DAY_OF_MONTH)}日"
     }
@@ -320,7 +333,7 @@ object ScheduleText {
                 set(year, month - 1, day)
             }.timeInMillis
         }.getOrNull() ?: return null
-        return weekStartMillis(start) + (week - 1) * 7L * 24 * 3600 * 1000
+        return plusDays(weekStartMillis(start), (week - 1) * 7)
     }
 
     fun todayLabel(): String {

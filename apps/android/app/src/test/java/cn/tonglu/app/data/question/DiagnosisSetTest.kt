@@ -2,6 +2,7 @@ package cn.tonglu.app.data.question
 
 import cn.tonglu.app.ui.learning.buildDiagnosisSet
 import cn.tonglu.app.ui.learning.DiagnosisRound
+import cn.tonglu.app.ui.learning.DiagnosisPick
 import cn.tonglu.app.ui.learning.diagnosisResults
 import cn.tonglu.app.ui.learning.diagnosisPoolSignature
 import cn.tonglu.app.ui.learning.restoreDiagnosisPool
@@ -97,6 +98,20 @@ class DiagnosisSetTest {
         val picks = buildDiagnosisSet(listOf(broken))
         assertEquals("只有一道可判分的题", 1, picks.size)
         assertEquals("good", picks.first().question.id)
+    }
+
+    @Test
+    fun `缺音源听力题不计入自测且不能从旧轮次恢复`() {
+        val listening = bank("sample-listening", mapOf(Difficulty.BASIC to 2))
+        val missing = listening.questionList[0]
+        val playable = listening.questionList[1].copy(audioText = "A short recording.")
+        val mixed = listening.copy(questions = listOf(missing, playable))
+        val picks = buildDiagnosisSet(listOf(mixed))
+
+        assertEquals(listOf(playable), picks.map { it.question })
+        assertEquals(1, diagnosisResults(picks, DiagnosisRound()).single().total)
+        val oldSignature = diagnosisPoolSignature(listOf(DiagnosisPick(mixed, missing)))
+        assertNull(restoreDiagnosisPool(oldSignature, listOf(mixed)))
     }
     @Test fun roundKeepsOnlyLatestAnswerAndRestartStartsEmpty() {
         val picks = buildDiagnosisSet(listOf(bank("round", mapOf(Difficulty.BASIC to 2))))

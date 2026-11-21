@@ -186,7 +186,16 @@ class QuestionBankContentTest {
     fun `旧题库没有朗读字段仍可解析判分`() {
         val old = bank("en-basic-grammar.json").questionList.first()
         assertTrue(old.gradable)
-        assertTrue(old.audioText.isNullOrBlank())
+        assertFalse(old.hasAudioSource)
+    }
+
+    @Test
+    fun `原音网址和朗读文本至少有一个非空才有音源`() {
+        val question = BankQuestion("q1")
+        assertFalse(question.hasAudioSource)
+        assertFalse(question.copy(audioUrl = " ", audioText = "\t").hasAudioSource)
+        assertTrue(question.copy(audioUrl = "https://example.org/audio.mp3").hasAudioSource)
+        assertTrue(question.copy(audioText = "A short recording.").hasAudioSource)
     }
 
 }

@@ -12,12 +12,16 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.VolumeUp
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -76,6 +80,7 @@ internal fun VoiceSettingsScreen(
     var engineRevision by remember { mutableStateOf(0) }
     // 旧实例 shutdown 后不可再次 start，返回系统设置必须创建新实例。
     val service = remember(context, engineRevision) { SpeechService(context) }
+    val offlineSupported = remember(service) { service.offlineSupported }
     val preference = remember(owner) { SpeechPreference(context) }
     var accent by remember(owner) { mutableStateOf(preference.accent(owner)) }
     var systemReady by remember(service) { mutableStateOf(false) }
@@ -90,13 +95,18 @@ internal fun VoiceSettingsScreen(
     var current by remember(service, owner) { mutableStateOf(service.current) }
     var problem by remember { mutableStateOf<SpeechProblem?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        SpeechService.offlineLoadNotice.collect {
+            SpeechService.takeOfflineLoadNotice()?.let { message -> notice = message }
+        }
+    }
     var testing by remember { mutableStateOf(false) }
     var audioPreview by remember { mutableStateOf(false) }
     if (audioPreview) AudioPackPreview(onClose = { audioPreview = false })
 
     /** 正在下载的模型 id。非空时那一行显示进度条，不再显示「下载」按钮。 */
     var downloadingId by remember { mutableStateOf<String?>(null) }
-    var downloadSnapshot by remember { mutableStateOf(TtsDownloadSnapshot(0L, 0L, 0L, null)) }
+    var downloadSnapshot by remember { mutableStateOf(TtsDownloadSnapshot(0L, 0L, 0L)) }
     /**
      * 装/删之后 +1，用来让声音列表**重新算**。
      * 少了这一步，下载完界面还显示「未下载」，用户会以为下载没生效。
@@ -143,7 +153,7 @@ internal fun VoiceSettingsScreen(
             notice = "清单里没有这个模型：$id"
             return@LaunchedEffect
         }
-        downloadSnapshot = TtsDownloadSnapshot(0L, model.bytes, 0L, null)
+        downloadSnapshot = TtsDownloadSnapshot(0L, model.bytes, 0L)
         // IO 只投递最新快照，Compose 状态统一在主线程修改。
         val updates = Channel<TtsDownloadSnapshot>(Channel.CONFLATED)
         val collector = launch { for (snapshot in updates) downloadSnapshot = snapshot }
@@ -193,7 +203,8 @@ internal fun VoiceSettingsScreen(
     // 解析与发音共用 SpeechService.voiceFor，界面显示和实际发声不会再是两套逻辑。
     LaunchedEffect(owner, service, systemReady, voiceVersion, accent) {
         val decision = service.voiceFor(accent, preference.voiceId(owner))
-        current = if (service.select(decision.voice)) service.current else decision.voice
+        service.restoreVoice(decision.voice)
+        current = service.current
         accentNote = decision.note
     }
 
@@ -289,6 +300,7 @@ internal fun VoiceSettingsScreen(
                                         // 以前那句「if (current.accent != option) 就退回系统朗读」，
                                         // 在系统发不出该口音的机器上等于把用户送进死路。
                                         // 偏好：只有口音真的变了才清旧声线（见 SpeechPreference.save）。
+                                        if (accent != option) service.stop()
                                         preference.save(owner, null, option)
                                         accent = option
                                     },
@@ -313,6 +325,7 @@ internal fun VoiceSettingsScreen(
                         VoiceRow(
                             voice = voice,
                             selected = voice.id == current.id,
+                            offlineSupported = offlineSupported,
                             downloading = downloadingId == voice.modelId && voice.modelId.isNotBlank(),
                             progress = downloadSnapshot.progress,
                             downloadLabel = if (downloadSnapshot.total > 0L && downloadSnapshot.done >= downloadSnapshot.total)
@@ -381,7 +394,12 @@ internal fun VoiceSettingsScreen(
                                 Icon(Icons.Outlined.Info, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(10.dp))
                                 Text(
-                                    SpeechCatalog.offlineNote,
+                                    buildAnnotatedString {
+                                        SpeechCatalog.offlineNote.split("**").forEachIndexed { index, text ->
+                                            if (index % 2 == 0) append(text)
+                                            else withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(text) }
+                                        }
+                                    },
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
@@ -390,12 +408,14 @@ internal fun VoiceSettingsScreen(
                     }
 
                     // —— 自检：不靠"点了没报错"判断有没有声音，落一个 wav 才算数 ——
-                    item {
-                        TextButton(
-                            onClick = { if (!testing) testing = true },
-                            enabled = !testing,
-                        ) {
-                            Text(if (testing) "正在自检…（首次要加载模型，约几秒）" else "自检离线语音（合成并保存一段 wav）")
+                    if (offlineSupported) {
+                        item {
+                            TextButton(
+                                onClick = { if (!testing) testing = true },
+                                enabled = !testing,
+                            ) {
+                                Text(if (testing) "正在自检…（首次要加载模型，约几秒）" else "自检离线语音（合成并保存一段 wav）")
+                            }
                         }
                     }
 
@@ -458,6 +478,7 @@ private fun previewText(voice: SpeechVoice): String =
 private fun VoiceRow(
     voice: SpeechVoice,
     selected: Boolean,
+    offlineSupported: Boolean,
     onPreview: () -> Unit,
     onSelect: () -> Unit,
     /** 正在下载这条声线对应的模型。 */
@@ -471,6 +492,8 @@ private fun VoiceRow(
     /** 点「下载」。离线声线没装模型时才有意义。 */
     onDownload: () -> Unit = {},
 ) {
+    val offlineUnsupported = voice.source == SoundSource.BuiltinVoice && !offlineSupported
+    val selectedUnavailable = selected && (!voice.available || offlineUnsupported)
     // 状态文案要分清三种「不可用」，混成一句会让用户误会是谁的问题：
     // - 离线声线**没下载模型** → 「未下载模型」（点一下就能有，是用户的选择）
     // - 离线声线**没有模型可选** → 「待提供」（是我们还没做）
@@ -480,8 +503,9 @@ private fun VoiceRow(
     // 是在骗用户。改成如实说「已选 · 本机不可用」。
     val status = when {
         downloading -> "下载中"
-        selected && voice.available -> "使用中"
-        selected -> "已选 · 本机不可用"
+        selectedUnavailable -> "已选 · 本机不可用"
+        offlineUnsupported -> "本机不可用"
+        selected -> "使用中"
         voice.available -> "可用"
         voice.source == SoundSource.SystemTts -> "本机不可用"
         voice.modelId.isNotBlank() -> "未下载模型"
@@ -526,29 +550,40 @@ private fun VoiceRow(
                 if (voice.note.isNotBlank()) Text(voice.note, style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+            if (offlineUnsupported && !selectedUnavailable) return@Column
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-            if (downloading) {
-                // 下载几十兆要给看得见的进度，不然用户以为卡住了；取消必须真掐断（S103 遗留）。
-                Column(horizontalAlignment = Alignment.End) {
-                    LinearProgressIndicator(
-                        progress = { progress.coerceIn(0f, 1f) },
-                        modifier = Modifier.width(84.dp),
-                    )
-                    Text("${(progress.coerceIn(0f, 1f) * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                when {
+                    offlineUnsupported -> Unit
+                    downloading -> {
+                        // 下载几十兆要给看得见的进度，不然用户以为卡住了；取消必须真掐断（S103 遗留）。
+                        Column(horizontalAlignment = Alignment.End) {
+                            LinearProgressIndicator(
+                                progress = { progress.coerceIn(0f, 1f) },
+                                modifier = Modifier.width(84.dp),
+                            )
+                            Text("${(progress.coerceIn(0f, 1f) * 100).toInt()}%", style = MaterialTheme.typography.labelSmall)
+                        }
+                        TextButton(onClick = onDownloadCancel) { Text("取消") }
+                    }
+                    !voice.available && voice.modelId.isNotBlank() -> {
+                        TextButton(onClick = onDownload, enabled = downloadEnabled) { Text("下载") }
+                    }
+                    else -> {
+                        TextButton(
+                            onClick = onPreview,
+                            enabled = voice.available,
+                            modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                        ) { Text("试听") }
+                        if (selected && !selectedUnavailable) {
+                            Icon(Icons.Outlined.Check, "使用中", tint = MaterialTheme.colorScheme.primary)
+                        } else if (!selected) {
+                            TextButton(onClick = onSelect, enabled = voice.available) { Text("设为默认") }
+                        }
+                    }
                 }
-                TextButton(onClick = onDownloadCancel) { Text("取消") }
-            } else if (!voice.available && voice.modelId.isNotBlank()) {
-                // 没装模型就先给「下载」，**不给「试听」** —— 摆一个点了没反应的按钮是骗人的。
-                TextButton(onClick = onDownload, enabled = downloadEnabled) { Text("下载") }
-            } else {
-                // 不可用的组合不能试听也不能设默认 —— 不摆点了没反应的按钮。
-                TextButton(onClick = onPreview, enabled = voice.available) { Text("试听") }
-                if (selected) {
-                    Icon(Icons.Outlined.Check, "使用中", tint = MaterialTheme.colorScheme.primary)
-                } else {
-                    TextButton(onClick = onSelect, enabled = voice.available) { Text("设为默认") }
+                if (selectedUnavailable && !downloading) {
+                    Icon(Icons.Outlined.Warning, "已选，但本机不可用", tint = MaterialTheme.colorScheme.error)
                 }
-            }
             }
             if (downloading) Text(downloadLabel, style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant)

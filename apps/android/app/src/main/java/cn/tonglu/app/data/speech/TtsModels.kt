@@ -9,10 +9,23 @@ import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
 private const val TAG = "TongluTtsModels"
+private const val BYTES_PER_MB = 1024L * 1024L
+
+internal fun formatTtsMegabytes(bytes: Long): String =
+    "%.1f MB".format(Locale.ROOT, bytes.toDouble() / BYTES_PER_MB)
+
+internal fun ttsRemainingTimeLabel(done: Long, total: Long, elapsedMs: Long, bytesPerSecond: Long): String? {
+    if (total > 0L && done >= total) return null
+    if (elapsedMs < 5_000L || done < BYTES_PER_MB) return "估算中…"
+    if (total <= 0L || bytesPerSecond <= 0L) return null
+    val seconds = (total - done) / bytesPerSecond
+    return "约${seconds / 60}分${seconds % 60}秒"
+}
 
 /** 后台补拉清单的最小间隔（见 [TtsModelStore.refreshInBackground]）。 */
 private const val REFRESH_MIN_INTERVAL_MS = 10 * 60 * 1000L
@@ -67,8 +80,7 @@ internal class TtsDownloadMetrics(private val startedAtMs: Long) {
         lastPublishedMs = nowMs
         val elapsed = (nowMs - startedAtMs).coerceAtLeast(1L)
         val speed = (done.coerceAtLeast(0L).toDouble() * 1000 / elapsed).toLong()
-        val remaining = if (total > done && speed > 0L) ((total - done) / speed) else null
-        return TtsDownloadSnapshot(done.coerceAtLeast(0L), total, speed, remaining)
+        return TtsDownloadSnapshot(done.coerceAtLeast(0L), total, speed, elapsed)
     }
 }
 
@@ -76,16 +88,16 @@ internal data class TtsDownloadSnapshot(
     val done: Long,
     val total: Long,
     val bytesPerSecond: Long,
-    val remainingSeconds: Long?,
+    val elapsedMs: Long = 0L,
 ) {
     val progress: Float get() = if (total > 0L) (done.toDouble() / total).toFloat().coerceIn(0f, 1f) else 0f
     val label: String get() = buildString {
-        append("%.1f".format(java.util.Locale.ROOT, done / 1048576.0))
+        append(formatTtsMegabytes(done))
         append(" / ")
-        append(if (total > 0L) "%.1f MB".format(java.util.Locale.ROOT, total / 1048576.0) else "未知大小")
+        append(if (total > 0L) formatTtsMegabytes(total) else "未知大小")
         append(" · ")
-        append("%.0f KB/s".format(java.util.Locale.ROOT, bytesPerSecond / 1024.0))
-        remainingSeconds?.let { append(" · 约${it / 60}分${it % 60}秒") }
+        append("%.0f KB/s".format(Locale.ROOT, bytesPerSecond / 1024.0))
+        ttsRemainingTimeLabel(done, total, elapsedMs, bytesPerSecond)?.let { append(" · $it") }
     }
 }
 
@@ -164,7 +176,7 @@ data class TtsModel(
     val voices: List<TtsVoice> = emptyList(),
 ) {
     /** 下载体积的人话表达。 */
-    val sizeLabel: String get() = if (bytes <= 0L) "未知" else "%d.%d MB".format(bytes / 1024 / 1024, (bytes / 1024 / 102) % 10)
+    val sizeLabel: String get() = if (bytes <= 0L) "未知" else formatTtsMegabytes(bytes)
 }
 
 /**

@@ -70,11 +70,11 @@ internal fun HomeScreen(
     var timetableBounds by remember { mutableStateOf(Rect.Zero) }
     // 长按课表里的课 → 确认后删除（长按比单击安全：格子小，误触代价大）
     var pendingDelete by remember { mutableStateOf<CourseDto?>(null) }
-    var nowMinutes by remember { mutableIntStateOf(ScheduleText.nowMinutes()) }
+    // 分钟心跳由今日卡片和时间线自行持有；首页只在日期变化时更新。
+    val nowMinutes = remember(epochDay) { ScheduleText.nowMinutes() }
     LaunchedEffect(Unit) {
         while (true) {
-            kotlinx.coroutines.delay(30_000)
-            nowMinutes = ScheduleText.nowMinutes()
+            kotlinx.coroutines.delay(60_000L - System.currentTimeMillis() % 60_000L)
             // 跨天：把"今天周几"和假期横幅一起换过来。
             // 周次不在这里重算 —— 它在 AppViewModel 里（TongluApp 的心跳调 refreshWeek()），
             // 因为首页离屏两页就会被销毁，靠首页兜不住。

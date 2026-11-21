@@ -1,5 +1,8 @@
 package cn.tonglu.app.ui
 
+import cn.tonglu.app.ui.timetable.*
+import androidx.compose.foundation.border
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -59,8 +62,13 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
     val latestTap by rememberUpdatedState(onTapCourse)
     val rows = maxOf(PeriodTable.maxPeriod(), allCourses.maxOfOrNull { it.endPeriod } ?: 8, 8).coerceAtMost(30)
     val lanes = remember(courses) { ScheduleMoveRules.groupedLanes(courses) }
+    val slots = PeriodTable.slots()
+    val breaks = timetableBreaks(slots).filter { it.afterPeriod < rows }
     val rowHeight = 76.dp
+    var pointerStartY by remember { mutableFloatStateOf(0f) }
     val rowPx = with(density) { rowHeight.toPx() }
+    val breakPx = with(density) { 22.dp.toPx() }
+    val insetPx = with(density) { 2.dp.toPx() }
     val edgePx = with(density) { 14.dp.toPx() }
     val scrollEdge = with(density) { 64.dp.toPx() }
     val scrollStep = with(density) { 8.dp.toPx() }
@@ -71,11 +79,19 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
         val laneCount = lanes.values.maxOfOrNull { it.second } ?: 1
         val readableWidth = 30.dp * laneCount * density.fontScale.coerceIn(1f, 1.6f)
         val dayWidth = ((maxWidth - timeWidth) / 7).coerceAtLeast(readableWidth)
+        // 可编辑时翻周滑动让给拖拽；只有七天放不下、网格能横向滚动时才提示左右滑。
+        val overflows = dayWidth > (maxWidth - timeWidth) / 7
         val horizontal = rememberScrollState()
         val dayPx = with(density) { dayWidth.toPx() }
         fun updateProposal() {
-            active?.let { proposed = ScheduleMoveRules.dragWithScroll(it, mode, dx, dy,
-                scrollAtStart, scroll.value, dayPx, rowPx, rows) }
+            active?.let {
+                val scrollDelta = (scroll.value - scrollAtStart).toFloat()
+                val flatDelta = timetableDragY(pointerStartY + dy + scrollDelta, rowPx, breaks, breakPx) -
+                    timetableDragY(pointerStartY, rowPx, breaks, breakPx)
+                // 原规则仍叠加滚动量，因此只传扣除滚动后的压平位移。
+                proposed = ScheduleMoveRules.dragWithScroll(it, mode, dx, flatDelta - scrollDelta,
+                    scrollAtStart, scroll.value, dayPx, rowPx, rows)
+            }
         }
         LaunchedEffect(active?.id) {
             while (active != null) {
@@ -89,18 +105,21 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
             }
         }
         Column(Modifier.fillMaxHeight().horizontalScroll(horizontal, enabled = active == null).width(timeWidth + dayWidth * 7)) {
-            Text("点按查看 · 长按拖动 · 拖上下边缘改节次 · 左右滑动看全周",
+            Text("点按查看 · 长按拖动 · 拖上下边缘改节次 · " + if (overflows) "左右滑动看全周" else "点上方周次换周",
                 style = MaterialTheme.typography.bodySmall, color = AppColors.TextSecondary,
                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp))
             Row(Modifier.fillMaxWidth().heightIn(min = 46.dp), verticalAlignment = Alignment.CenterVertically) {
                 Spacer(Modifier.width(timeWidth))
                 (1..7).forEach { day ->
-                    Column(Modifier.width(dayWidth), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Column(Modifier.width(dayWidth).background(if (day == today) AppColors.Accent.copy(alpha = .06f) else Color.Transparent), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(listOf("一", "二", "三", "四", "五", "六", "日")[day - 1], fontSize = 11.sp, lineHeight = 16.sp, maxLines = 1,
+                            fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
                             color = if (day == today) AppColors.Accent else AppColors.TextSecondary)
                         weekStartMillis?.let {
-                            Text(ScheduleText.dateLabelAt(it + (day - 1) * 86400000L).removeSuffix("日").replace("月", "/"),
-                                fontSize = 9.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = AppColors.TextMuted)
+                            Text(ScheduleText.dateLabelAt(ScheduleText.plusDays(it, day - 1)).removeSuffix("日").replace("月", "/"),
+                                fontSize = 9.sp, lineHeight = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                fontWeight = if (day == today) FontWeight.Bold else FontWeight.Normal,
+                                color = if (day == today) AppColors.Accent else AppColors.TextMuted)
                         }
                     }
                 }
@@ -108,11 +127,12 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
             Box(Modifier.weight(1f).onGloballyPositioned {
                 viewportTop = it.positionInRoot().y; viewportBottom = viewportTop + it.size.height
             }.verticalScroll(scroll)) {
-                Box(Modifier.fillMaxWidth().height(rowHeight * rows)) {
-                    Column {
-                        (1..rows).forEach { period ->
+                Box(Modifier.fillMaxWidth().height(courseGridHeight(1, rows, rowHeight.value, breaks, 22f).dp)) {
+                    if (today != null) Box(Modifier.offset(x = timeWidth + dayWidth * (today - 1))
+                        .width(dayWidth).fillMaxHeight().background(AppColors.Accent.copy(alpha = .06f)))
+                    (1..rows).forEach { period ->
                             val slot = PeriodTable.slot(period)
-                            Row(Modifier.height(rowHeight)) {
+                            Row(Modifier.offset(y = periodTop(period, rowHeight.value, breaks, 22f).dp).height(rowHeight)) {
                                 Column(Modifier.width(timeWidth).fillMaxHeight(),
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                     verticalArrangement = Arrangement.Center) {
@@ -123,37 +143,52 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                                     }
                                 }
                                 (1..7).forEach {
-                                    Box(Modifier.width(dayWidth).fillMaxHeight().padding(1.5.dp)
-                                        .clip(RoundedCornerShape(12.dp)).background(AppColors.Canvas))
+                                    Box(Modifier.width(dayWidth).fillMaxHeight().padding(2.dp)
+                                        .clip(RoundedCornerShape(14.dp)).background(AppColors.Canvas.copy(alpha = .35f)))
                                 }
                             }
+                    }
+                    breaks.forEach { rest ->
+                        val covered = courses.mapNotNull { course ->
+                            val shown = if (active?.id == course.id) proposed ?: course else course
+                            if (shown.startPeriod <= rest.afterPeriod && shown.endPeriod > rest.afterPeriod) {
+                                val (lane, count) = lanes[course.id] ?: (0 to 1)
+                                val left = (shown.weekday - 1 + lane.toFloat() / count) / 7f
+                                left to left + 1f / (7 * count)
+                            } else null
                         }
+                        TimetableBreakPill(rest.label, Modifier.offset(x = timeWidth,
+                            y = (periodTop(rest.afterPeriod, rowHeight.value, breaks, 22f) + rowHeight.value).dp)
+                            .width(dayWidth * 7).maskTimetableBreak(covered))
                     }
                     courses.forEach { course -> key(course.id) {
                         var bounds by remember { mutableStateOf(Rect.Zero) }
                         var rootY by remember { mutableFloatStateOf(0f) }
+                        val glass = glassColors(courseColor(course.name))
                         val shown = if (active?.id == course.id) proposed ?: course else course
                         val placement = lanes[course.id] ?: (0 to 1)
                         val lane = placement.first
                         val count = placement.second
                         val width = dayWidth / count
                         Box(Modifier.offset(x = timeWidth + dayWidth * (shown.weekday - 1) + width * lane,
-                            y = rowHeight * (shown.startPeriod - 1)).width(width)
-                            .height(rowHeight * (shown.endPeriod - shown.startPeriod + 1)).padding(1.5.dp)
+                            y = periodTop(shown.startPeriod, rowHeight.value, breaks, 22f).dp).width(width)
+                            .height(courseGridHeight(shown.startPeriod, shown.endPeriod, rowHeight.value, breaks, 22f).dp).padding(2.dp)
                             .zIndex(if (active?.id == course.id) 2f else 0f)
                             .onGloballyPositioned {
                                 val at = it.positionInWindow()
                                 bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height)
                                 rootY = it.positionInRoot().y
-                            }.shadow(if (active?.id == course.id) 8.dp else 0.dp, RoundedCornerShape(12.dp))
-                            .clip(RoundedCornerShape(12.dp)).background(courseColor(course.name))
+                            }.shadow(if (active?.id == course.id) 8.dp else 0.dp, RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(14.dp)).courseGlass(glass)
+                            .border(1.dp, glass.border, RoundedCornerShape(14.dp))
                             .semantics { contentDescription = "${course.name}，${ScheduleText.weekdayLabel(shown.weekday)}，${shown.startPeriod}–${shown.endPeriod}节；长按中间移动，上下边缘调整时长" }
                             .pointerInput(course, busy) { detectTapGestures(onTap = { if (!busy) latestTap(course, bounds) }) }
-                            .pointerInput(course, dayPx, rowPx, busy) {
+                            .pointerInput(course, dayPx, rowPx, breaks, busy) {
                                 if (!busy && course.startPeriod in 1..course.endPeriod && course.endPeriod <= rows)
                                     detectDragGesturesAfterLongPress(
                                         onDragStart = { point ->
                                             dx = 0f; dy = 0f; scrollAtStart = scroll.value
+                                            pointerStartY = periodTop(course.startPeriod, rowPx, breaks, breakPx) + insetPx + point.y
                                             mode = ScheduleMoveRules.gripMode(point.y, size.height.toFloat(), edgePx)
                                             fingerY = rootY + point.y; sourceBounds = bounds
                                             active = course; proposed = course; latestDragging(true)
@@ -169,13 +204,14 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                                             change.consume(); dx += amount.x; dy += amount.y; fingerY += amount.y; updateProposal()
                                         })
                             }) {
-                            CourseCardContent(course, shown)
+                            CourseCardContent(course, shown, foreground = glass.ink)
                             Box(Modifier.align(Alignment.TopCenter).padding(top = 3.dp).width(16.dp).height(2.dp)
-                                .background(AppColors.OnAccent.copy(alpha = .65f), RoundedCornerShape(2.dp)))
+                                .background(glass.ink.copy(alpha = .65f), RoundedCornerShape(2.dp)))
                             Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).width(16.dp).height(2.dp)
-                                .background(AppColors.OnAccent.copy(alpha = .65f), RoundedCornerShape(2.dp)))
+                                .background(glass.ink.copy(alpha = .65f), RoundedCornerShape(2.dp)))
                         }
                     } }
+                    TimetableNowLine(slots, rowHeight, today, timeWidth, dayWidth)
                 }
             }
         }

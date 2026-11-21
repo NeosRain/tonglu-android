@@ -76,6 +76,7 @@ data class BankQuestion(
     val audioEndMs: Int = -1,
 ) {
     val gradable: Boolean get() = type == "single-choice" && options.size >= 2 && answer in options.indices
+    val hasAudioSource: Boolean get() = !audioUrl.isNullOrBlank() || !audioText.isNullOrBlank()
 
     /** 题号与题库 id 都不得含冒号 —— 否则题目键会歧义（docs/plan/57 §一）。 */
     val keySafe: Boolean get() = id.isNotBlank() && !id.contains(':')

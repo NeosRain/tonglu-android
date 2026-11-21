@@ -45,7 +45,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -111,8 +113,6 @@ fun ListeningScreen(
 ) {
     val context = LocalContext.current
     val library = remember(owner) { ListeningLibrary.of(context, owner) }
-    val player = remember { ListeningPlayer() }
-    val preview = remember { ListeningPlayer() }
     val recorder = remember(owner) { ListeningRecorder(context, library.recordDir) }
 
     var materials by remember(owner) { mutableStateOf(library.list()) }
@@ -129,9 +129,6 @@ fun ListeningScreen(
     var libraryOpen by remember { mutableStateOf(false) }
     var notice by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<String?>(null) }
-    var tick by remember { mutableIntStateOf(0) }
-
-    DisposableEffect(player, preview) { onDispose { player.release(); preview.release() } }
     DisposableEffect(Unit) { onDispose { recorder.cancel() } }
 
     fun toast(text: String) { Toast.makeText(context, text, Toast.LENGTH_SHORT).show() }
@@ -144,7 +141,7 @@ fun ListeningScreen(
     //  motion 必须声明在 back() **之前**（局部函数不能引用后面的变量）。
     val motion = rememberOverlayMotion(
         onClose = {
-            player.release(); preview.release(); recorder.cancel()
+            recorder.cancel()
             OverlayDismissGuard.arm(); onClose()
         },
         predictive = OverlayMotion.enabledState,
@@ -156,7 +153,7 @@ fun ListeningScreen(
         when {
             importing -> importing = false
             libraryOpen -> libraryOpen = false
-            studioId != null -> { player.pause(); preview.pause(); studioId = null }
+            studioId != null -> studioId = null
             else -> motion.requestClose()
         }
     }
@@ -208,10 +205,11 @@ fun ListeningScreen(
                             notice = "导入失败：${cause.message ?: "请换一个文件试试"}"
                         }
                     }
-                    material != null -> StudioPane(material = material, library = library, player = player,
-                        preview = preview, recorder = recorder, tick = tick, owner = owner,
-                        onTick = { tick++ }, onChanged = { materials = library.list() },
-                        onNotice = { notice = it }, onToast = ::toast, onLookupWord = onLookupWord)
+                    material != null -> key(owner, material.id) {
+                        StudioPane(material = material, library = library, recorder = recorder,
+                            owner = owner, onChanged = { materials = library.list() },
+                            onNotice = { notice = it }, onToast = ::toast, onLookupWord = onLookupWord)
+                    }
                     else -> MaterialPane(materials = materials,
                         onOpen = { studioId = it },
                         onDelete = { confirmDelete = it },
@@ -575,13 +573,15 @@ private enum class StudioTab { Sentence, Question }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, player: ListeningPlayer,
-                       preview: ListeningPlayer, recorder: ListeningRecorder, tick: Int, onTick: () -> Unit,
+private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, recorder: ListeningRecorder,
                        onChanged: () -> Unit, onNotice: (String?) -> Unit, onToast: (String) -> Unit,
                        onLookupWord: (String) -> Unit, owner: String) {
     val context = LocalContext.current
-    var loaded by remember(material.id) { mutableStateOf(false) }
-    var playing by remember { mutableStateOf(false) }
+    val player = remember { ListeningPlayer() }
+    val preview = remember { ListeningPlayer() }
+    val playback by player.playback.collectAsState()
+    val previewPlayback by preview.playback.collectAsState()
+    val loaded = playback.isLoaded
     var speed by remember { mutableFloatStateOf(1.0f) }
     var loop by remember { mutableStateOf(true) }
     var range by remember { mutableStateOf<Pair<Int, Int>?>(null) }
@@ -648,7 +648,6 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
     /** 安全停止一切：切句、退层、被打断时统一走这里，避免串句或丢录音。 */
     fun stopAll() {
         if (recording) finishRecording() else { player.pause(); preview.pause() }
-        playing = false
         range = null
         recording = false
         stage = SentenceStage.Idle
@@ -659,7 +658,6 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
     LaunchedEffect(material.id) {
         try {
             player.load(library.audioFile(material.audio))
-            loaded = true
         } catch (cause: Exception) {
             android.util.Log.e("ListeningStore", "音频载入失败", cause)
             onNotice("音频载入失败：${cause.message ?: "这个文件可能已经不在了"}")
@@ -673,15 +671,21 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                 else { stage = SentenceStage.AwaitingMic; pendingRecord = activeIndex; requestMic.launch(android.Manifest.permission.RECORD_AUDIO) }
             }
         }
-        onDispose { player.onCompleted = null }
+        player.onError = {
+            range = null
+            if (stage == SentenceStage.Playing) stage = SentenceStage.Idle
+            onNotice("原音播放失败")
+        }
+        preview.onError = { onNotice("这条录音放不出来了，重新录一遍吧") }
+        onDispose {
+            player.release()
+            preview.release()
+            if (recorder.isRecording) recorder.stop()
+        }
     }
-    // 播放位置每 100ms 刷一次；进度条与循环区间都靠它
-    LaunchedEffect(material.id, loaded) {
-        if (!loaded) return@LaunchedEffect
-        while (true) { delay(100); onTick() }
-    }
-    LaunchedEffect(range, loop) {
+    LaunchedEffect(range, loop, stage, syncMode) {
         val r = range ?: return@LaunchedEffect
+        if (stage == SentenceStage.Playing && !syncMode) return@LaunchedEffect
         while (true) {
             delay(120)
             if (!player.isPlaying) break
@@ -698,7 +702,7 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
             delay(100)
             if (stage != SentenceStage.Playing) break
             if (player.positionMs >= r.second - 30) {
-                player.pause(); playing = false
+                player.pause()
                 if (activeIndex >= 0 && !recorder.isRecording) {
                     stage = SentenceStage.AwaitingMic
                     pendingRecord = activeIndex
@@ -708,20 +712,23 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
             }
         }
     }
-    // 离开这一屏（切材料/退层）时安全清理，别把录音丢了。
-    DisposableEffect(material.id) { onDispose { if (recorder.isRecording) recorder.stop() } }
+    fun pause() {
+        player.pause()
+        range = null
+        if (stage == SentenceStage.Playing) stage = SentenceStage.Idle
+    }
 
-    fun play() { if (!loaded) return; player.play(); playing = true }
-    fun pause() { player.pause(); playing = false }
-    fun playSentence(index: Int) {
+    fun playSentence(index: Int): Boolean {
+        if (!loaded) return false
         val start = material.sentences.getOrNull(index)?.startMs ?: run {
-            onNotice("这一句还没打点，先整段听或在下面标记它的起点"); return
+            onNotice("这一句还没打点，先整段听或在下面标记它的起点"); return false
         }
         val end = material.sentences.getOrNull(index + 1)?.startMs?.toInt()
             ?: player.durationMs.takeIf { it > 0 } ?: start.toInt() + 5000
-        if (end <= start) { onNotice("这一句的时间轴不对，重打一次点吧"); return }
+        if (end <= start) { onNotice("这一句的时间轴不对，重打一次点吧"); return false }
         range = start.toInt() to end
-        player.seek(start.toInt()); play()
+        player.seek(start.toInt())
+        return player.play()
     }
 
     /**
@@ -737,27 +744,25 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
         expanded = index
         when {
             stage == SentenceStage.Recording && activeIndex == index -> { finishRecording() }
-            stage == SentenceStage.Playing && activeIndex == index -> { player.pause(); playing = false }
+            stage == SentenceStage.Playing && activeIndex == index -> pause()
             else -> {
                 if (recorder.isRecording) recorder.stop()
                 recording = false
-                activeIndex = index
                 preview.pause()
-                playSentence(index)
+                if (!playSentence(index)) return
+                activeIndex = index
+                stage = SentenceStage.Playing
                 if (syncMode) {
                     // 同步跟读：边播边录。界面已提示推荐耳机，不承诺扬声器下干净录音。
-                    stage = SentenceStage.Playing
                     pendingRecord = index
                     requestMic.launch(android.Manifest.permission.RECORD_AUDIO)
-                } else {
-                    stage = SentenceStage.Playing
                 }
             }
         }
     }
 
-    val position = if (tick >= 0) player.positionMs else 0
-    val duration = if (loaded) player.durationMs else 0
+    val position = playback.positionMs
+    val duration = playback.durationMs ?: 0
     val aligned = material.aligned
     // 做题存储按 owner 分桶；和听力库同一个 owner，换号不串。
     val practice = remember(material.id, owner) { PracticeStore.of(context, owner) }
@@ -784,9 +789,10 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                 // 从解析回跳原文：切回句子训练并直接播这一句，用户不用自己去找。
                 tab = StudioTab.Sentence
                 expanded = index
-                playSentence(index)
-                stage = SentenceStage.Playing
-                activeIndex = index
+                if (playSentence(index)) {
+                    stage = SentenceStage.Playing
+                    activeIndex = index
+                }
             },
             onNotice = { onNotice(it) },
         )
@@ -811,10 +817,10 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        IconButton(onClick = { if (player.isPlaying) pause() else { range = null; play() } },
+                        IconButton(onClick = { if (player.isPlaying) pause() else { range = null; player.play() } },
                             enabled = loaded) {
-                            Icon(if (player.isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
-                                if (player.isPlaying) "暂停" else "播放")
+                            Icon(if (playback.isPlaying) Icons.Outlined.Pause else Icons.Outlined.PlayArrow,
+                                if (playback.isPlaying) "暂停" else "播放")
                         }
                         Text("${clock(position)} / ${clock(duration)}",
                             style = MaterialTheme.typography.bodySmall,
@@ -849,8 +855,9 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                         Button(onClick = {
                             val index = nextIndex
                             if (index < 0) return@Button
-                            library.markStart(material.id, index, player.positionMs.toLong())
-                            onChanged(); onNotice("第 ${index + 1} 句起点已标记为 ${clock(player.positionMs)}")
+                            val positionMs = player.currentPositionMs()
+                            library.markStart(material.id, index, positionMs.toLong())
+                            onChanged(); onNotice("第 ${index + 1} 句起点已标记为 ${clock(positionMs)}")
                         }, enabled = loaded && nextIndex >= 0) {
                             Text(if (nextIndex >= 0) "把当前位置标为第 ${nextIndex + 1} 句起点" else "全部句子已打点")
                         }
@@ -932,7 +939,7 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                                 android.util.Log.e("ListeningStore", "回放失败", cause)
                                 onNotice("这条录音放不出来了，重新录一遍吧")
                             }
-                        }) { Text(if (preview.isPlaying) "停回放" else "回放我的") }
+                        }) { Text(if (previewPlayback.isPlaying) "停回放" else "回放我的") }
                         if (sentence.practiced) Icon(Icons.Outlined.Check, "练过了",
                             tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                     }
@@ -947,7 +954,7 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                                 Button(onClick = { runSentence(index) }, enabled = loaded) {
                                     val (icon, label) = when {
                                         mine && stage == SentenceStage.Recording -> Icons.Outlined.Stop to "停止并保存"
-                                        mine && stage == SentenceStage.Playing ->
+                                        mine && stage == SentenceStage.Playing && playback.isPlaying ->
                                             Icons.Outlined.Pause to (if (syncMode) "停止（正在同步跟读）" else "暂停")
                                         mine && stage == SentenceStage.Review -> Icons.Outlined.Refresh to "重练这一句"
                                         else -> Icons.Outlined.PlayArrow to
@@ -960,7 +967,11 @@ private fun StudioPane(material: ListeningMaterial, library: ListeningLibrary, p
                             }
                             if (mine) {
                                 val status = when (stage) {
-                                    SentenceStage.Playing -> if (syncMode) "正在同步跟读（边说边录）" else "正在播放本句…"
+                                    SentenceStage.Playing -> when {
+                                        !playback.isPlaying -> ""
+                                        syncMode -> "正在同步跟读（边说边录）"
+                                        else -> "正在播放本句…"
+                                    }
                                     SentenceStage.AwaitingMic -> "等待麦克风授权…"
                                     SentenceStage.Recording -> "● 正在录音，说完点「停止并保存」"
                                     SentenceStage.Review -> "录好了，可先听示范、再听自己的"

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -402,6 +403,7 @@ internal fun SquarePostCard(
                     label = "分享",
                     tint = Muted,
                     onClick = { sharePost(context, post, categoryName, excerpt, truncated) },
+                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
                 )
                 Spacer(Modifier.weight(1f))
                 if (showReport) TextButton(onClick = onReport, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
@@ -416,10 +418,16 @@ internal fun SquarePostCard(
 
 /** 互动栏里的一项：图标 + 文案，整体可点。 */
 @Composable
-private fun ActionItem(icon: @Composable () -> Unit, label: String, tint: Color, onClick: () -> Unit) {
+private fun ActionItem(
+    icon: @Composable () -> Unit,
+    label: String,
+    tint: Color,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.clickable(onClick = onClick).padding(vertical = 6.dp),
+        modifier = modifier.clickable(onClick = onClick).padding(vertical = 6.dp),
     ) {
         icon()
         Spacer(Modifier.width(5.dp))

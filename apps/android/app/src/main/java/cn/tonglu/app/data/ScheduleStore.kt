@@ -186,9 +186,8 @@ object ScheduleBoard {
         nowMinutes: Int,
         todayStart: Long = ScheduleText.startOfDay(System.currentTimeMillis()),
     ): Pair<CourseDto, Int>? {
-        val dayMillis = 24L * 3600 * 1000
         for (offset in 0..6) {
-            if (Holidays.isHoliday(todayStart + offset * dayMillis)) continue
+            if (Holidays.isHoliday(ScheduleText.plusDays(todayStart, offset))) continue
             val day = (weekday - 1 + offset) % 7 + 1
             val pool = if (offset == 0) {
                 next(courses, day, week, nowMinutes)?.let { return it }

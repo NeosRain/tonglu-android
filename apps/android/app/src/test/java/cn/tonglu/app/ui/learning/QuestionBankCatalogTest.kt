@@ -54,6 +54,73 @@ class QuestionBankCatalogTest {
         assertEquals(1, nextUnansweredIndex(changed, emptySet()))
     }
 
+    @Test fun `缺音源听力题只读 选对或标不认识都不判分`() {
+        val bank = bank("cet4-2025-06-1-listening")
+        val question = bank.questionList.first()
+
+        assertTrue(question.gradable)
+        assertTrue(bank.isMissingListeningAudio(question))
+        assertFalse(bank.canGrade(question))
+        assertNull(bank.gradeAnswer(question, question.answer, unknown = false))
+        assertNull(bank.gradeAnswer(question, -1, unknown = true))
+    }
+
+    @Test fun `有原音或朗读文本的听力题及普通文字题仍可判分`() {
+        val listening = bank("cet4-2025-06-1-listening")
+        val question = listening.questionList.first()
+        val original = question.copy(audioUrl = "https://example.org/audio.mp3")
+        val narration = question.copy(audioText = "A short recording.")
+
+        assertEquals(true, listening.gradeAnswer(original, 0, unknown = false))
+        assertEquals(false, listening.gradeAnswer(narration, 1, unknown = false))
+        assertEquals(true, bank("cet4-2025-06-1-reading").gradeAnswer(question, 0, unknown = false))
+    }
+
+    @Test fun `继续作答跳过只读听力题`() {
+        val bank = bank("cet4-2025-06-1-listening")
+        val (first, second) = bank.questionList
+        val mixed = bank.copy(questions = listOf(first, second.copy(audioText = "A short recording.")))
+
+        assertEquals(1, nextUnansweredIndex(mixed, emptySet()))
+        assertEquals(1, nextUnansweredIndex(mixed, setOf(mixed.keyOf(second))))
+        assertEquals(0, nextUnansweredIndex(bank, emptySet()))
+    }
+
+    @Test fun `旧错题快照只保留有音源的听力题`() {
+        val bank = bank("cet4-2025-06-1-listening")
+        val (first, second) = bank.questionList
+        val playable = second.copy(audioText = "A short recording.")
+        val mixed = bank.copy(questions = listOf(first, playable))
+        val oldWrongKeys = mixed.questionList.map { mixed.keyOf(it) }.toSet()
+
+        assertEquals(listOf(playable), reviewQuestions(mixed, oldWrongKeys))
+    }
+
+    @Test fun `套卷听力标签区分全缺 部分缺和未下载`() {
+        val listening = bank("cet4-2025-06-1-listening")
+        val reading = bank("cet4-2025-06-1-reading")
+        val mixed = listening.copy(questions = listening.questionList.mapIndexed { index, question ->
+            if (index == 0) question.copy(audioUrl = "https://example.org/audio.mp3") else question
+        })
+        val pending = listening.copy(questions = null, remoteBytes = 100)
+
+        assertEquals("原音暂缺", examBankGroups(listOf(reading, listening)).single().listeningBank?.missingAudioLabel)
+        assertEquals("1 题缺原音", mixed.missingAudioLabel)
+        assertNull(pending.missingAudioLabel)
+        assertNull(reading.missingAudioLabel)
+    }
+
+    @Test fun `只有原音直链显示原音联网提示`() {
+        val bank = bank("cet4-2025-06-1-listening")
+        val narration = bank.questionList.first().copy(audioText = "A short recording.")
+        val withNarration = bank.copy(questions = listOf(narration))
+        val withOriginal = bank.copy(questions = listOf(narration.copy(audioUrl = "https://example.org/audio.mp3", audioText = null)))
+
+        assertFalse(withNarration.hasOriginalAudio)
+        assertTrue(withOriginal.hasOriginalAudio)
+        assertNull(withOriginal.missingAudioLabel)
+    }
+
     @Test fun `订正后本轮列表固定便于查看解析`() {
         val bank = bank("cet4-2026-06-1-reading")
         val snapshot = setOf("${bank.id}:q1")

@@ -1,6 +1,7 @@
 package cn.tonglu.app.data
 
 import java.util.Calendar
+import java.util.TimeZone
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -20,6 +21,23 @@ class ScheduleRegressionTest {
         for (week in 1..20) {
             val monday = ScheduleText.weekStartOfTerm(term, week)!!
             assertEquals(week, ScheduleText.weekOf(term, monday))
+        }
+    }
+
+    @Test fun weekDatesFollowCalendarDaysAcrossDaylightSavingChanges() {
+        val original = TimeZone.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+            // 11 月 1 日结束夏令时：第 11 周周一必须仍是 11/16，而不是 11/15 23:00。
+            val monday = ScheduleText.weekStartOfTerm("2026-09-07", 11)!!
+            assertEquals("11月16日", ScheduleText.dateLabelAt(monday))
+            assertEquals("11月22日", ScheduleText.dateLabelAt(ScheduleText.plusDays(monday, 6)))
+            assertEquals(11, ScheduleText.weekOf("2026-09-07", day(2026, 11, 16)))
+            // 3 月 8 日开始夏令时，那天只有 23 小时。
+            assertEquals(2, ScheduleText.weekOf("2027-03-01", day(2027, 3, 8)))
+            assertEquals("3月8日", ScheduleText.dateLabelAt(ScheduleText.weekStartOfTerm("2027-03-01", 2)!!))
+        } finally {
+            TimeZone.setDefault(original)
         }
     }
 

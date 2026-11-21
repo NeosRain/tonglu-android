@@ -290,7 +290,7 @@ object TodayWidgetSource {
      */
     internal fun nextRefreshAtState(state: TodayWidgetModel.State, nowMillis: Long): Long {
         val dayStart = ScheduleText.startOfDay(nowMillis)
-        val tomorrow = dayStart + 24L * 3600 * 1000
+        val tomorrow = ScheduleText.plusDays(dayStart, 1)
         if (state !is TodayWidgetModel.State.Courses) return tomorrow
 
         val nowMinutes = TodayWidgetModel.minutesOfDay(nowMillis)

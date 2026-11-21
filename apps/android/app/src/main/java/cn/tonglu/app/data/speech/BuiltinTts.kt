@@ -4,6 +4,8 @@ import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioTrack
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.k2fsa.sherpa.onnx.GeneratedAudio
 import com.k2fsa.sherpa.onnx.OfflineTts
@@ -12,10 +14,12 @@ import com.k2fsa.sherpa.onnx.OfflineTtsModelConfig
 import com.k2fsa.sherpa.onnx.OfflineTtsVitsModelConfig
 import java.io.File
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.ScheduledFuture
 import java.util.concurrent.TimeUnit
+
+internal typealias OfflineTtsFactory = (OfflineTtsConfig) -> OfflineTts
+internal val defaultOfflineTtsFactory: OfflineTtsFactory = { OfflineTts(null, it) }
 
 /**
  * **真的会发声**的内置离线语音引擎封装（docs/plan/55）。
@@ -50,12 +54,14 @@ object BuiltinTts {
     private val worker = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "tonglu-tts").apply { isDaemon = true }
     }
-    private val loading = AtomicBoolean(false)
+    private val mainHandler by lazy { Handler(Looper.getMainLooper()) }
     @Volatile private var clients = 0
     private val lifecycleLock = Any()
     private var idleRelease: ScheduledFuture<*>? = null
-    private val audioCache = object : android.util.LruCache<String, GeneratedAudio>(4 * 1024 * 1024) {
-        override fun sizeOf(key: String, value: GeneratedAudio): Int = value.samples.size * 4
+    private val audioCache by lazy {
+        object : android.util.LruCache<String, GeneratedAudio>(4 * 1024 * 1024) {
+            override fun sizeOf(key: String, value: GeneratedAudio): Int = value.samples.size * 4
+        }
     }
 
     fun attach() = synchronized(lifecycleLock) {
@@ -75,11 +81,6 @@ object BuiltinTts {
                 if (clients == 0) { releaseEngine(); audioCache.evictAll() }
             }
         }, 30, TimeUnit.SECONDS)
-    }
-
-    fun warm(context: Context, model: TtsModel) {
-        val app = context.applicationContext
-        worker.execute { synchronized(this) { if (clients > 0) ensure(app, model) } }
     }
 
     /**
@@ -113,9 +114,15 @@ object BuiltinTts {
      * 在主线程上就是一次实打实的界面冻结（试听按钮正是在主线程调进来的）。
      * [speak] 已经把它排进 [worker]，别在调用处再同步调一次（[selfTest] 例外，它本就在子线程）。
      */
-    @Synchronized fun ensure(context: Context, model: TtsModel): Boolean {
+    @Synchronized
+    private fun ensure(
+        context: Context, model: TtsModel, createEngine: OfflineTtsFactory = defaultOfflineTtsFactory,
+    ): Boolean {
+        if (!OfflineVoiceSupport.isSupported(context)) {
+            failure = OFFLINE_VOICE_UNSUPPORTED
+            return false
+        }
         if (engine != null && loadedId == "${model.id}:${model.sha256}") return true
-        if (!loading.compareAndSet(false, true)) return false
         return try {
             // ⚠️ 用 `releaseEngine()` 而不是 `release()`：换引擎不属于「用户叫停」，
             // 不该把代号 +1（一 +1，这一趟合成完就会当成过期被丢掉 → 点试听没声）。
@@ -126,21 +133,26 @@ object BuiltinTts {
                 return false
             }
             // 传 null 的 AssetManager = 按文件系统路径读（模型不再随包分发）。
-            val tts = OfflineTts(null, buildConfig(dir, model))
+            val tts = createEngine(buildConfig(dir, model))
             engine = tts
-            loadedId = "${model.id}:${model.sha256}"
             sampleRate = tts.sampleRate()
             speakers = tts.numSpeakers()
+            loadedId = "${model.id}:${model.sha256}"
             failure = null
             Log.i(TAG, "离线语音就绪：${model.id} 采样率=$sampleRate 说话人=$speakers 目录=${dir.name}")
             true
-        } catch (bad: Throwable) {
-            failure = "${bad::class.java.simpleName}: ${bad.message}"
-            Log.w(TAG, "离线语音加载失败（${model.id}）：$failure")
-            false
-        } finally {
-            loading.set(false)
+        } catch (bad: Exception) {
+            loadFailed(model, bad)
+        } catch (bad: LinkageError) {
+            loadFailed(model, bad)
         }
+    }
+
+    private fun loadFailed(model: TtsModel, error: Throwable): Boolean {
+        releaseEngine()
+        failure = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+        Log.w(TAG, "离线语音加载失败（${model.id}）", error)
+        return false
     }
 
     /** 按清单给出的文件名拼出**绝对路径**。清单里没写的（如英文没有 lexicon）就留空。 */
@@ -181,12 +193,14 @@ object BuiltinTts {
      *
      * @param rate 0.5~2.0，1.0 为原速（直接传给引擎的 speed）。
      * @param sid 说话人序号（多说话人模型才有意义，越界会被夹回 0）。
+     * @param onLoadFailed 在主线程报告仍有效的朗读请求的加载失败。
      * @return 是否**已经提交**朗读（不代表已经念完）。
      * 引擎没加载时也不阻塞：加载与合成一起排到后台，只有「模型没下载」会返回 false。
      */
-    fun speak(
+    internal fun speak(
         context: Context, model: TtsModel, text: String, rate: Float, sid: Int = 0,
-        onDone: (() -> Unit)? = null,
+        createEngine: OfflineTtsFactory = defaultOfflineTtsFactory,
+        onLoadFailed: (String) -> Unit,
     ): Boolean {
         if (text.isBlank()) return false
         // 加载**不放在这里**（FINDINGS #9）：这里跑在主线程上，ensure() 一加载就是几秒冻结。
@@ -201,7 +215,7 @@ object BuiltinTts {
         val app = context.applicationContext
         val cacheKey = "${model.id}:${model.sha256}|$sid|${rate.coerceIn(0.5f, 2.0f)}|$text"
         worker.execute { synchronized(this) {
-            if (generation.get() != mine) { onDone?.invoke(); return@execute }
+            if (generation.get() != mine) return@execute
             // 代号在**这一趟开始时**取（FINDINGS #9）。
             // 旧写法是「加载完 → stop() → 取代号」，于是模型加载那几秒里用户点的停止
             // 会被算进基线 —— 加载完照样合成、照样出声（我都退出了它还在念）。
@@ -209,14 +223,15 @@ object BuiltinTts {
             //    `ensure()` 重载模型时也会停一次，那是「换引擎」不是「用户叫停」，
             //    一旦它也把代号 +1，这一趟就会被自己作废，表现为点了试听一声不吭
             //    （2026-10-07 实测踩到，编译期看不出来）。
-            if (!ensure(app, model)) {
-                // 加载失败只可能出在文件坏了（装没装上面已经查过）。原因留在 lastError，
-                // 下一次再点就会如实说出来；这一趟不朗读，但也不吞掉证据。
-                Log.w(TAG, "离线语音未就绪，这一趟不朗读：$failure")
-                onDone?.invoke()
+            if (!ensure(app, model, createEngine)) {
+                val reason = checkNotNull(failure)
+                mainHandler.post {
+                    // 用户可能在模型加载期间停止、换声线或退出了播放页。
+                    if (generation.get() == mine) onLoadFailed(reason)
+                }
                 return@execute
             }
-            val tts = engine ?: run { onDone?.invoke(); return@execute }
+            val tts = checkNotNull(engine)
             try {
                 if (generation.get() != mine) return@execute
                 val who = if (speakers > 1) sid.coerceIn(0, speakers - 1) else 0
@@ -237,8 +252,6 @@ object BuiltinTts {
             } catch (bad: Throwable) {
                 failure = "${bad::class.java.simpleName}: ${bad.message}"
                 Log.w(TAG, "合成失败：$failure")
-            } finally {
-                onDone?.invoke()
             }
         } }
         return true
@@ -387,7 +400,11 @@ object BuiltinTts {
     /** 只释放引擎，**不动代号**（[ensure] 重载模型时用）。 */
     private fun releaseEngine() {
         haltTrack()
-        try { engine?.release() } catch (_: Throwable) {}
+        try { engine?.release() } catch (bad: Exception) {
+            Log.w(TAG, "释放离线语音引擎失败", bad)
+        } catch (bad: LinkageError) {
+            Log.w(TAG, "释放离线语音引擎失败", bad)
+        }
         engine = null
         loadedId = null
         sampleRate = 0

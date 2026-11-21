@@ -3,6 +3,9 @@ package cn.tonglu.app.data.speech
 import android.content.Context
 import cn.tonglu.app.data.SpeechProblem
 import cn.tonglu.app.data.TongluSpeech
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.getAndUpdate
 
 /**
  * 统一声音服务（docs/plan/47 §3 P3）。
@@ -154,12 +157,17 @@ sealed interface SpeechResult {
  *
  * 共用声音偏好与停止入口。各来源按实际安装/覆盖情况工作，失败明确提示。
  */
-class SpeechService(
-    private val context: Context,
+class SpeechService internal constructor(
+    private val contextProvider: () -> Context,
+    private val createOfflineEngine: OfflineTtsFactory,
     private val onProblem: (SpeechProblem) -> Unit = {},
 ) {
+    constructor(context: Context, onProblem: (SpeechProblem) -> Unit = {}) :
+        this({ context }, defaultOfflineTtsFactory, onProblem)
+
+    private val context get() = contextProvider()
     private var systemRequested = false
-    private val system = TongluSpeech(context) { problem -> if (systemRequested) onProblem(problem) }
+    private val system by lazy { TongluSpeech(context) { problem -> if (systemRequested) onProblem(problem) } }
     private var started = false
     private var cloud: CloudEnglishPlayback? = null
 
@@ -217,6 +225,11 @@ class SpeechService(
      */
     fun systemSupports(accent: Accent): Boolean = system.supports(speechLocale(accent))
 
+    internal val offlineSupported: Boolean get() = OfflineVoiceSupport.isSupported(context)
+
+    private fun systemVoice(accent: Accent): SpeechVoice =
+        SpeechCatalog.systemVoice(systemSupports(accent), accent, offlineSupported)
+
     /**
      * 该口音下**这台设备本次真的会用来朗读的那条声线**（以及「为什么不是系统朗读」的说明）。
      *
@@ -232,6 +245,10 @@ class SpeechService(
             return VoiceDecision(if (voice.accent == accent) voice else voice.copy(available = false,
                 unavailableReason = "这条声音是${voice.accent.label}，请在声音设置中选择${accent.label}声音"))
         }
+        val systemVoice = systemVoice(accent)
+        if (!offlineSupported && requestedVoiceId?.startsWith("builtin-") == true) {
+            return VoiceDecision(systemVoice)
+        }
         val builtin = SpeechCatalog.builtinVoices(context)
         val requested = requestedVoiceId
             ?.takeIf { it.isNotBlank() }
@@ -246,23 +263,27 @@ class SpeechService(
         if (requested != null && requested.accent == accent && !requested.available) {
             return VoiceDecision(requested)
         }
-        val systemOk = systemSupports(accent)
         return resolveSpokenVoice(
             accent = accent,
             requested = requested,
-            system = SpeechCatalog.systemVoice(systemOk, accent),
+            system = systemVoice,
             builtin = builtin,
-            systemCanSpeakAccent = systemOk,
+            systemCanSpeakAccent = systemVoice.available,
         )
+    }
+
+    /** 设置页恢复的是声线选择，离线模型由朗读请求加载。 */
+    internal fun restoreVoice(voice: SpeechVoice) {
+        current = voice
     }
 
     /** 换一条声音。不可用的声音**拒绝切换**并返回 false，不静默顶替。 */
     fun select(voice: SpeechVoice): Boolean {
         if (!voice.available) return false
+        if (voice.source == SoundSource.BuiltinVoice && !offlineSupported) return false
         if (voice.source == SoundSource.CloudVoice && CloudEnglishVoices.find(voice.id) == null) return false
         stop()
-        current = voice
-        if (voice.source == SoundSource.BuiltinVoice) modelOf(voice.modelId)?.let { BuiltinTts.warm(context, it) }
+        restoreVoice(voice)
         return true
     }
 
@@ -301,7 +322,7 @@ class SpeechService(
      * @return null = 装好了；非 null = 失败原因（给人看的）。
      */
     fun downloadModel(model: TtsModel, onProgress: (done: Long, total: Long) -> Unit = { _, _ -> }): String? =
-        TtsModelStore.download(context, model, onProgress)
+        if (offlineSupported) TtsModelStore.download(context, model, onProgress) else OFFLINE_VOICE_UNSUPPORTED
 
     /** 删掉一个已安装的模型（腾空间）。 */
     fun removeModel(model: TtsModel) = TtsModelStore.remove(context, model)
@@ -326,9 +347,9 @@ class SpeechService(
      */
     fun speak(request: SpeechRequest): SpeechResult {
         systemRequested = false
-        // Every request cancels the previous download/playback, including a
-        // switch back from cloud audio to system/builtin speech.
+        // 新请求作废前一条音频，包括仍在加载的离线模型对应的播放请求。
         CloudEnglishPlayback.stopActive()
+        BuiltinTts.stop()
         // 试听必须试到「用户点进去的那一条」，而不是当前默认那条：
         // 请求里带了 voiceId 就要按它解析声线，否则点「小雅」试听时
         // 实际发声的是系统朗读 —— 界面上看不出差别，但试听的是错的音色。
@@ -338,14 +359,11 @@ class SpeechService(
         // 系统朗读发不出英式，而已下载的英式离线声线根本没被考虑到，
         // 于是退回一条必然失败的系统朗读（弹「系统没有可用的英式声音」）。
         // 偏好里存的那条可能已经不可用了：系统 TTS 当初没就绪、或者离线模型被删了。
-        // `select()` 本来就拒绝不可用的声线，但**恢复路径不走 select**，以前直接拿来就用 ——
-        // 表现为「明明选过，点发音却没反应」。这里补上同一道闸（plan/56 §4.2 第 7 项）。
         val decision = voiceFor(request.accent, request.voiceId)
         val target = decision.voice
         if (target.source == SoundSource.CloudVoice) {
-            systemRequested = false
             if (!target.available) return SpeechResult.Unavailable(target.unavailableReason)
-            system.stop(); BuiltinTts.stop()
+            system.stop()
             current = target
             return (cloud ?: CloudEnglishPlayback(context).also { cloud = it }).play(request.copy(voiceId = target.id))
         }
@@ -362,22 +380,7 @@ class SpeechService(
         }
         val locale = if (request.locale.startsWith("en", true)) speechLocale(request.accent) else request.locale
         when (target.source) {
-            SoundSource.SystemTts -> {
-                systemRequested = true
-                if (request.text.isBlank()) return SpeechResult.Unavailable("没有可朗读的文本")
-                val ok = system.speak(
-                    request.text,
-                    request.utteranceId.ifBlank { request.text.take(32) },
-                    request.rate,
-                    locale,
-                )
-                return if (ok) SpeechResult.Spoken
-                else SpeechResult.Failed(system.lastFailure() ?: SpeechProblem.PLAY_FAILED,
-                    if (request.accent == Accent.British)
-                        "系统英式朗读不可用。两条出路：到系统「文字转语音」里下载英国英语（English UK）语音数据，" +
-                            "或到英语 → 声音设置里下载「英式离线声线」（不依赖系统语音包，30 MB 左右）。"
-                    else "系统朗读没能发声")
-            }
+            SoundSource.SystemTts -> return speakSystem(request, locale)
             SoundSource.BuiltinVoice -> {
                 if (request.text.isBlank()) return SpeechResult.Unavailable("没有可朗读的文本")
                 // 声线 → 真正发声的那个模型。名字不能当凭据，模型 id 才行。
@@ -412,12 +415,38 @@ class SpeechService(
                 // ⚠️ 必须把**这条声线自己的说话人序号**传下去。少传一个参数，
                 // 多说话人模型（fanchen-C 有 187 个）就会永远念 0 号 ——
                 // 界面上看不出任何异常，只是「选了男声还是女声」。
-                val ok = BuiltinTts.speak(context, model, request.text, request.rate, target.speakerId)
+                system.stop()
+                val ok = BuiltinTts.speak(context, model, request.text, request.rate, target.speakerId, createOfflineEngine) { reason ->
+                    if (started) {
+                        val fallback = speakSystem(request, locale)
+                        val outcome = if (fallback == SpeechResult.Spoken) "本次已改用系统朗读"
+                        else "系统朗读也未能发声"
+                        pendingOfflineLoadNotice.value = "「${target.name}」加载失败，$outcome。\n$reason"
+                    }
+                }
                 return if (ok) SpeechResult.Spoken
                 else SpeechResult.Unavailable(BuiltinTts.lastError ?: "离线语音还没准备好")
             }
             SoundSource.CloudVoice ->
                 return SpeechResult.Unavailable("这条云端声音暂未支持，请在声音设置中重新选择")
         }
+    }
+
+    private fun speakSystem(request: SpeechRequest, locale: String): SpeechResult {
+        if (request.text.isBlank()) return SpeechResult.Unavailable("没有可朗读的文本")
+        systemRequested = true
+        val ok = system.speak(request.text, request.utteranceId.ifBlank { request.text.take(32) }, request.rate, locale)
+        if (ok) return SpeechResult.Spoken
+        val hint = if (request.accent == Accent.British) systemVoice(Accent.British).unavailableReason
+            .ifBlank { "系统英式朗读没能发声" }
+        else "系统朗读没能发声"
+        return SpeechResult.Failed(system.lastFailure() ?: SpeechProblem.PLAY_FAILED, hint)
+    }
+
+    companion object {
+        private val pendingOfflineLoadNotice = MutableStateFlow<String?>(null)
+        internal val offlineLoadNotice = pendingOfflineLoadNotice.asStateFlow()
+
+        internal fun takeOfflineLoadNotice(): String? = pendingOfflineLoadNotice.getAndUpdate { null }
     }
 }

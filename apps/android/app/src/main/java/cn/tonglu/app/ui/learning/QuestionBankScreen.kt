@@ -137,48 +137,11 @@ internal data class RealPaperSite(val title: String, val url: String) {
  *  - `diagnosis` 词汇诊断（T6：按难度层抽题，见 [VocabDiagnosisPane]）
  *
  * 四条纪律：
- * 1. **未提交不露答案** —— 判分只在提交后读 `answer`，作答前连渲染的机会都没有。
+ * 1. **未提交不露答案** —— 可作答题提交后才显示答案；缺音源的听力题只读。
  * 2. **打开列表不自动下载** —— 远端题库显示成「待下载」，点了才下（不替用户花流量）。
- * 3. **离线可用** —— 已下载的题库与 assets 题库完全离线；没网时清单退回本机缓存。
+ * 3. **本机可读题面** —— 没网时清单退回本机缓存；原音需要联网播放。
  * 4. **打标** —— 自编练习与真题整理件分开展示，题组保留来源说明。
  */
-/**
- * 从今日卡点「错题复习」时，挑哪个题组开进去。
- *
- * 规则：**错题最多的那个组**；没有错题返回 null（调用方据此不开任何组）。
- * 为什么是「最多」而不是「第一个有错题的」：用户点「错题复习」想要的是一次练得动的复习，
- * 不是把只有 1 道错题的组翻出来。
- *
- * 错题键的形状是 `<bankId>:<questionId>`（见 `PracticeStore.QuestionAttempt.questionKey`），
- * 所以按 `"<bankId>:"` 前缀数。**抽成纯函数是为了能单测** —— `banks` + `store` 都要
- * 文件系统/网络，JVM 测试给不了，而「前缀匹配写错」会让某个组的错题永远数成 0
- * （界面表现只是「点了没反应」，不报错）。
- */
-internal fun bankWithMostWrong(bankIds: List<String>, wrongKeys: Set<String>): String? =
-    bankIds.map { id -> id to wrongKeys.count { it.startsWith("$id:") } }
-        .filter { it.second > 0 }
-        .maxByOrNull { it.second }?.first
-
-/**
- * 这一题**没有任何可播音频**，而它的题干本来就在录音里。
- *
- * 判据取两个**结构性**信号，不做文案匹配：
- *  1. 题库 id 的题型段是 `listening` —— [examBankId] 与本仓库
- *     `scripts/cet_pdf_to_banks.py` 的 TYPE_SLUG 共用这套命名，是稳定契约；
- *  2. 本题的 `audioUrl` 与 `audioText` 都为空（原音直链与合成朗读两条路都没接）。
- *
- * 为什么要单列这一个判据：真题听力**卷面只印选项、题干在录音里**。没有音频就没有题干，
- * 界面却照样渲染「四个选项 + 提交答案」，用户只能瞎猜，猜错还被当成真错题收进错题本。
- * 数据证据：生产 5 份听力题库里 4 份（100/125 题）这两个字段全空，见
- * `work/bank-gap-20261015/GAP.md`。
- *
- * ⚠️ 只加一条**如实说明**，不改判分、不改题库可见性、不伪造任何题面 ——
- * 「这题还算不算分」是产品决定，不在这处能定的范围内。
- */
-internal fun questionHasNoAudio(bank: QuestionBank, question: BankQuestion): Boolean =
-    bank.id.endsWith("-listening") &&
-        question.audioUrl.isNullOrBlank() && question.audioText.isNullOrBlank()
-
 @Composable
 internal fun QuestionBankScreen(
     owner: String,
@@ -236,6 +199,7 @@ internal fun QuestionBankScreen(
         }
     }
     val answeredKeys = remember(owner, revision) { store.attempts().map { it.questionKey }.toSet() }
+    val wrongKeys = remember(owner, revision) { store.wrongKeys() }
 
     // 首次进入：本机 assets 先顶上（不空屏），再异步拉远端清单。
     LaunchedEffect(owner) {
@@ -294,7 +258,7 @@ internal fun QuestionBankScreen(
                 ) {
                     item {
                         Column(Modifier.fillMaxWidth().padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("选择考次，下载后离线练习", fontWeight = FontWeight.SemiBold)
+                            Text("选择考次，下载题组", fontWeight = FontWeight.SemiBold)
                             Text("真题为第三方整理件，专项为自编练习。", style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant)
                             FlowRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -303,7 +267,8 @@ internal fun QuestionBankScreen(
                                 TextButton(onClick = { instructionsOpen = !instructionsOpen }) { Text(if (instructionsOpen) "收起说明" else "说明", color = AppColors.TextPrimary) }
                             }
                             AnimatedVisibility(instructionsOpen) {
-                                Text("题组下载后保存在本机。不同来源、套卷的选项顺序可能不同，请核对原卷。" +
+                                Text("题组下载后可离线查看题面，播放原音需联网。" +
+                                    "不同来源、套卷的选项顺序可能不同，请核对原卷。" +
                                     "官方考试网用于报名、大纲与查分，不提供历年真题下载。" +
                                     "自编练习不是真题；练习结果不预测考试分数。来源和权利说明见各题组。",
                                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -387,9 +352,7 @@ internal fun QuestionBankScreen(
                                 val downloading = progress[bank.id]
                                 BankCard(
                                     modifier = Modifier.animateItem(), bank = bank,
-                                    wrongCount = remember(owner, bank.id, revision) {
-                                        store.wrongKeys().count { it.startsWith("${bank.id}:") }
-                                    },
+                                    wrongCount = reviewQuestions(bank, wrongKeys).size,
                                     downloading = downloading != null,
                                     progressPercent = downloading,
                                     badge = "私有",
@@ -467,6 +430,13 @@ internal fun QuestionBankScreen(
                                         Text(row.group.title, fontWeight = FontWeight.SemiBold)
                                         Text("${row.group.banks.size} 个题型 · 第三方整理件", style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        row.group.listeningBank?.let { listening ->
+                                            listening.missingAudioLabel?.let { label ->
+                                                Text("听力 · $label", style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                            OriginalAudioNetworkHint(listening)
+                                        }
                                     }
                                     Text(if (row.expanded) "收起" else "展开", color = AppColors.TextPrimary)
                                 }
@@ -476,12 +446,10 @@ internal fun QuestionBankScreen(
                             val downloading = progress[bank.id]
                             BankCard(
                                 modifier = Modifier.animateItem(), bank = bank,
-                                answeredCount = bank.questionList.count { it.gradable && bank.keyOf(it) in answeredKeys },
+                                answeredCount = bank.questionList.count { bank.canGrade(it) && bank.keyOf(it) in answeredKeys },
                                 displayTitle = if (row.grouped) bank.title.substringAfterLast(" · ") else bank.title,
                                 compact = row.grouped,
-                                wrongCount = remember(owner, bank.id, revision) {
-                                    store.wrongKeys().count { it.startsWith("${bank.id}:") }
-                                },
+                                wrongCount = reviewQuestions(bank, wrongKeys).size,
                                 downloading = downloading != null,
                                 progressPercent = downloading,
                                 onClick = {
@@ -554,8 +522,14 @@ internal fun QuestionBankScreen(
     }
     // 题库目录保持在下面，练习和自测只是其上方的子层，返回时露出原目录。
     if (diagnosisOpen) {
+        val diagnosisBanks = remember(banks) {
+            banks.map { bank ->
+                if (bank.isListening) bank.copy(questions = bank.questionList.filter { it.hasAudioSource })
+                else bank
+            }
+        }
         VocabDiagnosisPane(
-            banks = banks,
+            banks = diagnosisBanks,
             store = store,
             loading = loading, loadError = localBanksError,
             onExit = { diagnosisOpen = false },
@@ -569,9 +543,9 @@ internal fun QuestionBankScreen(
     var wrongReviewBankId by rememberSaveable(owner) { mutableStateOf<String?>(null) }
     // 当前复习标记退出时清除；直达已消费则保存，重建后不重新打开。
     var wrongReviewOpened by rememberSaveable(owner, wrongReview) { mutableStateOf(false) }
-    LaunchedEffect(wrongReview, banks, owner) {
+    LaunchedEffect(wrongReview, banks, owner, wrongKeys) {
         if (!wrongReview || wrongReviewOpened || banks.isEmpty()) return@LaunchedEffect
-        val best = bankWithMostWrong(banks.map { it.id }, store.wrongKeys()) ?: return@LaunchedEffect
+        val best = bankWithMostWrong(banks, wrongKeys) ?: return@LaunchedEffect
         wrongReviewOpened = true
         wrongReviewBankId = best
         openBankId = best
@@ -623,6 +597,18 @@ private fun CatalogFilterChip(selected: Boolean, onClick: () -> Unit, enabled: B
 }
 
 @Composable
+private fun OriginalAudioNetworkHint(bank: QuestionBank) {
+    if (bank.hasOriginalAudio) {
+        Text("播放原音需联网", style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private val sourceNoteBold = Regex("""\*\*(.+?)\*\*""")
+
+internal fun stripSourceNoteBold(note: String): String = sourceNoteBold.replace(note, "$1")
+
+@Composable
 private fun BankCard(
     bank: QuestionBank,
     wrongCount: Int,
@@ -656,7 +642,9 @@ private fun BankCard(
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(displayTitle, fontWeight = FontWeight.SemiBold)
+                    val audioLabel = bank.missingAudioLabel
+                    Text(if (audioLabel == null) displayTitle else "$displayTitle · $audioLabel",
+                        fontWeight = FontWeight.SemiBold)
                     if (badge != null) {
                         Surface(color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f),
                             shape = RoundedCornerShape(6.dp)) {
@@ -680,8 +668,9 @@ private fun BankCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+                OriginalAudioNetworkHint(bank)
                 if (answeredCount > 0) {
-                    val total = bank.questionList.count { it.gradable }
+                    val total = bank.questionList.count { bank.canGrade(it) }
                     Text("已练 $answeredCount / $total 题 · ${if (answeredCount < total) "点开继续" else "可重新练习"}", style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary)
                 }
@@ -736,14 +725,17 @@ internal fun BankQuizPane(
 ) {
     val questionStates = key(owner, bank.id) { rememberSaveableStateHolder() }
     var revision by remember { mutableIntStateOf(0) }
-    val wrongKeys = remember(owner, bank.id, revision) { store.wrongKeys().filter { it.startsWith("${bank.id}:") }.toSet() }
+    val wrongKeys = remember(owner, bank, revision) {
+        reviewQuestions(bank, store.wrongKeys()).map { bank.keyOf(it) }.toSet()
+    }
     var reviewKeys by rememberSaveable(owner, bank.id, stateSaver = listSaver<Set<String>, String>(
         save = { it.toList() }, restore = { it.toSet() },
     )) { mutableStateOf(wrongKeys) }
     val wrongHere = reviewQuestions(bank, reviewKeys)
 
     // 没有错题时**不**预置成 true：那会开出一个空列表，看起来像卡住。
-    var onlyWrong by rememberSaveable(owner, bank.id) { mutableStateOf(initialOnlyWrong && wrongKeys.isNotEmpty()) }
+    var reviewMode by rememberSaveable(owner, bank.id) { mutableStateOf(initialOnlyWrong && wrongKeys.isNotEmpty()) }
+    val onlyWrong = reviewMode && wrongHere.isNotEmpty()
     var index by rememberSaveable(owner, bank.id) {
         mutableIntStateOf(if (initialOnlyWrong && wrongKeys.isNotEmpty()) 0
             else nextUnansweredIndex(bank, store.attempts().map { it.questionKey }.toSet()))
@@ -787,22 +779,23 @@ internal fun BankQuizPane(
                 ) {
                     item {
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            CatalogFilterChip(selected = !onlyWrong, onClick = { onlyWrong = false; index = 0 },
+                            CatalogFilterChip(selected = !onlyWrong, onClick = { reviewMode = false; index = 0 },
                                 label = { Text("全部题（${bank.size}）") })
                             CatalogFilterChip(
                                 selected = onlyWrong,
-                                onClick = { if (wrongKeys.isNotEmpty()) { reviewKeys = wrongKeys; onlyWrong = true; index = 0 } },
+                                onClick = { if (wrongKeys.isNotEmpty()) { reviewKeys = wrongKeys; reviewMode = true; index = 0 } },
                                 enabled = onlyWrong || wrongKeys.isNotEmpty(),
                                 label = {
-                                    Text(if (onlyWrong) "本轮错题（${wrongHere.size}）" else if (wrongKeys.isEmpty()) "错题（空）" else "只练错题（${wrongKeys.count { it.startsWith("${bank.id}:") }}）")
+                                    Text(if (onlyWrong) "本轮错题（${wrongHere.size}）" else if (wrongKeys.isEmpty()) "错题（空）" else "只练错题（${wrongKeys.size}）")
                                 },
                             )
                         }
                     }
                     // 显示题组发布时的来源，第三方整理件不冒充官方发布。
                     item {
-                        Text(bank.sourceNote, style = MaterialTheme.typography.labelSmall,
+                        Text(stripSourceNoteBold(bank.sourceNote), style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        OriginalAudioNetworkHint(bank)
                     }
                     // 原卷/答案解析直链（第三方整理件，公开可下）。只给入口，不内嵌文件。
                     bank.sourceLink?.let { url ->
@@ -951,15 +944,15 @@ internal fun BankQuestionCardInternal(
     onResetAnswer: (() -> Unit)? = null,
 ) {
     val questionKey = bank.keyOf(question)
+    val missingAudio = bank.isMissingListeningAudio(question)
     var chosen by rememberSaveable(owner, questionKey) { mutableIntStateOf(-1) }
     var submitted by rememberSaveable(owner, questionKey) { mutableStateOf(false) }
     var wasCorrect by rememberSaveable(owner, questionKey) { mutableStateOf(false) }
     var markedUnknown by rememberSaveable(owner, questionKey) { mutableStateOf(false) }
     var saveError by rememberSaveable(owner, questionKey) { mutableStateOf<String?>(null) }
-    val stats = remember(owner, questionKey, submitted) { store.statsOf(questionKey) }
     fun submitAnswer(answer: Int, unknown: Boolean = false) {
         if (!interactionEnabled || !isInteractionCurrent() || submitted) return
-        val correct = !unknown && answer == question.answer
+        val correct = bank.gradeAnswer(question, answer, unknown) ?: return
         try {
             store.record(questionId = question.id, materialId = bank.id, materialTitle = bank.title,
                 chosen = answer, correct = correct, questionKey = questionKey, mode = PracticeMode.QUIZ)
@@ -988,21 +981,25 @@ internal fun BankQuestionCardInternal(
             } else {
                 question.audioText?.takeIf { it.isNotBlank() }?.let { EnglishPromptAudio(it, questionKey) }
             }
-            // 听力卷没有任何音源时必须当场说明。以前这里什么都不显示，用户看到的是
-            // 「一句让他去听录音的提示 + 四个选项 + 提交答案」—— 题干根本听不到，只能瞎猜，
-            // 猜错还会被当成真错题收进错题本。判据见 [questionHasNoAudio]。
-            if (questionHasNoAudio(bank, question)) {
+            if (missingAudio) {
                 Text(
-                    "本题所属卷没有接入音频：听力题干在录音里，卷面只印选项，所以这里听不到题干。" +
-                        "可先点上方「下载原卷 PDF」对照原卷，或到「专项」里做自编听力（合成朗读）。",
+                    "本题原音暂缺，可查看题目与答案解析",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             Text(question.prompt.ifBlank { "（这道题没有题面）" }, fontWeight = FontWeight.SemiBold)
-            saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
 
-            if (bank.subjective && question.type == "prompt") {
+            if (missingAudio) {
+                question.options.forEachIndexed { i, option ->
+                    val state = if (i == question.answer) BankChoiceState.Correct else BankChoiceState.Neutral
+                    BankChoiceRow(option, false, letter(i), state, null)
+                }
+                if (question.answer in question.options.indices) {
+                    Text("正确答案 ${letter(question.answer)}", fontWeight = FontWeight.SemiBold)
+                }
+                BankAnswerExplanation(question.explanation)
+            } else if (bank.subjective && question.type == "prompt") {
                 Text("主观练习 · 不自动判分", color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.labelLarge)
                 Text("先按题干自行写作或翻译，再对照原卷资料。这里不会给出虚假的对错或考试分数。",
@@ -1018,11 +1015,12 @@ internal fun BankQuestionCardInternal(
                         Text("问 AI · 练习思路")
                     }
                 }
-            } else if (!question.gradable) {
+            } else if (!bank.canGrade(question)) {
                 // 数据不全的题老实说做不了，不摆一排点了没反应的选项。
                 Text("这道题的数据不完整（缺选项或答案），本机不做判分。",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             } else if (!submitted) {
+                saveError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 // 未提交：只渲染选项，不泄露任何对错信息。
                 question.options.forEachIndexed { i, option ->
                     BankChoiceRow(option, chosen == i, letter(i), BankChoiceState.Neutral,
@@ -1074,16 +1072,8 @@ internal fun BankQuestionCardInternal(
                     Text("听力原文", style = MaterialTheme.typography.labelLarge)
                     Text(question.audioText.orEmpty(), style = MaterialTheme.typography.bodyMedium)
                 }
-                if (question.explanation.isNotBlank()) {
-                    Surface(color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
-                        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("解析", style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.SemiBold)
-                            Text(question.explanation, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
+                BankAnswerExplanation(question.explanation)
+                val stats = remember(owner, questionKey) { store.statsOf(questionKey) }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically) {
                     Button(enabled = interactionEnabled, onClick = {
@@ -1098,6 +1088,18 @@ internal fun BankQuestionCardInternal(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun BankAnswerExplanation(explanation: String) {
+    if (explanation.isBlank()) return
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("解析", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+            Text(explanation, style = MaterialTheme.typography.bodyMedium)
         }
     }
 }

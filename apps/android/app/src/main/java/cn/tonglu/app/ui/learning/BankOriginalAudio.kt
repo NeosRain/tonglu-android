@@ -2,6 +2,9 @@ package cn.tonglu.app.ui.learning
 
 import android.content.Context
 import android.media.AudioManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,6 +14,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -21,10 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.listening.AudioRange
+import cn.tonglu.app.data.listening.ListeningNetworkUnavailable
 import cn.tonglu.app.data.listening.ListeningPlayer
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 
 /**
  * 真题听力的**原版录音**播放条。
@@ -40,7 +45,7 @@ import kotlinx.coroutines.withContext
  * 第一版在 `LaunchedEffect` 里直接 `loadUrl` —— 于是**题目一出现就开始拉整段 mp3**
  * （六级真题那条 **25MB**）。三个后果：切题时重拉一次、静音时也白拉、滚动/切题那一下
  * 更容易顿。现在改成：
- * 1. **点「播放原音」才加载**（`Loading` → `Ready`，加载在 IO 线程）；
+ * 1. **点播放才异步准备**，断网或 8 秒未就绪时允许重试；
  * 2. **音量 0 时连加载都不做**，直接提示调音量（省一次 25MB 流量）；
  * 3. 离开这一题 `release()`，不留后台播放。
  */
@@ -56,39 +61,70 @@ internal fun BankOriginalAudio(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val player = remember(questionKey) { ListeningPlayer() }
+    val player = remember(questionKey, url) { ListeningPlayer() }
+    val playback by player.playback.collectAsState()
 
-    var loading by remember(questionKey) { mutableStateOf(false) }
-    var ready by remember(questionKey) { mutableStateOf(false) }
-    var playing by remember(questionKey) { mutableStateOf(false) }
-    var notice by remember(questionKey) { mutableStateOf<String?>(null) }
+    var loading by remember(player) { mutableStateOf(false) }
+    var loadJob by remember(player) { mutableStateOf<Job?>(null) }
+    var failure by remember(player) { mutableStateOf<String?>(null) }
+    var notice by remember(player) { mutableStateOf<String?>(null) }
+    var retryRange by remember(player) { mutableStateOf<AudioRange.Segment?>(null) }
 
     // 时间轴由服务端给；**收口只认合法区间**（见 AudioRange 的说明）。
-    val segment = remember(questionKey, startMs, endMs, durationMs) {
-        AudioRange.clamp(startMs, endMs, durationMs)
+    val segment = AudioRange.clamp(startMs, endMs, playback.durationMs ?: durationMs)
+
+    fun hasInternet(): Boolean {
+        val connectivity = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val network = connectivity.activeNetwork ?: return false
+        return connectivity.getNetworkCapabilities(network)
+            ?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
     }
 
     DisposableEffect(player) {
-        onDispose { player.release() }
+        player.onError = {
+            failure = if (hasInternet()) "原音播放失败，请重试" else ListeningNetworkUnavailable.MESSAGE
+        }
+        onDispose {
+            loadJob?.cancel()
+            player.onError = null
+            player.release()
+        }
     }
 
     /** 加载后才播。给了 [range] 就只播这一段（到点自己停）。 */
     fun ensureLoadedAndPlay(range: AudioRange.Segment? = null) {
-        scope.launch {
-            loading = true
-            notice = null
-            val failure = runCatching { withContext(Dispatchers.IO) { player.loadUrl(url) } }
-                .exceptionOrNull()
-            loading = false
-            if (failure != null) {
-                ready = false
-                notice = "原音加载失败：${failure.message ?: failure.javaClass.simpleName}"
-                return@launch
+        if (loading) return
+        notice = null
+        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) <= 0) {
+            notice = "媒体音量为零，请调高音量后播放。"
+            return
+        }
+        retryRange = range
+        failure = null
+        fun play() {
+            if (range == null) player.play() else player.playRange(range.startMs, range.endMs)
+        }
+        val hasNetwork = hasInternet()
+        if (hasNetwork && player.isLoaded) {
+            play()
+            return
+        }
+        loading = true
+        loadJob = scope.launch {
+            try {
+                player.loadUrl(url, hasNetwork)
+                play()
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (cause: ListeningNetworkUnavailable) {
+                failure = ListeningNetworkUnavailable.MESSAGE
+            } catch (cause: Exception) {
+                Log.w("BankOriginalAudio", "原音加载失败", cause)
+                failure = if (hasInternet()) "原音加载失败，请重试" else ListeningNetworkUnavailable.MESSAGE
+            } finally {
+                loading = false
             }
-            ready = true
-            player.onCompleted = { playing = false }
-            if (range != null) player.playRange(range.startMs, range.endMs) else player.play()
-            playing = true
         }
     }
 
@@ -98,29 +134,18 @@ internal fun BankOriginalAudio(
             OutlinedButton(
                 enabled = !loading,
                 onClick = {
-                    notice = null
-                    val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                    if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) <= 0) {
-                        // 音量 0 时播了也是听不见 —— 明说，并且**省掉这次加载**
-                        notice = "媒体音量为零，请调高音量后播放。"
-                        return@OutlinedButton
-                    }
-                    if (playing) {
-                        player.pause()
-                        playing = false
-                    } else if (ready) {
-                        player.play()
-                        playing = true
-                    } else {
-                        ensureLoadedAndPlay()
+                    when {
+                        failure != null -> ensureLoadedAndPlay(retryRange)
+                        player.isPlaying -> player.pause()
+                        else -> ensureLoadedAndPlay()
                     }
                 },
             ) {
                 Text(
                     when {
                         loading -> "正在加载原音…"
-                        playing -> "暂停"
-                        ready -> "播放原音"
+                        failure != null -> "重试"
+                        playback.isPlaying -> "暂停"
                         else -> "播放原音"
                     }
                 )
@@ -133,20 +158,7 @@ internal fun BankOriginalAudio(
             segment?.let { seg ->
                 OutlinedButton(
                     enabled = !loading,
-                    onClick = {
-                        notice = null
-                        val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-                        if (audio.getStreamVolume(AudioManager.STREAM_MUSIC) <= 0) {
-                            notice = "媒体音量为零，请调高音量后播放。"
-                            return@OutlinedButton
-                        }
-                        if (ready) {
-                            player.playRange(seg.startMs, seg.endMs)
-                            playing = true
-                        } else {
-                            ensureLoadedAndPlay(seg)
-                        }
-                    },
+                    onClick = { ensureLoadedAndPlay(seg) },
                 ) { Text("重听本题") }
             }
         }
@@ -162,7 +174,7 @@ internal fun BankOriginalAudio(
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        notice?.let {
+        (notice ?: failure)?.let {
             Text(it, style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.error)
         }

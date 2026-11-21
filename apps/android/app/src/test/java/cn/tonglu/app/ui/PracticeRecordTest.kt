@@ -2,7 +2,10 @@ package cn.tonglu.app.ui
 
 import cn.tonglu.app.data.listening.PracticeMode
 import cn.tonglu.app.data.listening.QuestionAttempt
+import cn.tonglu.app.data.question.BankQuestion
+import cn.tonglu.app.data.question.QuestionBank
 import cn.tonglu.app.ui.learning.PracticeRecord
+import cn.tonglu.app.ui.learning.bankWithMostWrong
 import cn.tonglu.app.ui.learning.practiceRecordOf
 import org.junit.Assert.assertEquals
 import org.junit.Test
@@ -93,36 +96,46 @@ class PracticeRecordTest {
     }
 }
 
-/**
- * 「错题复习」点进去开哪个题组（`QuestionBankScreen.bankWithMostWrong`）。
- *
- * 为什么要单测：这是本轮**唯一没法在真机上确认**的行为（真机当时已断开），
- * 而它写错的症状极轻 —— 只是「点了错题复习没反应」，不报错、不崩、日志也没有。
- * 前缀匹配是这里最容易错的一步，所以拿它当判据。
- */
+/** 今日卡直达分组选取。 */
 class BankWrongPickTest {
+    private fun bank(id: String, vararg questionIds: String) =
+        QuestionBank(
+            id, id, questions = questionIds.map {
+                BankQuestion(it, options = listOf("甲", "乙"), answer = 0)
+            },
+        )
 
     @Test
     fun `挑错题最多的那个题组`() {
         val keys = setOf("bankA:q1", "bankA:q2", "bankA:q3", "bankB:q9", "bankC:q1")
-        assertEquals("bankA", cn.tonglu.app.ui.learning.bankWithMostWrong(listOf("bankB", "bankC", "bankA"), keys))
+        val banks = listOf(bank("bankB", "q9"), bank("bankC", "q1"), bank("bankA", "q1", "q2", "q3"))
+        assertEquals("bankA", bankWithMostWrong(banks, keys))
     }
 
     @Test
-    fun `前缀必须带冒号，否则 bank 会被 bank1 蹭到`() {
-        // 对照组：把错题都记在 `bankA` 上，而清单里有个 `bankA2`。
-        // 若实现写成 startsWith(id)（没有冒号），bankA2 会把它算成自己的错题。
-        val keys = setOf("bankA:q1")
-        assertEquals("bankA", cn.tonglu.app.ui.learning.bankWithMostWrong(listOf("bankA2", "bankA"), keys))
+    fun `相同题号的错题按题组区分`() {
+        val banks = listOf(bank("bankA", "q1"), bank("bankA2", "q1"))
+        assertEquals("bankA2", bankWithMostWrong(banks, setOf("bankA2:q1")))
     }
 
     @Test
     fun `没有错题返回 null，不要在空组里硬开一个`() {
-        assertEquals(null, cn.tonglu.app.ui.learning.bankWithMostWrong(listOf("bankA", "bankB"), emptySet()))
+        assertEquals(null, bankWithMostWrong(listOf(bank("bankA", "q1")), emptySet()))
+    }
+
+    @Test
+    fun `直达错题跳过仅含缺音源旧错题的听力组`() {
+        val listening = bank("cet4-2025-06-1-listening", "q1", "q2")
+        val reading = bank("cet4-2025-06-1-reading", "q1")
+        val missingAudioKeys = listening.questionList.map { listening.keyOf(it) }.toSet()
+        val banks = listOf(listening, reading)
+
+        assertEquals(null, bankWithMostWrong(banks, missingAudioKeys))
+        assertEquals(reading.id, bankWithMostWrong(banks, missingAudioKeys + reading.keyOf(reading.questionList.first())))
     }
 
     @Test
     fun `清单为空也返回 null`() {
-        assertEquals(null, cn.tonglu.app.ui.learning.bankWithMostWrong(emptyList(), setOf("bankA:q1")))
+        assertEquals(null, bankWithMostWrong(emptyList(), setOf("bankA:q1")))
     }
 }

@@ -125,6 +125,7 @@ import androidx.compose.ui.graphics.lerp as lerpColor
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
@@ -1112,7 +1113,7 @@ private fun TopActionRow(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = if (onSubmit == null) 6.dp else 1.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1286,57 +1287,62 @@ private fun SearchField(
         Modifier.clip(shape).background(fieldColor(onGlass, flat))
     }
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
-    Row(
-        modifier.then(decor).height(36.dp).padding(horizontal = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // 图标即「提交」：学习页点它 = 问 AI（回车同效）。无 onSubmit 时只是装饰。
-        val searchIcon: @Composable () -> Unit = {
-            Icon(Icons.Outlined.Search, contentDescription = if (onSubmit != null) "搜索" else null,
-                modifier = Modifier.size(16.dp), tint = hintInk)
-        }
-        if (onSubmit != null) {
-            Box(Modifier.size(26.dp).clip(CircleShape).clickable(enabled = enabled, onClick = onSubmit),
-                contentAlignment = Alignment.Center) { searchIcon() }
-        } else {
-            Box(Modifier.size(26.dp), contentAlignment = Alignment.Center) { searchIcon() }
-        }
-        Spacer(Modifier.width(6.dp))
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (value.isEmpty() && !focused) {
-                Text(hint, color = hintInk, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            BasicTextField(
-                value = value,
-                onValueChange = onValueChange,
-                // enabled=false → 这一小会儿点不进去、也拿不到焦点（返回穿透那一下落空）
-                enabled = enabled,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onFocusChanged { focused = it.isFocused }
-                    .semantics { if (value.isEmpty()) contentDescription = hint },
-                singleLine = true,
-                textStyle = TextStyle(color = NavInk, fontSize = 13.sp),
-                cursorBrush = SolidColor(if (onGlass) GlassTokens.AccentOnGlass else Accent),
-                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
-                    onSubmit?.invoke(); focusManager.clearFocus()
-                }),
-            )
-        }
-        if (value.isNotEmpty()) {
-            Spacer(Modifier.width(6.dp))
-            // 清除按钮：原来 16dp / 浅灰底 / 11dp 白叉，几乎看不见（用户点名）。加大加深。
+    val canSubmit = onSubmit != null
+    Box(modifier, contentAlignment = Alignment.Center) {
+        if (canSubmit) Box(Modifier.matchParentSize().padding(vertical = 6.dp).then(decor))
+        Row(
+            Modifier.then(if (canSubmit) Modifier else decor)
+                .fillMaxWidth().height(if (canSubmit) 48.dp else 36.dp)
+                .padding(start = if (canSubmit) 1.dp else 12.dp, end = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            // 学习页的放大镜占独立点击区，背景仍保持 36dp 高。
             Box(
-                Modifier
-                    .size(GlassTokens.SearchClearSizeDp.dp)
-                    .clip(CircleShape)
-                    .background(if (dark) Color(0xFF4A4E57) else Color(0xFF9AA1AC))
-                    .clickable(enabled = enabled) { onValueChange("") },
+                if (onSubmit != null) Modifier.size(48.dp).clip(CircleShape)
+                    .clickable(enabled = enabled, role = Role.Button, onClick = onSubmit)
+                else Modifier.size(26.dp),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Outlined.Close, contentDescription = "清空",
-                    modifier = Modifier.size(GlassTokens.SearchClearIconDp.dp), tint = Color.White)
+                Icon(Icons.Outlined.Search, contentDescription = if (canSubmit) "搜索" else null,
+                    modifier = Modifier.size(16.dp), tint = hintInk)
+            }
+            if (!canSubmit) Spacer(Modifier.width(6.dp))
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                if (value.isEmpty() && !focused) {
+                    Text(hint, color = hintInk, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                BasicTextField(
+                    value = value,
+                    onValueChange = onValueChange,
+                    // enabled=false → 这一小会儿点不进去、也拿不到焦点（返回穿透那一下落空）
+                    enabled = enabled,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused }
+                        .semantics { if (value.isEmpty()) contentDescription = hint },
+                    singleLine = true,
+                    textStyle = TextStyle(color = NavInk, fontSize = 13.sp),
+                    cursorBrush = SolidColor(if (onGlass) GlassTokens.AccentOnGlass else Accent),
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                    keyboardActions = androidx.compose.foundation.text.KeyboardActions(onSearch = {
+                        onSubmit?.invoke(); focusManager.clearFocus()
+                    }),
+                )
+            }
+            if (value.isNotEmpty()) {
+                Spacer(Modifier.width(6.dp))
+                // 清除按钮：原来 16dp / 浅灰底 / 11dp 白叉，几乎看不见（用户点名）。加大加深。
+                Box(
+                    Modifier
+                        .size(GlassTokens.SearchClearSizeDp.dp)
+                        .clip(CircleShape)
+                        .background(if (dark) Color(0xFF4A4E57) else Color(0xFF9AA1AC))
+                        .clickable(enabled = enabled) { onValueChange("") },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(Icons.Outlined.Close, contentDescription = "清空",
+                        modifier = Modifier.size(GlassTokens.SearchClearIconDp.dp), tint = Color.White)
+                }
             }
         }
     }

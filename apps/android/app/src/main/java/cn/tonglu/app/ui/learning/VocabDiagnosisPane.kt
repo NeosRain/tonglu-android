@@ -260,7 +260,7 @@ internal fun buildDiagnosisSet(banks: List<QuestionBank>): List<DiagnosisPick> {
         val want = quota[tier] ?: 0
         if (want <= 0) continue
         val tierQuestions = banks.flatMap { bank ->
-            bank.questionList.filter { it.difficulty == tier && it.gradable && it.keySafe }
+            bank.questionList.filter { it.difficulty == tier && bank.canGrade(it) && it.keySafe }
                 .map { DiagnosisPick(bank, it) }
         }
         picks += tierQuestions.take(want)

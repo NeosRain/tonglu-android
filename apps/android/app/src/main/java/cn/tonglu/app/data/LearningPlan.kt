@@ -4,6 +4,7 @@ import android.content.Context
 import android.util.AtomicFile
 import cn.tonglu.app.data.listening.QuestionAttempt
 import cn.tonglu.app.data.question.QuestionBank
+import cn.tonglu.app.ui.learning.canGrade
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -119,16 +120,13 @@ object PlanDraft {
         wrongCounts: Map<String, Int> = emptyMap(),
         days: Int = 3,
     ): LearningPlan {
-        val usable = books.filter { it.questionList.isNotEmpty() && it.keySafe }
+        val usable = books.filter { it.keySafe && it.questionList.any(it::canGrade) }
         val wrongBank = usable.maxByOrNull { wrongCounts[it.id] ?: 0 }
             ?.takeIf { (wrongCounts[it.id] ?: 0) > 0 }
         val tasks = ArrayList<PlanTask>()
         repeat(days) { day ->
             val bank = usable.getOrNull(day % usable.size.coerceAtLeast(1)) ?: usable.firstOrNull()
-            if (bank != null) {
-                tasks += bankTask("t-practice-$day", bank, dueDay = day,
-                    rule = "在「做题」里作答本组全部 ${bank.size} 题（按不同题目计数，答错也算作答）")
-            }
+            if (bank != null) tasks += practiceTask("t-practice-$day", bank, dueDay = day)
             if (wrongBank != null) {
                 tasks += bankTask("t-review-$day", wrongBank, dueDay = day,
                     rule = "在「做题 → 该组练习」里重做 ${wrongCounts[wrongBank.id]} 道错题（按不同题目计数）",
@@ -143,8 +141,15 @@ object PlanDraft {
         )
     }
 
+    private fun practiceTask(id: String, bank: QuestionBank, dueDay: Int): PlanTask {
+        val count = bank.questionList.count(bank::canGrade)
+        return bankTask(id, bank, dueDay,
+            rule = "在「做题」里作答本组全部 $count 道可判分题（按不同题目计数，答错也算作答）",
+            count = count)
+    }
+
     private fun bankTask(id: String, bank: QuestionBank, dueDay: Int, rule: String,
-        kind: String = "practice", count: Int = bank.size) = PlanTask(
+        kind: String = "practice", count: Int) = PlanTask(
         id = id, kind = kind,
         title = "${if (kind == "review") "重做「" else "做「"}${bank.title}」的 $count 题",
         resourceRef = bank.title, bankId = bank.id, questionCount = count,
@@ -159,7 +164,7 @@ object PlanDraft {
      * 解析不出任何有效任务就回退离线模板，绝不把 AI 的空话当计划。
      */
     fun fromAi(text: String, books: List<QuestionBank>, fallback: () -> LearningPlan): LearningPlan {
-        val byId = books.filter { it.questionList.isNotEmpty() && it.keySafe }
+        val byId = books.filter { it.keySafe && it.questionList.any(it::canGrade) }
             .associateBy { it.id }
         if (byId.isEmpty()) return fallback()
         val picked = text.lines().mapNotNull { line ->
@@ -173,8 +178,7 @@ object PlanDraft {
         }.distinctBy { it.first.id }.take(6)
         if (picked.isEmpty()) return fallback()
         val tasks = picked.mapIndexed { i, (bank, reason) ->
-            val t = bankTask("t-ai-$i", bank, dueDay = i / 2,
-                rule = "在「做题」里作答本组全部 ${bank.size} 题（按不同题目计数）")
+            val t = practiceTask("t-ai-$i", bank, dueDay = i / 2)
             t.copy(successRule = if (reason.isBlank()) t.successRule
                 else "${t.successRule}。AI 推荐：$reason")
         }
@@ -185,8 +189,10 @@ object PlanDraft {
 
     /** EF06：发给 AI 的选题提示词。清单就是白名单，AI 只做选择题，不做造句题。 */
     fun aiPrompt(books: List<QuestionBank>): String {
-        val usable = books.filter { it.questionList.isNotEmpty() && it.keySafe }
-        val catalog = usable.joinToString("\n") { "${it.id} | ${it.title} | ${it.size}题" }
+        val catalog = books.filter { it.keySafe }.mapNotNull { bank ->
+            val count = bank.questionList.count(bank::canGrade)
+            if (count > 0) "${bank.id} | ${bank.title} | ${count}题" else null
+        }.joinToString("\n")
         return "我在安排英语学习计划。下面是我本机可以做的题组清单（格式：ID | 标题 | 题数）：\n" +
             "$catalog\n" +
             "请从中挑最多 6 个适合分 3 天完成的题组，每行严格输出：`题组ID|一句推荐理由`。\n" +
@@ -408,10 +414,13 @@ enum class PlanTaskProof {
     val countsAsProgress: Boolean get() = showsDone
 }
 
-/** 该任务要作答的**不同题目数**：优先生成时记下的真实题数，其次用本机题组的真实题数兜底。 */
-fun PlanTask.requiredQuestionCount(banks: List<QuestionBank> = emptyList()): Int =
-    if (questionCount > 0) questionCount
-    else banks.firstOrNull { it.id == bankId }?.size ?: 0
+/** 本机题组的可判分题数为上限，题面未下载时沿用任务保存的题数。 */
+fun PlanTask.requiredQuestionCount(banks: List<QuestionBank> = emptyList()): Int {
+    val bank = banks.firstOrNull { it.id == bankId && it.questionList.isNotEmpty() }
+        ?: return questionCount.coerceAtLeast(0)
+    val gradable = bank.questionList.count(bank::canGrade)
+    return if (questionCount > 0) minOf(questionCount, gradable) else gradable
+}
 
 /** Calendar uses the device's natural days, including DST, and is available on API 24. */
 private fun PlanTask.practiceDayStart(): Calendar? {
@@ -430,15 +439,20 @@ fun PlanTask.practiceDate(): String? = practiceDayStart()?.let {
 }
 
 /** Distinct questions within the scheduled natural day, never before confirmation. */
-fun PlanTask.answeredDistinctSinceBaseline(attempts: List<QuestionAttempt>): Int {
+fun PlanTask.answeredDistinctSinceBaseline(
+    attempts: List<QuestionAttempt>, banks: List<QuestionBank> = emptyList(),
+): Int {
     val bid = bankId ?: return 0
     val base = baselineAt ?: return 0
+    val bank = banks.firstOrNull { it.id == bid && it.questionList.isNotEmpty() }
+    val gradableKeys = bank?.let { it.questionList.filter(it::canGrade).map(it::keyOf).toSet() }
     val day = practiceDayStart()
     val start = day?.timeInMillis?.coerceAtLeast(base) ?: base
     day?.add(Calendar.DAY_OF_YEAR, 1)
     val end = day?.timeInMillis ?: Long.MAX_VALUE
     return attempts.asSequence()
-        .filter { it.answeredAt >= start && it.answeredAt < end && it.questionKey.startsWith("$bid:") }
+        .filter { it.answeredAt >= start && it.answeredAt < end &&
+            (gradableKeys?.contains(it.questionKey) ?: it.questionKey.startsWith("$bid:")) }
         .map { it.questionKey }
         .toSet()
         .size
@@ -450,7 +464,7 @@ fun PlanTask.answeredDistinctSinceBaseline(attempts: List<QuestionAttempt>): Int
  * 纯函数、只读：不改真实作答记录，也不改任务状态。
  *
  * @param attempts 本机该 owner 的真实作答记录（PracticeStore.attempts）。
- * @param banks 本机题库清单，仅在任务缺 `questionCount` 时用来兜底目标题数。
+ * @param banks 本机题库清单，用于按当前可判分题目核对目标和作答。
  */
 fun PlanTask.proof(
     attempts: List<QuestionAttempt>,
@@ -461,6 +475,6 @@ fun PlanTask.proof(
     val required = requiredQuestionCount(banks)
     // 题组被删或旧数据缺题数：连目标都没有，DONE 只能算待核对，不能凭空算完成。
     if (required <= 0) return if (isDone()) PlanTaskProof.UNVERIFIED else PlanTaskProof.PENDING
-    return if (answeredDistinctSinceBaseline(attempts) >= required) PlanTaskProof.VERIFIED
+    return if (answeredDistinctSinceBaseline(attempts, banks) >= required) PlanTaskProof.VERIFIED
     else PlanTaskProof.PENDING
 }

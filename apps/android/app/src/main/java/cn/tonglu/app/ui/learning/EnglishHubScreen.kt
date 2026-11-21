@@ -246,7 +246,7 @@ internal fun EnglishHubScreen(
         } }
         "intensive" -> { {
             cn.tonglu.app.ui.english.intensive.IntensiveReadingScreen(owner, onClose = back,
-                onLookup = { lookupQuery = it })
+                onLookup = { lookupQuery = it }, onImport = { navigate("myReading") })
         } }
         else -> null
     }

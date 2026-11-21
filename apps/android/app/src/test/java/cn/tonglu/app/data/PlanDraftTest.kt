@@ -232,6 +232,26 @@ class PlanDraftTest {
     }
 
     @Test
+    fun `学习计划排除缺音源听力题并可用剩余作答达标`() {
+        val listening = bank("sample-listening", "听力题组", 2)
+        val missing = listening.questionList[0]
+        val playable = listening.questionList[1].copy(audioText = "A short recording.")
+        val mixed = listening.copy(questions = listOf(missing, playable))
+        val books = listOf(mixed)
+        val oldTask = task(bankId = mixed.id, count = 2, baseline = 1_000L)
+        val oldAttempt = attempt(mixed.keyOf(missing), 1_001L)
+        val validAttempt = attempt(mixed.keyOf(playable), 1_002L)
+
+        assertEquals(1, PlanDraft.template(null, books, days = 1).tasks.single().questionCount)
+        assertEquals(1, PlanDraft.fromAi(mixed.id, books) { error("不该回退") }.tasks.single().questionCount)
+        assertTrue(PlanDraft.template(null, listOf(listening)).tasks.isEmpty())
+        assertEquals(1, oldTask.requiredQuestionCount(books))
+        assertEquals(0, oldTask.answeredDistinctSinceBaseline(listOf(oldAttempt), books))
+        assertEquals(PlanTaskProof.PENDING, oldTask.proof(listOf(oldAttempt), books))
+        assertEquals(PlanTaskProof.VERIFIED, oldTask.proof(listOf(validAttempt), books))
+    }
+
+    @Test
     fun `题组不在本机又缺题数时 无法证明完成`() {
         val task = task(count = 0, status = PlanTask.DONE, baseline = 1_000L)
         assertEquals(0, task.requiredQuestionCount(emptyList()))

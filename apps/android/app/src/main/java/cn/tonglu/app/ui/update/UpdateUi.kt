@@ -8,11 +8,16 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.BuildConfig
 import cn.tonglu.app.data.update.AppUpdates
@@ -60,21 +65,40 @@ internal fun UpdateSettingsCard() {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("应用更新 · ${BuildConfig.VERSION_NAME}", color = AppColors.TextPrimary)
             Text("更新通道", color = AppColors.TextPrimary)
-            UpdateChannel.entries.forEach { option ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    RadioButton(selected = state.channel == option, enabled = !state.downloading,
-                        onClick = { AppUpdates.setChannel(c, option) },
-                        colors = RadioButtonDefaults.colors(selectedColor = AppColors.Accent, unselectedColor = AppColors.TextSecondary))
-                    TextButton(enabled = !state.downloading, onClick = { AppUpdates.setChannel(c, option) }) {
-                        Column { Text(option.label, color = AppColors.TextPrimary); Text(option.description, color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
+            Column(Modifier.selectableGroup(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                UpdateChannel.entries.forEach { option ->
+                    val selected = state.channel == option
+                    val enabled = !state.downloading
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                            .selectable(selected = selected, enabled = enabled, role = Role.RadioButton) {
+                                AppUpdates.setChannel(c, option)
+                            },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Box(Modifier.width(48.dp), contentAlignment = Alignment.Center) {
+                            RadioButton(selected = selected, enabled = enabled, onClick = null,
+                                colors = RadioButtonDefaults.colors(selectedColor = AppColors.Accent, unselectedColor = AppColors.TextSecondary))
+                        }
+                        Column(Modifier.weight(1f).padding(ButtonDefaults.TextButtonContentPadding)) {
+                            Text(option.label, color = AppColors.TextPrimary, style = MaterialTheme.typography.labelLarge)
+                            Text(option.description, color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
             if (state.channel == UpdateChannel.Stable && '-' in BuildConfig.VERSION_NAME)
                 Text("切回正式版不会降级或清除数据，等待版本号更高的正式版即可。", color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-            Row(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier.fillMaxWidth().heightIn(min = 48.dp)
+                    .toggleable(value = automatic, role = Role.Switch) {
+                        automatic = it
+                        AppUpdates.setAutomatic(c, it)
+                    },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
                 Text("自动检查更新", color = AppColors.TextSecondary, modifier = Modifier.weight(1f))
-                Switch(automatic, onCheckedChange = { automatic = it; AppUpdates.setAutomatic(c, it) })
+                Switch(checked = automatic, onCheckedChange = null)
             }
             Text("启动时及系统允许时检查，发现新版本提示。文章、目录等内容沿用在线更新。", color = AppColors.TextMuted)
             state.error?.let { Text(it, color = AppColors.Danger) }
