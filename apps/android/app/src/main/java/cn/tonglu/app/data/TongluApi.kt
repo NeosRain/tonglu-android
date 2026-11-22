@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import cn.tonglu.app.BuildConfig
+import cn.tonglu.app.data.community.*
 import cn.tonglu.app.data.competition.RemoteCompetitionCatalog
 import cn.tonglu.app.data.competition.RemoteSubscriptionList
 import cn.tonglu.app.data.competition.SubscriptionRequest
@@ -29,6 +30,79 @@ data class FeedbackSubmission(val submissionId: String, val title: String, val d
 data class FeedbackReceipt(val receiptId: String, val acceptedAt: String)
 
 interface TongluApi {
+    @GET("posts/feed")
+    suspend fun communityFeed(@Query("sort") sort: String, @Query("cursor") cursor: String?, @Query("page") page: Int?): List<PostDto>
+
+    @GET("posts/feed/following")
+    suspend fun communityFollowing(@Header("Authorization") bearer: String, @Query("cursor") cursor: String?): List<PostDto>
+
+    @GET("boards")
+    suspend fun communityBoards(@Query("cursor") cursor: String? = null): List<BoardDto>
+
+    @GET("boards/{id}")
+    suspend fun communityBoard(@Path("id") id: String): BoardDto
+
+    @GET("boards/{id}/posts")
+    suspend fun communityBoardPosts(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Query("sort") sort: String, @Query("cursor") cursor: String?): List<PostDto>
+
+    @POST("boards/applications")
+    suspend fun applyCommunityBoard(@Header("Authorization") bearer: String, @Body request: ApplyBoardRequest): BoardDto
+
+    @GET("me/level")
+    suspend fun communityLevel(@Header("Authorization") bearer: String): CommunityLevelDto
+
+    @GET("topics")
+    suspend fun communityTopics(@Query("cursor") cursor: String? = null): List<TopicDto>
+
+    @GET("topics/hot")
+    suspend fun communityHotTopics(): List<TopicDto>
+
+    @GET("topics/{id}")
+    suspend fun communityTopic(@Path("id") id: String): TopicDto
+
+    @GET("topics/{id}/posts")
+    suspend fun communityTopicPosts(@Path("id") id: String, @Query("cursor") cursor: String?): List<PostDto>
+
+    @POST("topics")
+    suspend fun createCommunityTopic(@Header("Authorization") bearer: String, @Body request: CreateTopicRequest): TopicDto
+
+    @GET("{resource}/{id}/follow")
+    suspend fun communityFollowState(@Header("Authorization") bearer: String, @Path("resource") resource: String,
+        @Path("id") id: String): CommunityFollowDto
+
+    @PUT("{resource}/{id}/follow")
+    suspend fun followCommunity(@Header("Authorization") bearer: String, @Path("resource") resource: String,
+        @Path("id") id: String): CommunityFollowDto
+
+    @DELETE("{resource}/{id}/follow")
+    suspend fun unfollowCommunity(@Header("Authorization") bearer: String, @Path("resource") resource: String,
+        @Path("id") id: String): CommunityFollowDto
+
+    @PUT("posts/{id}/read")
+    suspend fun recordCommunityRead(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Body request: RecordPostReadRequest): PostReadDto
+
+    @GET("boards/{id}/trash")
+    suspend fun communityTrash(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Query("cursor") cursor: String? = null): List<BoardTrashDto>
+
+    @GET("boards/{id}/reports")
+    suspend fun communityReports(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Query("cursor") cursor: String? = null): List<BoardReportDto>
+
+    @PATCH("boards/{id}/posts/{postId}/moderation")
+    suspend fun moderateCommunityPost(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Path("postId") postId: String, @Body request: ModerateBoardPostRequest)
+
+    @PUT("boards/{id}/mutes/{userId}")
+    suspend fun muteCommunityMember(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Path("userId") userId: String, @Body request: BoardMuteRequest)
+
+    @PATCH("boards/{id}/reports/{postId}")
+    suspend fun decideCommunityReport(@Header("Authorization") bearer: String, @Path("id") id: String,
+        @Path("postId") postId: String, @Body request: BoardReportDecision)
+
     @POST("feedback") suspend fun submitFeedback(@Body request: FeedbackSubmission): FeedbackReceipt
 
     @GET("profile/me") suspend fun profile(@Header("Authorization") bearer: String): UserDto

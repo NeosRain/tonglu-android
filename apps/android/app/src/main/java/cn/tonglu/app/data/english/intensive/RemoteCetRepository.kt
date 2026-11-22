@@ -27,16 +27,23 @@ import kotlin.coroutines.coroutineContext
 import kotlin.coroutines.resumeWithException
 
 private const val SOURCE_TIMEOUT_MS = 20_000L
+private const val MIRROR_TIMEOUT_MS = 5_000L
 private const val MAX_SOURCE_BYTES = 32L * 1024 * 1024
+private const val RAW_GITHUB_BASE = "https://raw.githubusercontent.com/"
+private const val MEDIA_GITHUB_BASE = "https://media.githubusercontent.com/media/"
+private const val LFS_HEADER = "version https://git-lfs.github.com/spec/v1"
+private val cetMirrorBases = listOf("https://www.newrain.top/", "https://dl.useall.top/")
 
 internal class RemoteCetSourceException(cause: IOException) : IOException(cause)
 
 internal fun remoteCetErrorMessage(error: Exception): String = when (error) {
-    is RemoteCetSourceException -> "原卷来源在境外，当前网络连不上。可以稍后重试，或先用『我的文章与书籍』导入本地文件阅读。"
+    is RemoteCetSourceException -> "暂时无法下载原卷。可以稍后重试，或先用『我的文章与书籍』导入本地文件阅读。"
     else -> "原卷读取失败，请重试"
 }
 
-/** Download only from the fixed upstream commit on explicit article selection; private cache only. */
+private val RemoteCetSpec.sourceExtension: String get() = if (format == "pdf") ".pdf" else ".md"
+
+/** Download a fingerprinted source on explicit article selection and cache it privately. */
 class RemoteCetRepository(context: Context) {
     private val app = context.applicationContext
     private val directory = File(app.filesDir, "cet-source-cache")
@@ -58,7 +65,7 @@ class RemoteCetRepository(context: Context) {
         lock.withLock {
             val spec = requireNotNull(entry.remote)
             check(directory.isDirectory || directory.mkdirs()) { "无法创建本机原卷缓存" }
-            val file = File(directory, spec.sourceSha256 + if (spec.format == "pdf") ".pdf" else ".md")
+            val file = File(directory, spec.sourceSha256 + spec.sourceExtension)
             if (file.exists() && IntensiveCodec.hash(file.readBytes()) != spec.sourceSha256) check(file.delete())
             if (!file.isFile) download(spec, file)
             if (spec.format == "markdown") {
@@ -93,64 +100,88 @@ class RemoteCetRepository(context: Context) {
     private suspend fun download(spec: RemoteCetSpec, target: File) {
         val partial = File(directory, spec.sourceSha256 + ".part")
         try {
-            var url = spec.sourceUrl
-            for (attempt in 0..3) {
-                require(RemoteCetCodec.allowedSource(url)) { "原卷链接未通过来源检查" }
-                val bytes = when (val response = fetch(url)) {
-                    is SourceResponse.Redirect -> {
-                        url = URL(URL(url), response.location).toString()
-                        continue
-                    }
-                    is SourceResponse.Document -> response.bytes
-                }
-                if (bytes.take(7).toByteArray().toString(Charsets.UTF_8).startsWith("version") && url.contains("raw.githubusercontent.com")) {
-                    url = url.replace("https://raw.githubusercontent.com/", "https://media.githubusercontent.com/media/")
-                    continue
-                }
-                if (spec.format == "pdf") require(bytes.size >= 5 && bytes.copyOfRange(0, 5).toString(Charsets.US_ASCII) == "%PDF-") { "来源未返回有效PDF原卷" }
-                require(IntensiveCodec.hash(bytes) == spec.sourceSha256) { "原卷下载指纹不一致，未使用变更的文件" }
-                partial.writeBytes(bytes)
-                coroutineContext.ensureActive()
-                check(partial.renameTo(target)) { "原卷缓存保存失败" }
-                return
-            }
-            throw RemoteCetSourceException(ProtocolException("原卷来源重定向次数过多"))
+            partial.writeBytes(downloadCetSource(spec, client))
+            coroutineContext.ensureActive()
+            check(partial.renameTo(target)) { "原卷缓存保存失败" }
         } finally { if (partial.exists()) check(partial.delete()) { "临时原卷缓存清理失败" } }
     }
+}
 
-    private sealed interface SourceResponse {
-        data class Redirect(val location: String) : SourceResponse
-        data class Document(val bytes: ByteArray) : SourceResponse
-    }
-
-    private suspend fun fetch(url: String): SourceResponse = try {
-        suspendCancellableCoroutine { continuation ->
-            val request = Request.Builder().url(url).header("User-Agent", "Taimi-CET-Reader/1.0").build()
-            val call = client.newCall(request)
-            continuation.invokeOnCancellation { call.cancel() }
-            call.enqueue(object : Callback {
-                override fun onFailure(call: Call, e: IOException) {
-                    continuation.resumeWithException(e)
-                }
-
-                override fun onResponse(call: Call, response: Response) {
-                    val result = runCatching {
-                        response.use {
-                            if (it.code in setOf(301, 302, 303, 307, 308)) {
-                                SourceResponse.Redirect(it.header("Location") ?: throw ProtocolException("原卷重定向缺少地址"))
-                            } else {
-                                if (it.code != 200) throw ProtocolException("原卷来源返回 HTTP ${it.code}")
-                                val source = checkNotNull(it.body) { "原卷响应为空" }.source()
-                                require(!source.request(MAX_SOURCE_BYTES + 1)) { "原卷文件超过32 MB限制" }
-                                SourceResponse.Document(source.readByteArray())
-                            }
-                        }
-                    }
-                    continuation.resumeWith(result)
-                }
-            })
+internal suspend fun downloadCetSource(spec: RemoteCetSpec, client: OkHttpClient): ByteArray {
+    require(RemoteCetCodec.allowedSource(spec.sourceUrl)) { "原卷链接未通过来源检查" }
+    val key = "exam-sources/${spec.sourceSha256}${spec.sourceExtension}"
+    val mirrors = cetMirrorBases.map { it + key }
+    val failures = mutableListOf<IOException>()
+    for (url in mirrors + spec.sourceUrl) {
+        try {
+            val bytes = if (url == spec.sourceUrl) fetchCetUpstream(url, client) else {
+                val response = withTimeoutOrNull(MIRROR_TIMEOUT_MS) { fetchCetSource(url, client) }
+                    ?: throw SocketTimeoutException("原卷镜像下载超时")
+                (response as? SourceResponse.Document)?.bytes ?: throw ProtocolException("原卷镜像返回了重定向")
+            }
+            if (IntensiveCodec.hash(bytes) != spec.sourceSha256) {
+                throw ProtocolException("原卷下载指纹不一致，未使用变更的文件")
+            }
+            if (spec.format == "pdf" && (bytes.size < 5 || String(bytes, 0, 5, Charsets.US_ASCII) != "%PDF-")) {
+                throw ProtocolException("来源未返回有效PDF原卷")
+            }
+            return bytes
+        } catch (e: IOException) {
+            failures += e
         }
-    } catch (e: IOException) {
-        throw RemoteCetSourceException(e)
+    }
+    throw RemoteCetSourceException(failures.last()).also { error ->
+        failures.dropLast(1).forEach(error::addSuppressed)
     }
 }
+
+private suspend fun fetchCetUpstream(startUrl: String, client: OkHttpClient): ByteArray {
+    var url = startUrl
+    repeat(4) {
+        if (!RemoteCetCodec.allowedSource(url)) throw ProtocolException("原卷链接未通过来源检查")
+        when (val response = fetchCetSource(url, client)) {
+            is SourceResponse.Redirect -> url = URL(URL(url), response.location).toString()
+            is SourceResponse.Document -> {
+                val bytes = response.bytes
+                val pointer = bytes.size >= LFS_HEADER.length &&
+                    String(bytes, 0, LFS_HEADER.length, Charsets.US_ASCII) == LFS_HEADER
+                if (!url.startsWith(RAW_GITHUB_BASE) || !pointer) return bytes
+                url = MEDIA_GITHUB_BASE + url.removePrefix(RAW_GITHUB_BASE)
+            }
+        }
+    }
+    throw ProtocolException("原卷来源重定向次数过多")
+}
+
+private sealed interface SourceResponse {
+    data class Redirect(val location: String) : SourceResponse
+    data class Document(val bytes: ByteArray) : SourceResponse
+}
+
+private suspend fun fetchCetSource(url: String, client: OkHttpClient): SourceResponse =
+    suspendCancellableCoroutine { continuation ->
+        val request = Request.Builder().url(url).header("User-Agent", "Taimi-CET-Reader/1.0").build()
+        val call = client.newCall(request)
+        continuation.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                continuation.resumeWithException(e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                val result = runCatching {
+                    response.use {
+                        if (it.code in setOf(301, 302, 303, 307, 308)) {
+                            SourceResponse.Redirect(it.header("Location") ?: throw ProtocolException("原卷重定向缺少地址"))
+                        } else {
+                            if (it.code != 200) throw ProtocolException("原卷来源返回 HTTP ${it.code}")
+                            val source = checkNotNull(it.body) { "原卷响应为空" }.source()
+                            if (source.request(MAX_SOURCE_BYTES + 1)) throw ProtocolException("原卷文件超过32 MB限制")
+                            SourceResponse.Document(source.readByteArray())
+                        }
+                    }
+                }
+                continuation.resumeWith(result)
+            }
+        })
+    }

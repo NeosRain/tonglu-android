@@ -1,5 +1,7 @@
 package cn.tonglu.app.data
 
+import cn.tonglu.app.data.community.PostTopicDto
+
 import com.google.gson.annotations.SerializedName
 
 data class UserDto(
@@ -203,6 +205,13 @@ data class PostDto(
     val _count: PostCountDto? = null,
     /** 贴附的资料包（没贴就是 null）。 */
     val linkedPack: LinkedPackDto? = null,
+    val boardId: String? = null,
+    val clubId: String? = null,
+    val channelId: String? = null,
+    val visibility: String? = null,
+    val topics: List<PostTopicDto>? = null,
+    val pinnedAt: String? = null,
+    val featuredAt: String? = null,
 )
 
 /**
@@ -213,11 +222,13 @@ data class PostDto(
  * 只给一半会被 400 挡下，所以客户端拼请求时也要成对。
  */
 data class CreatePostRequest(
-    val category: String,
+    val category: String?,
     val body: String,
     val title: String? = null,
     val packageId: String? = null,
     val packageVersion: Int? = null,
+    val boardId: String? = null,
+    val topics: List<String>? = null,
 )
 
 /** `GET /posts/:id` 的 `_count` 字段（Prisma 的关联计数）。 */
@@ -259,6 +270,8 @@ data class PostDetailDto(
     val hint: String? = null,
     /** 社团帖才有：所属频道（详情来源行用真实频道名；公共帖为 null）。 */
     val channel: ClubPostChannelDto? = null,
+    val boardId: String? = null,
+    val topics: List<PostTopicDto>? = null,
 )
 
 /**
@@ -338,7 +351,7 @@ data class CreateClubPostRequest(
     val visibility: String,
 )
 
-data class CreateReportRequest(val reason: String, val details: String? = null)
+data class CreateReportRequest(val reason: String, val details: String? = null, val category: String? = null)
 
 /**
  * `GET /posts/mine` 的条目（**只有作者本人**能看到自己的隔离/拒绝内容）。

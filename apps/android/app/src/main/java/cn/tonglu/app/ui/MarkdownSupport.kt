@@ -54,6 +54,7 @@ internal fun MarkdownBody(
     mutedColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     accentColor: Color = MaterialTheme.colorScheme.primary,
     backgroundColor: Color = Color.Transparent,
+    showDocumentTitle: Boolean = true,
 ) {
     val density = LocalDensity.current
     val heightState = remember { mutableIntStateOf(0) }
@@ -126,10 +127,11 @@ internal fun MarkdownBody(
         )
     }
 
-    LaunchedEffect(webHolder.value, pageReady, script) {
+    LaunchedEffect(webHolder.value, pageReady, script, showDocumentTitle) {
         val web = webHolder.value ?: return@LaunchedEffect
         if (!pageReady) return@LaunchedEffect
-        web.evaluateJavascript(script, null)
+        // 帖子卡已经有标题。去掉预览文档自己的占位标题，正文的无障碍节点仍由 WebView 提供。
+        web.evaluateJavascript(if (showDocumentTitle) script else "document.title = ''; $script", null)
     }
 }
 

@@ -123,6 +123,9 @@ import cn.tonglu.app.data.LinkedPackDto
 import cn.tonglu.app.data.PostAuthorDto
 import cn.tonglu.app.data.PostCommentDto
 import cn.tonglu.app.data.PostDetailDto
+import cn.tonglu.app.data.community.CommunityRead
+import cn.tonglu.app.ui.community.CommunityPostLabels
+import cn.tonglu.app.ui.community.TrackCommunityRead
 import cn.tonglu.app.ui.square.PostMediaGrid
 import cn.tonglu.app.ui.square.toCategoryName
 import kotlinx.coroutines.launch
@@ -155,6 +158,12 @@ internal fun PostDetailScreen(
         onOpenPack: (LinkedPackDto) -> Unit = {},
         isLocalPreview: Boolean = false,
         emojiGateway: cn.tonglu.app.data.community.EmojiGateway? = null,
+        community: Boolean = false,
+        boardName: String? = null,
+        onOpenBoard: (String) -> Unit = {},
+        onOpenTopic: (String) -> Unit = {},
+        onRead: ((String, String, CommunityRead, Int) -> Unit)? = null,
+        readingVisible: Boolean = true,
 ) {
     val accent = PostComposerAccent
     val post = state.activePost
@@ -166,6 +175,11 @@ internal fun PostDetailScreen(
     var confirmDelete by remember { mutableStateOf<PostCommentDto?>(null) }
     var editPostOpen by remember { mutableStateOf(false) }
     var editCommentTarget by remember { mutableStateOf<PostCommentDto?>(null) }
+    val readingSession = state.session?.sessionId
+    if (post != null && onRead != null && readingSession != null) {
+        val visible = readingVisible && !editPostOpen && editCommentTarget == null && confirmDelete == null
+        TrackCommunityRead(post.id, readingSession, visible, onRead)
+    }
     val backdrop = rememberLayerBackdrop()
     val context = LocalContext.current
     fun action(comment: PostCommentDto, action: String) {
@@ -251,7 +265,7 @@ internal fun PostDetailScreen(
                 post == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("帖子不存在或已下线", color = AppColors.TextSecondary)
-                        TextButton(onClick = { motion.requestClose() }) { Text("返回广场") }
+                        TextButton(onClick = { motion.requestClose() }) { Text("返回") }
                     }
                 }
                 else -> LazyColumn(
@@ -259,7 +273,14 @@ internal fun PostDetailScreen(
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topSpace, bottom = 230.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    item(key = "main") { MainPostCard(post, accent, onOpenPack) }
+                    item(key = "main") {
+                        MainPostCard(post, accent, onOpenPack) {
+                            if (community) CommunityPostLabels(post, boardName,
+                                onOpenBoard = { onOpenBoard(it); motion.requestClose() },
+                                onOpenTopic = { onOpenTopic(it); motion.requestClose() },
+                            )
+                        }
+                    }
                     item(key = "divider") {
                         Row(Modifier.fillMaxWidth().padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -298,7 +319,7 @@ internal fun PostDetailScreen(
         }
 
         GlassTopBar(backdrop, modifier = Modifier.align(Alignment.TopCenter)) {
-            IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回广场") }
+            IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
             Text(
                 post?.author?.displayName?.takeIf { it.isNotBlank() } ?: "帖子详情",
                 fontWeight = FontWeight.SemiBold,
@@ -307,11 +328,13 @@ internal fun PostDetailScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            // 社团帖：编辑/举报走的是公共帖专属路由，C1 服务端没有社团路由 —— 按钮不显示（无权按钮不显示）。
+            // 编辑仍是公共帖操作，社区举报按帖子可见范围走对应路由。
             if (post != null && state.activePostClubRef == null && state.session?.userId == post.author?.id) {
                 IconButton(onClick = { editPostOpen = true }, enabled = !state.postLoading) { Icon(Icons.Outlined.Edit, "编辑自己的帖子") }
             }
-            if (state.activePostClubRef == null) IconButton(onClick = onReport, enabled = post != null) { Icon(Icons.Outlined.Flag, "举报") }
+            if (state.activePostClubRef == null || community) IconButton(onClick = onReport, enabled = post != null) {
+                Icon(Icons.Outlined.Flag, "举报")
+            }
             IconButton(onClick = onRefresh, enabled = !state.postLoading) { Icon(Icons.Outlined.Refresh, "刷新回复") }
         }
 
@@ -376,7 +399,10 @@ internal fun PostDetailScreen(
  * **非空才渲染** —— null = 未确认，不写「待认证」占位（名单页才负责那件事）。
  */
 @Composable
-private fun MainPostCard(post: PostDetailDto, accent: Color, onOpenPack: (LinkedPackDto) -> Unit = {}) {
+private fun MainPostCard(
+    post: PostDetailDto, accent: Color, onOpenPack: (LinkedPackDto) -> Unit,
+    labels: @Composable () -> Unit,
+) {
     val categoryName = post.category.toCategoryName()
     val sourceName = post.channel?.name?.takeIf { it.isNotBlank() } ?: categoryName
     val when_ = relativeIsoTime(post.createdAt)
@@ -424,6 +450,7 @@ private fun MainPostCard(post: PostDetailDto, accent: Color, onOpenPack: (Linked
                     )
                 }
             }
+            labels()
             if (!post.title.isNullOrBlank()) {
                 Text(
                     post.title,
@@ -434,7 +461,7 @@ private fun MainPostCard(post: PostDetailDto, accent: Color, onOpenPack: (Linked
                 )
             }
             Box(Modifier.padding(top = 10.dp)) {
-                MarkdownBody(markdown = post.body, fontSizeSp = 15, accentColor = accent)
+                MarkdownBody(markdown = post.body, fontSizeSp = 15, accentColor = accent, showDocumentTitle = false)
             }
             // 🔴 详情页原先**没有**渲染图片网格：列表卡调了 PostMediaGrid，这里没调，
             // 于是「广场能看到图、点进去反而只剩 Markdown 默认渲染的裸图」。
@@ -905,7 +932,7 @@ private fun DetailActionBar(
                 }
             }
             // 帖子收藏：收藏/取消，实心星 = 已收藏。列表入口在「我的」页。
-            IconButton(onClick = onToggleFavorite, enabled = signedIn, modifier = Modifier.size(40.dp)) {
+            IconButton(onClick = onToggleFavorite, enabled = signedIn, modifier = Modifier.size(48.dp)) {
                 Icon(
                     if (favorited) Icons.Filled.Star else Icons.Outlined.Star, "收藏",
                     Modifier.size(19.dp), tint = if (favorited) accent else AppColors.TextSecondary,
@@ -937,7 +964,7 @@ private fun DetailActionBar(
 /** 紧凑图标动作：视觉 36dp 圆角方块，命中区撑到 48dp 见父级。 */
 @Composable
 private fun CompactIconAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
-    IconButton(onClick = onClick, modifier = Modifier.size(40.dp)) {
+    IconButton(onClick = onClick, modifier = Modifier.size(48.dp)) {
         Icon(icon, label, tint = AppColors.TextSecondary, modifier = Modifier.size(19.dp))
     }
 }
@@ -1219,7 +1246,9 @@ private fun ComposerPanel(
 
 @Composable
 private fun CommentBody(body: String) {
-    if (body.contains('$') || cn.tonglu.app.ui.square.postImageUrls(body).isNotEmpty()) MarkdownBody(body, fontSizeSp = 14)
+    if (body.contains('$') || cn.tonglu.app.ui.square.postImageUrls(body).isNotEmpty()) {
+        MarkdownBody(body, fontSizeSp = 14, showDocumentTitle = false)
+    }
     else SelectionContainer { com.mikepenz.markdown.m3.Markdown(body, modifier = Modifier.fillMaxWidth()) }
 }
 

@@ -19,6 +19,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import cn.tonglu.app.data.exam.ExamCalendarFeed
+import cn.tonglu.app.data.community.CommunityRead
+import cn.tonglu.app.data.community.communityErrorMessage
 import cn.tonglu.app.data.local.AcademicRepository
 import cn.tonglu.app.data.listening.PracticeStore
 import cn.tonglu.app.data.listening.QuestionAttempt
@@ -102,6 +104,7 @@ data class AppUiState(
      * 真的没有社团（而不是「现在连不上」）。这条与「频道接口 500 不能显示成没有频道」同源。
      */
     val clubsError: String? = null,
+    val clubsLoading: Boolean = false,
     /** 当前教学周（未设置开学日期时为 null，此时课表按全部周次展示） */
     val currentWeek: Int? = null,
     val termStart: String? = null,
@@ -212,6 +215,29 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
      * install 流程搬进 ViewModel 更直白：**下载编排属于界面，不属于状态机**。
      */
     fun apiOrNull(): cn.tonglu.app.data.TongluApi = api
+
+    internal suspend fun <T> communityAuthorized(sessionId: String, request: suspend TongluApi.(String) -> T): T =
+        try {
+            sessions.authorized(sessionId) { api.request(it) }
+        } catch (error: SessionExpiredException) {
+            expireSession(error.sessionId)
+            throw error
+        }
+
+    internal fun reportCommunityRead(sessionId: String, postId: String, read: CommunityRead, seconds: Int) {
+        viewModelScope.launch {
+            try {
+                // 遥测失败不打断阅读，也不触发界面错误。
+                read.report(seconds) { request ->
+                    sessions.authorized(sessionId) { bearer -> api.recordCommunityRead(bearer, postId, request) }
+                }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                Log.d(TAG, "阅读上报失败", error)
+            }
+        }
+    }
     /** 用户自配 AI（与英语单词讲解同一套加密配置）。学习页翻译/问答共用，不再造第二套密钥表单。 */
     private val aiStore by lazy { cn.tonglu.app.data.english.EnglishAiStore(getApplication()) }
     private val store = SessionStore(application)
@@ -805,16 +831,18 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun refreshClubs() {
         if (mutableState.value.previewMode) return
         val sessionId = mutableState.value.session?.sessionId ?: return
+        if (mutableState.value.clubsLoading) return
+        mutableState.update { it.copy(clubsLoading = true) }
         viewModelScope.launch {
             runCatching { api.clubs() }
                 .onSuccess { items -> mutableState.update {
-                    if (it.session?.sessionId == sessionId) it.copy(clubs = items, clubsError = null) else it
+                    if (it.session?.sessionId == sessionId) it.copy(clubs = items, clubsError = null, clubsLoading = false) else it
                 } }
                 .onFailure { error ->
                     if (error is CancellationException) throw error
                     // 保留旧列表、只记下失败：界面据 clubsError 决定显示「失败+重试」还是「暂时没有社团」。
                     mutableState.update {
-                        if (it.session?.sessionId == sessionId) it.copy(clubsError = error.toFriendlyMessage()) else it
+                        if (it.session?.sessionId == sessionId) it.copy(clubsError = error.toFriendlyMessage(), clubsLoading = false) else it
                     }
                     handleFailure(error, sessionId)
                 }
@@ -1233,6 +1261,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         body: String,
         title: String? = null,
         linkedPack: Pair<String, Int>? = null,
+        boardId: String? = null,
+        topics: List<String>? = null,
+        onCommunityError: ((String) -> Unit)? = null,
         onComplete: (Boolean) -> Unit,
     ) {
         if (mutableState.value.previewMode) return onComplete(false)
@@ -1243,8 +1274,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     api.createPost(
                         bearer,
                         CreatePostRequest(
-                            category = category, body = body, title = title,
+                            category = category.takeIf { boardId == null }, body = body, title = title,
                             packageId = linkedPack?.first, packageVersion = linkedPack?.second,
+                            boardId = boardId, topics = topics,
                         ),
                     )
                 }
@@ -1263,25 +1295,45 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     refreshPosts()
                     onComplete(true)
                 }
-                .onFailure { error -> handleFailure(error, session.sessionId); onComplete(false) }
+                .onFailure { error ->
+                    if (error is CancellationException) throw error
+                    if (onCommunityError != null && boardId != null && error !is SessionExpiredException &&
+                        (error !is HttpException || error.code() != 401)
+                    ) onCommunityError(communityErrorMessage(error, "发布失败，请重试"))
+                    else handleFailure(error, session.sessionId)
+                    onComplete(false)
+                }
         }
     }
 
-    fun reportPost(id: String, reason: String, details: String?) {
-        if (mutableState.value.previewMode) return
-        val session = mutableState.value.session ?: return
+    fun reportPost(
+        id: String, reason: String, details: String?, category: String? = null,
+        clubId: String? = null, onComplete: ((String?) -> Unit)? = null,
+    ) {
+        if (mutableState.value.previewMode) return onComplete?.invoke("预览模式下不能举报") ?: Unit
+        val session = mutableState.value.session ?: return onComplete?.invoke("请先登录") ?: Unit
+        val ref = mutableState.value.activePostClubRef?.takeIf { mutableState.value.activePostId == id }
+        val reportClub = clubId ?: ref?.clubId
         viewModelScope.launch {
             runCatching {
                 sessions.authorized(session.sessionId) { bearer ->
                     // 社团帖走社团路由（矩阵校验「能看到才举报」，C3x 补的端点）；
                     // 公共帖走原路由（服务端只对 PUBLIC 开放，防存在性探测）。
-                    val ref = mutableState.value.activePostClubRef
-                    if (ref != null) api.clubReportPost(bearer, ref.clubId, id, CreateReportRequest(reason, details))
-                    else api.reportPost(bearer, id, CreateReportRequest(reason, details))
+                    if (reportClub != null) api.clubReportPost(bearer, reportClub, id, CreateReportRequest(reason, details, category))
+                    else api.reportPost(bearer, id, CreateReportRequest(reason, details, category))
                 }
             }
-                .onSuccess { mutableState.update { it.copy(notice = "举报已提交，感谢反馈") } }
-                .onFailure { error -> handleFailure(error, session.sessionId) }
+                .onSuccess {
+                    mutableState.update { it.copy(notice = "举报已提交，感谢反馈") }
+                    onComplete?.invoke(null)
+                }
+                .onFailure { error ->
+                    if (error is CancellationException) throw error
+                    if (onComplete == null || error is SessionExpiredException || (error is HttpException && error.code() == 401)) {
+                        handleFailure(error, session.sessionId)
+                    }
+                    onComplete?.invoke(communityErrorMessage(error, "举报提交失败，请重试"))
+                }
         }
     }
 

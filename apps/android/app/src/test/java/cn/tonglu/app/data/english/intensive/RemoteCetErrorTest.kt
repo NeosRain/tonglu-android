@@ -18,7 +18,7 @@ class RemoteCetErrorTest {
         for (failure in failures) {
             assertEquals(
                 failure.javaClass.simpleName,
-                "原卷来源在境外，当前网络连不上。可以稍后重试，或先用『我的文章与书籍』导入本地文件阅读。",
+                "暂时无法下载原卷。可以稍后重试，或先用『我的文章与书籍』导入本地文件阅读。",
                 remoteCetErrorMessage(RemoteCetSourceException(failure)),
             )
         }

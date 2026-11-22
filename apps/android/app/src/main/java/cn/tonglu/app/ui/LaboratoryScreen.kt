@@ -1,5 +1,6 @@
 package cn.tonglu.app.ui
 
+import android.content.SharedPreferences
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +12,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.hideFromAccessibility
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
@@ -29,15 +32,30 @@ import androidx.compose.material.icons.rounded.BookmarkBorder
 import androidx.compose.material.icons.rounded.Forum
 import androidx.compose.material.icons.rounded.Groups
 import cn.tonglu.app.data.*
+import cn.tonglu.app.data.community.*
 import cn.tonglu.app.ui.clubs.*
+import cn.tonglu.app.ui.community.*
 import cn.tonglu.app.ui.square.*
 
 private data class LabFeature(val id: String, val title: String, val description: String,
     val icon: ImageVector, val tint: Color)
 private val labFeatures = listOf(
-    LabFeature("square", "广场", "校园讨论、发帖与交流", Icons.Rounded.Forum, Color(0xFF2F9E8F)),
-    LabFeature("clubs", "社团", "社团频道、活动与成员交流", Icons.Rounded.Groups, Color(0xFFD46F1F)),
+    LabFeature(COMMUNITY_PREF, "社区", "校园讨论、兴趣圈子与社团活动", Icons.Rounded.Forum, Color(0xFF2F9E8F)),
 )
+
+internal fun SharedPreferences.communityEnabled(): Boolean = communityEnabled(
+    getBoolean(COMMUNITY_PREF, false).takeIf { contains(COMMUNITY_PREF) },
+    getBoolean("square", false), getBoolean("clubs", false),
+)
+
+internal fun SharedPreferences.migrateCommunityPreference() {
+    if (!contains(COMMUNITY_PREF) && (contains("square") || contains("clubs"))) {
+        edit().putBoolean(COMMUNITY_PREF, communityEnabled()).apply()
+    }
+}
+
+private fun Modifier.hideCoveredCommunityLayer(covered: Boolean): Modifier =
+    if (covered) clearAndSetSemantics { hideFromAccessibility() } else this
 
 /** 分组列表里的彩色图标块（ColorOS / iOS 设置页同款）。 */
 @Composable
@@ -50,17 +68,17 @@ private fun FeatureTile(icon: ImageVector, tint: Color, size: Dp = 40.dp) {
 /** 页头：大标题 + 副标题，右侧一枚主操作胶囊。 */
 @Composable
 private fun CommunityHeader(title: String, subtitle: String, action: String, actionIcon: ImageVector?,
-    onBack: (() -> Unit)?, onAction: () -> Unit) {
+    onBack: (() -> Unit)?, onAction: () -> Unit, actionEnabled: Boolean = true) {
     Row(Modifier.fillMaxWidth().padding(start = if (onBack != null) 4.dp else 20.dp, end = 16.dp, top = 12.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically) {
         if (onBack != null) IconButton(onClick = onBack) {
-            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回实验室", tint = AppColors.TextPrimary)
+            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回", tint = AppColors.TextPrimary)
         }
         Column(Modifier.weight(1f)) {
             Text(title, color = AppColors.TextPrimary, fontSize = 28.sp, lineHeight = 34.sp, fontWeight = FontWeight.SemiBold)
             Text(subtitle, color = AppColors.TextSecondary, fontSize = 13.sp, lineHeight = 18.sp)
         }
-        Button(onClick = onAction, modifier = Modifier.launchOrigin(), shape = RoundedCornerShape(50),
+        Button(onClick = onAction, enabled = actionEnabled, modifier = Modifier.launchOrigin(), shape = RoundedCornerShape(50),
             colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent, contentColor = AppColors.OnAccent),
             contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)) {
             if (actionIcon != null) { Icon(actionIcon, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)) }
@@ -88,7 +106,7 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
     val context = LocalContext.current
     val preferences = remember(context) { context.getSharedPreferences("laboratory", 0) }
     val enabled = remember { mutableStateMapOf<String, Boolean>().apply {
-        labFeatures.forEach { put(it.id, preferences.getBoolean(it.id, false)) }
+        put(COMMUNITY_PREF, preferences.communityEnabled())
     } }
     var module by rememberSaveable { mutableStateOf<String?>(null) }
     Column(Modifier.fillMaxSize().background(AppColors.CanvasOpaque).safeDrawingPadding()
@@ -132,31 +150,52 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
             }
         }
     }
-    module?.takeIf { enabled[it] == true }?.let { id ->
+    module?.takeIf { enabled[COMMUNITY_PREF] == true }?.let {
         OverlayLayerHost(onClose = { OverlayDismissGuard.arm(); module = null }) { requestClose ->
-            LaboratoryCommunityScreen(id, state, viewModel, requestClose, onOpenMaterial)
+            LaboratoryCommunityScreen(state, viewModel, requestClose, onOpenMaterial)
         }
     }
 }
 
 @Composable
-internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewModel: AppViewModel,
-    onClose: () -> Unit, onOpenMaterial: (String) -> Unit, topInset: androidx.compose.ui.unit.Dp = 0.dp, mainSearch: String? = null) {
+internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewModel,
+    onClose: () -> Unit, onOpenMaterial: (String) -> Unit, topInset: Dp = 0.dp, mainSearch: String? = null,
+    visible: Boolean = true, clubsOnly: Boolean = false, initialClubId: String? = null, communityClub: Boolean = false,
+    onCommunityNavigate: ((CommunityDestination) -> Unit)? = null,
+    onLayerVisibilityChanged: ((Boolean) -> Unit)? = null,
+) {
     fun closeLayer(action: () -> Unit) { OverlayDismissGuard.arm(); action() }
+    val sessionId = state.session?.sessionId
+    val destinations = remember(sessionId) { mutableStateListOf<CommunityDestination>() }
+    var legacy by remember { mutableStateOf<Boolean?>(null) }
+    val modernCommunity = legacy == false || communityClub
+    var capabilityError by remember { mutableStateOf<String?>(null) }
+    var capabilityAttempt by remember { mutableIntStateOf(0) }
+    var feedRevision by remember { mutableIntStateOf(0) }
+    var openedClubId by remember { mutableStateOf<String?>(null) }
+    var showClubLayer by remember { mutableStateOf(false) }
+    var pendingDestination by remember { mutableStateOf<CommunityDestination?>(null) }
     var detailPostId by remember { mutableStateOf<String?>(null) }
     var reportTarget by remember { mutableStateOf<PostDto?>(null) }
     var openedPack by remember { mutableStateOf<LinkedPackDto?>(null) }
-    var composerPack by remember { mutableStateOf<LinkedPackDto?>(null) }
-    var packPickerForPost by remember { mutableStateOf(false) }
     var showMyPosts by remember { mutableStateOf(false) }
     var showFavorites by remember { mutableStateOf(false) }
-    var showPostDialog by remember { mutableStateOf(false) }
+    var composeTarget by remember(sessionId) { mutableStateOf<CommunityComposeTarget?>(null) }
+    val drafts = remember(sessionId) { mutableStateMapOf<Pair<String?, String?>, CommunityDraft>() }
     var showClubCreate by remember { mutableStateOf(false) }
     var clubDraftName by rememberSaveable { mutableStateOf("") }
     var clubDraftCategory by rememberSaveable { mutableStateOf("") }
     var clubDraftDescription by rememberSaveable { mutableStateOf("") }
     var activeActivity by remember { mutableStateOf<ClubActivityDto?>(null) }
+    var clubsRequested by remember(sessionId) { mutableStateOf(false) }
     var search by rememberSaveable { mutableStateOf("") }
+    val showingOtherLayer = showClubLayer || showMyPosts || showFavorites || detailPostId != null ||
+        openedPack != null || showClubCreate
+    if (onLayerVisibilityChanged != null) {
+        val showingLayer = destinations.isNotEmpty() || showingOtherLayer
+        SideEffect { onLayerVisibilityChanged(showingLayer) }
+        DisposableEffect(Unit) { onDispose { onLayerVisibilityChanged(false) } }
+    }
     val effectiveSearch = mainSearch ?: search
     val clubWorkspace = rememberClubWorkspaceState()
     val clubActivityActions = remember(viewModel) {
@@ -165,40 +204,95 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
             loadMyRsvps = { viewModel.myClubRsvps() },
             rsvp = { id, status -> viewModel.rsvpClubActivity(id, status) })
     }
-    LaunchedEffect(module, state.session?.sessionId) {
-        if (module == "square") viewModel.refreshPosts() else if (state.session != null) viewModel.refreshClubs()
+    LaunchedEffect(clubsOnly, capabilityAttempt) {
+        if (clubsOnly) return@LaunchedEffect
+        capabilityError = null
+        communityResult { viewModel.apiOrNull().supportsCommunity() }
+            .onSuccess { legacy = !it }
+            .onFailure { capabilityError = communityErrorMessage(it, "社区加载失败") }
     }
-    DisposableEffect(Unit) { onDispose { viewModel.closePost() } }
-    Column(Modifier.fillMaxSize().background(AppColors.CanvasOpaque).padding(top = topInset).then(if (mainSearch != null) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
+    LaunchedEffect(clubsOnly, legacy, sessionId) {
+        if (clubsOnly && sessionId != null) {
+            viewModel.refreshClubs()
+            clubsRequested = true
+        }
+        if (legacy == true) viewModel.refreshPosts()
+    }
+    var initialClubOpened by remember(initialClubId) { mutableStateOf(false) }
+    LaunchedEffect(initialClubId, state.clubs, sessionId) {
+        if (!initialClubOpened && sessionId != null && initialClubId != null) {
+            state.clubs.firstOrNull { it.id == initialClubId }?.let {
+                initialClubOpened = true
+                clubWorkspace.open(it.toTarget())
+            }
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose { if (detailPostId != null) viewModel.closePost() }
+    }
+    fun navigate(destination: CommunityDestination) {
+        val previous = destinations.indexOf(destination)
+        if (previous == -1) destinations.add(destination)
+        else while (destinations.lastIndex > previous) destinations.removeAt(destinations.lastIndex)
+    }
+    fun openPost(post: PostDto) {
+        val privatePost = post.visibility == "MEMBERS" || post.visibility == "COHORT"
+        if (privatePost) {
+            val clubId = post.clubId ?: return
+            if (sessionId == null) return
+            viewModel.openClubPost(clubId, post.channelId, post.id)
+        } else viewModel.openPost(post.id)
+        detailPostId = post.id
+    }
+    val actions = CommunityActions(::navigate, ::openPost, { reportTarget = it }, { openedPack = it },
+        compose = { if (sessionId == null) viewModel.openLogin() else composeTarget = it },
+        openClub = { openedClubId = it; showClubLayer = true },
+        createClub = { showClubCreate = true },
+        refreshFeeds = { feedRevision++ },
+    )
+    Column(Modifier.fillMaxSize().hideCoveredCommunityLayer(destinations.isNotEmpty() || showingOtherLayer)
+        .background(AppColors.CanvasOpaque).padding(top = topInset)
+        .then(if (mainSearch != null) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
         CommunityHeader(
-            title = if (module == "square") "广场" else "社团",
-            subtitle = if (module == "square") "校园动态、求助、二手与学习资源" else "找到同好，参加社团活动",
-            action = if (state.session == null) "登录" else if (module == "square") "发帖" else "创建社团",
-            actionIcon = if (state.session == null) Icons.AutoMirrored.Rounded.Login else Icons.Rounded.Add,
+            title = if (clubsOnly) "社团" else "社区",
+            subtitle = if (clubsOnly) "找到同好，参加社团活动" else "校园动态、求助、二手与学习资源",
+            action = if (sessionId == null) "登录" else if (clubsOnly) "创建社团" else "发帖",
+            actionIcon = if (sessionId == null) Icons.AutoMirrored.Rounded.Login else Icons.Rounded.Add,
             onBack = if (mainSearch == null) onClose else null,
             onAction = {
-                if (state.session == null) viewModel.openLogin()
-                else if (module == "square") showPostDialog = true else showClubCreate = true
+                if (sessionId == null) viewModel.openLogin()
+                else if (clubsOnly) showClubCreate = true else composeTarget = CommunityComposeTarget()
             },
+            actionEnabled = sessionId == null || clubsOnly || legacy != null,
         )
-        if (module == "clubs" && clubWorkspace.target != null) ClubWorkspaceHeader(
+        if (clubsOnly && clubWorkspace.target != null) ClubWorkspaceHeader(
             clubWorkspace, state.session != null, viewModel::joinClub,
             membership = state.clubMembership().of(clubWorkspace.target!!.id))
         if (mainSearch == null) TextField(value = search, onValueChange = { search = it },
-            label = { Text(if (module == "square") "搜索帖子" else "搜索社团") },
+            label = { Text(if (clubsOnly) "搜索社团" else "搜索帖子") },
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp), singleLine = true,
             shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
             colors = TextFieldDefaults.colors(focusedContainerColor = AppColors.ChipIdle, unfocusedContainerColor = AppColors.ChipIdle, focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent, unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent))
-        if (module == "square" && state.session != null) Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+        if (!clubsOnly && sessionId != null) Row(Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             ShortcutPill("我的内容", Icons.Rounded.Article) { showMyPosts = true }
             ShortcutPill("我的收藏", Icons.Rounded.BookmarkBorder) { showFavorites = true }
         }
+        if (legacy == true) Row(Modifier.padding(horizontal = 12.dp)) {
+            TextButton(onClick = { openedClubId = null; showClubLayer = true }) { Text("社团") }
+            TextButton(onClick = { navigate(CommunityDestination.Rules) }) { Text("社区准则") }
+        }
         Box(Modifier.weight(1f)) {
-            if (module == "square") SquareScreen(state, effectiveSearch, onRefresh = viewModel::refreshPosts,
-                onReport = { reportTarget = it },
-                onOpen = { detailPostId = it.id; viewModel.openPost(it.id) }, onOpenPack = { openedPack = it })
-            else if (state.session == null) Column(Modifier.fillMaxSize().padding(24.dp),
+            if (!clubsOnly) when (legacy) {
+                true -> SquareScreen(
+                    state, effectiveSearch, onRefresh = viewModel::refreshPosts, onReport = { reportTarget = it },
+                    onOpen = ::openPost, onOpenPack = { openedPack = it },
+                    onPullRefresh = { category -> viewModel.refreshPosts(category); capabilityAttempt++ },
+                )
+                false -> Column(Modifier.fillMaxSize()) { CommunityHome(viewModel, sessionId, effectiveSearch, feedRevision, actions) }
+                null -> CommunityStatus(busy = capabilityError == null, error = capabilityError) { capabilityAttempt++ }
+            }
+            else if (sessionId == null) Column(Modifier.fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                 FeatureTile(Icons.Rounded.Groups, Color(0xFFD46F1F), 64.dp)
                 Text("登录后加入社团", color = AppColors.TextPrimary, fontSize = 20.sp, fontWeight = FontWeight.SemiBold,
@@ -209,36 +303,43 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
                     colors = ButtonDefaults.buttonColors(containerColor = AppColors.Accent, contentColor = AppColors.OnAccent),
                     contentPadding = PaddingValues(horizontal = 32.dp, vertical = 12.dp)) { Text("登录或注册", fontSize = 15.sp) }
             }
-            else {
+            else if (initialClubId != null && !initialClubOpened) {
+                val loading = !clubsRequested || state.clubsLoading
+                CommunityStatus(
+                    busy = loading,
+                    error = state.clubsError ?: "未找到该社团".takeUnless { loading },
+                    onNext = viewModel::refreshClubs,
+                )
+            } else {
                     ClubsScreen(
                         state,
                         effectiveSearch,
                         topInset = 0.dp,
                         onJoin = viewModel::joinClub,
                         workspace = clubWorkspace,
-                        visible = true,
+                        visible = visible,
                         // 「我的社团关系」快照：由服务端 `clubs/mine` 算好，界面只做展示与优先级判定。
                         membership = state.clubMembership(),
                         onRetry = viewModel::refreshClubs,
                         // 团长管理动作：只有负责人会用到它（ClubsScreen 里按身份决定要不要往下传）。
-                        adminActions = if (state.session != null) ClubAdminActions(
+                        adminActions = ClubAdminActions(
                             loadRequests = viewModel::clubJoinRequests,
                             review = viewModel::reviewClubJoinRequest,
-                        ) else null,
-                        channelActions = if (state.session != null) ClubChannelActions(
+                        ),
+                        channelActions = ClubChannelActions(
                             loadChannels = viewModel::clubChannels,
                             loadMessages = { id, before -> viewModel.clubMessages(id, before) },
                             send = { id, text, reply -> viewModel.sendClubMessage(id, text, reply) },
                             delete = viewModel::deleteClubMessage,
-                        ) else null,
+                        ),
                         // 社团帖流（C2 壳；C0 契约 §3.2）：与频道动作分开注入 —— 讨论频道
                         // 主版式换帖子流，历史消息保留 IM 入口。打开帖子走社团路由详情层。
-                        postsActions = if (state.session != null) ClubChannelPostsActions(
+                        postsActions = ClubChannelPostsActions(
                             loadPosts = { clubId, channelId, cursor -> viewModel.clubPosts(clubId, channelId, cursor) },
                             createPost = { clubId, channelId, cohortYear, category, body, title ->
                                 viewModel.createClubPost(clubId, channelId, cohortYear, category, body, title)
                             },
-                        ) else null,
+                        ),
                         onOpenPost = { clubId, channelId, postId ->
                             detailPostId = postId
                             viewModel.openClubPost(clubId, channelId, postId)
@@ -249,6 +350,28 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
                     )
 
             }
+        }
+    }
+    destinations.forEach { destination ->
+        key(destination) {
+            OverlayLayerHost(
+                onClose = { closeLayer { destinations.remove(destination) } },
+                modifier = Modifier.hideCoveredCommunityLayer(destination != destinations.lastOrNull() || showingOtherLayer),
+            ) { requestClose ->
+                CommunityPage(destination, viewModel, sessionId, state.session?.userId, feedRevision, actions, requestClose)
+            }
+        }
+    }
+    if (showClubLayer) {
+        OverlayLayerHost(onClose = { closeLayer { showClubLayer = false } }) { requestClose ->
+            LaboratoryCommunityScreen(
+                state, viewModel, requestClose, onOpenMaterial, visible = visible, clubsOnly = true,
+                initialClubId = openedClubId, communityClub = legacy == false,
+                onCommunityNavigate = { destination ->
+                    closeLayer { showClubLayer = false }
+                    navigate(destination)
+                },
+            )
         }
     }
     LaunchedEffect(showMyPosts) { if (showMyPosts) viewModel.loadMyPosts() }
@@ -284,45 +407,47 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
         }
     }
 
-    // 考试日历页（`docs/plan/54` M6）。入口在学习页，不在首页（M2 硬约束 3）。
-
-    if (showPostDialog) PostComposerDialog(
-        onDismiss = { closeLayer { showPostDialog = false } },
-        linkedPack = composerPack,
-        onPickPack = { packPickerForPost = true },
-        onClearPack = { composerPack = null },
-        onPublish = { category, title, body, done ->
-            // 两个字段必须成对：缺一半就整对不传（服务端也会挡，这里提前不制造脏数据）。
-            val pack = composerPack
-            val linked = if (pack?.packageId != null && pack.version != null) pack.packageId!! to pack.version!! else null
-            viewModel.createPost(category, body, title, linked) { ok ->
-                done()
-                if (ok) { composerPack = null; closeLayer { showPostDialog = false } }
-            }
-        },
-    )
-
-    openedPack?.let { pack ->
-        PostPackInstallScreen(pack = pack,
-            owner = state.session?.userId ?: state.session?.username ?: SessionStore.LOCAL_OWNER,
-            api = viewModel.apiOrNull(), onOpenMaterial = onOpenMaterial,
-            onClose = { closeLayer { openedPack = null } })
+    val target = composeTarget
+    if (target != null && sessionId != null) {
+        val draftKey = target.board?.id to target.topic?.id
+        CommunityComposer(
+            viewModel, sessionId, target, drafts[draftKey], legacy == true, onDismiss = {
+                drafts[draftKey] = it
+                closeLayer { composeTarget = null }
+            },
+            onPublished = {
+                drafts.remove(draftKey)
+                feedRevision++
+                closeLayer { composeTarget = null }
+            },
+        )
     }
-    if (packPickerForPost) PostPackPickerScreen(api = viewModel.apiOrNull(),
-        onPick = { composerPack = it; packPickerForPost = false },
-        onClose = { closeLayer { packPickerForPost = false } })
+    val active = state.activePost?.takeIf { it.id == detailPostId }
+    val boardId = active?.boardId
+    val boardName = if (modernCommunity && boardId != null) key(boardId) {
+        rememberCommunityResource("无法加载圈子名称") { viewModel.apiOrNull().communityBoard(boardId) }.value?.name
+    } else null
     if (detailPostId != null) PostDetailScreen(
         emojiGateway = viewModel.communityEmoji,
         state = state,
         onMore = viewModel::moreComments,
         onOrder = viewModel::changeCommentOrder,
         onCommentAction = viewModel::commentAction,
-        onBack = { closeLayer { viewModel.closePost(); detailPostId = null } },
+        onBack = {
+            closeLayer {
+                viewModel.closePost()
+                detailPostId = null
+                pendingDestination?.let { if (onCommunityNavigate != null) onCommunityNavigate(it) else navigate(it) }
+                pendingDestination = null
+            }
+        },
         onRefresh = { detailPostId?.let(viewModel::refreshComments) },
         onReport = {
-            // 社团帖：公共举报路由对它 404（C1 契约），PostDetail 已隐藏入口，这里兜底不再打开举报框。
-            if (state.activePostClubRef == null) state.activePost?.let { post ->
-                reportTarget = PostDto(post.id, post.category, post.title, post.body, post.status, post.author)
+            if (sessionId == null) viewModel.openLogin()
+            else active?.let { post ->
+                val ref = state.activePostClubRef
+                reportTarget = PostDto(post.id, post.category, post.title, post.body, post.status, post.author,
+                    clubId = ref?.clubId, channelId = ref?.channelId, visibility = "MEMBERS".takeIf { ref != null })
             }
         },
         onReply = { body, parentId, done ->
@@ -334,7 +459,19 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
         onOpenPack = { pack -> openedPack = pack },
         onToggleLike = viewModel::togglePostLike,
         onToggleFavorite = viewModel::togglePostFavorite,
+        community = modernCommunity,
+        boardName = boardName,
+        onOpenBoard = { pendingDestination = CommunityDestination.Board(it) },
+        onOpenTopic = { pendingDestination = CommunityDestination.Topic(it) },
+        onRead = if (modernCommunity && sessionId != null) viewModel::reportCommunityRead else null,
+        readingVisible = visible && reportTarget == null && openedPack == null,
     )
+    openedPack?.let { pack ->
+        PostPackInstallScreen(pack = pack,
+            owner = state.session?.userId ?: state.session?.username ?: SessionStore.LOCAL_OWNER,
+            api = viewModel.apiOrNull(), onOpenMaterial = onOpenMaterial,
+            onClose = { closeLayer { openedPack = null } })
+    }
     if (showClubCreate) ClubCreateScreen(
         name = clubDraftName,
         category = clubDraftCategory,
@@ -350,13 +487,21 @@ internal fun LaboratoryCommunityScreen(module: String, state: AppUiState, viewMo
                 if (ok) {
                     // 成功才清稿（页面收到 ok 后自己播退出动画 → onClose → 这里已清）。
                     clubDraftName = ""; clubDraftCategory = ""; clubDraftDescription = ""
+                    feedRevision++
                 }
             }
         },
     )
     reportTarget?.let { post ->
-        ReportDialog(post, onDismiss = { reportTarget = null }, onSubmit = { reason, details ->
-            viewModel.reportPost(post.id, reason, details)
+        if (modernCommunity) CommunityReportDialog(post, onDismiss = { closeLayer { reportTarget = null } }) { category, details, done ->
+            val clubId = post.clubId?.takeIf { post.visibility == "MEMBERS" || post.visibility == "COHORT" }
+            viewModel.reportPost(post.id, category.label, details, category.name, clubId) { error ->
+                done(error)
+                if (error == null) closeLayer { reportTarget = null }
+            }
+        }
+        else ReportDialog(post, onDismiss = { reportTarget = null }, onSubmit = { reason, details ->
+            if (sessionId == null) viewModel.openLogin() else viewModel.reportPost(post.id, reason, details)
             reportTarget = null
         })
     }

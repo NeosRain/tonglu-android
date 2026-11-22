@@ -60,7 +60,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
@@ -295,21 +294,24 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     val labPrefs = remember { labContext.getSharedPreferences("laboratory", 0) }
     var labRevision by remember { mutableIntStateOf(0) }
     androidx.compose.runtime.DisposableEffect(labPrefs) {
+        labPrefs.migrateCommunityPreference()
         val listener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> labRevision++ }
         labPrefs.registerOnSharedPreferenceChangeListener(listener)
         onDispose { labPrefs.unregisterOnSharedPreferenceChangeListener(listener) }
     }
     val tabs = remember(labRevision) { buildList {
         add("首页"); add("学习")
-        if (labPrefs.getBoolean("square", false)) add("广场")
-        if (labPrefs.getBoolean("clubs", false)) add("社团")
+        if (labPrefs.communityEnabled()) add("社区")
         add("我的")
     } }
     var selectedDestination by rememberSaveable { mutableStateOf(tabs.getOrElse(state.lastMainTab) { "首页" }) }
     val mainPager = androidx.compose.runtime.key(tabs) {
-        rememberPagerState(initialPage = tabs.indexOf(selectedDestination).coerceAtLeast(0), pageCount = { tabs.size })
+        val destination = if (selectedDestination == "广场" || selectedDestination == "社团") "社区" else selectedDestination
+        rememberPagerState(initialPage = tabs.indexOf(destination).coerceAtLeast(0), pageCount = { tabs.size })
     }
     val selectedTab = mainPager.currentPage
+    var communityLayerVisible by remember { mutableStateOf(false) }
+    val communityInDetail = tabs[selectedTab] == "社区" && communityLayerVisible
     var search by rememberSaveable { mutableStateOf("") }
     var aiRequest by rememberSaveable { mutableIntStateOf(0) }
     var showCourseDialog by remember { mutableStateOf(false) }
@@ -321,7 +323,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     val tabNavigator = remember(mainPager, scope) { MainTabNavigator(mainPager, scope) }
     val filledIcons = tabs.map { when(it) {
         "首页" -> Icons.Filled.Home; "学习" -> Icons.Filled.MenuBook
-        "广场" -> Icons.Filled.Forum; "社团" -> Icons.Filled.Groups; else -> Icons.Filled.Person
+        "社区" -> Icons.Filled.Forum; else -> Icons.Filled.Person
     } }
     val outlinedIcons = filledIcons
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -588,7 +590,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
             ) {
                 // 非玻璃模式：顶栏还是老老实实占一行；玻璃模式下它是叠加层（见下），
                 // 页面内容靠 topInset 让位，才能从顶栏底下滚过去
-                if (!useGlassNav) {
+                if (!useGlassNav && !communityInDetail) {
                     Box(Modifier.fillMaxWidth().height(52.dp)) {
                     TopActionRow(
                         search = search,
@@ -603,7 +605,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 }
                 val topInset = if (useGlassNav) glassTopInset else 0.dp
                 androidx.compose.runtime.key(tabs) {
-                HorizontalPager(state = mainPager, modifier = Modifier.weight(1f).fillMaxWidth(),
+                HorizontalPager(state = mainPager, modifier = Modifier.weight(1f).fillMaxWidth(), userScrollEnabled = !communityInDetail,
                     beyondViewportPageCount = BEYOND_PAGES, key = { tabs[it] }) { page ->
                 Box(Modifier.fillMaxSize().graphicsLayer(), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = if (tabs[page] == "首页") windowWidth else 960.dp).fillMaxSize()) {
@@ -672,11 +674,12 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         examStudyRoute = examStudyRoute,
                         onExamStudyRouteOpened = { examStudyRoute = null },
                     )
-                    "广场", "社团" -> LaboratoryCommunityScreen(
-                        if (tabs[page] == "广场") "square" else "clubs", state, viewModel,
+                    "社区" -> LaboratoryCommunityScreen(
+                        state = state, viewModel = viewModel,
                         onClose = { tabNavigator.select(0) }, onOpenMaterial = { material ->
                             labListeningMaterial = material; tabNavigator.select(1)
-                        }, topInset = topInset, mainSearch = search)
+                        }, topInset = topInset, mainSearch = search, visible = selectedTab == page,
+                        onLayerVisibilityChanged = { communityLayerVisible = it })
                     else -> ProfileScreen(
                         state = state,
                         onLogin = viewModel::openLogin,
@@ -754,7 +757,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
             if (useGlassNav) {
                 // 顶栏玻璃条：必须做成叠加层。如果放在上面的 Column 里，它采样到的是自己所在的那层，
                 // 背景一片空白 —— 玻璃会变成一块实心板，就白做了。
-                GlassTopBar(
+                if (!communityInDetail) GlassTopBar(
                     backdrop = liquidBackdrop,
                     // 平板：顶栏从侧栏右边开始，和侧栏拼成一整块「L」形磨砂外框。
                     modifier = Modifier
@@ -791,7 +794,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     }
                     }
                 }
-                if (!useRail && !navigationImeVisible) GlassBottomBar(
+                if (!useRail && !navigationImeVisible && !communityInDetail) GlassBottomBar(
                     tabs = tabs,
                     filledIcons = filledIcons,
                     outlinedIcons = outlinedIcons,
@@ -802,7 +805,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
             } else {
-                if (!useRail && !navigationImeVisible) CoolapkNavigationBar(
+                if (!useRail && !navigationImeVisible && !communityInDetail) CoolapkNavigationBar(
                     tabs = tabs,
                     filledIcons = filledIcons,
                     outlinedIcons = outlinedIcons,
@@ -812,13 +815,14 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 )
             }
             if (useRail && !navigationImeVisible) TabletNavigationRail(
-                tabs, filledIcons, outlinedIcons, mainPager.targetPage, tabNavigator::select, liquidBackdrop, useGlassNav,
+                tabs, filledIcons, outlinedIcons, mainPager.targetPage,
+                { if (!communityInDetail) tabNavigator.select(it) }, liquidBackdrop, useGlassNav,
                 Modifier.align(Alignment.TopStart),
                 header = {
                     if (useGlassNav) TopBarAvatar(
                         name = state.session?.displayName,
                         path = state.session?.avatarUrl,
-                        enabled = !OverlayDismissGuard.cooling(),
+                        enabled = !OverlayDismissGuard.cooling() && !communityInDetail,
                         size = 40.dp,
                         onClick = { if (state.session == null) viewModel.openLogin() else showAccountSettings = true },
                     )

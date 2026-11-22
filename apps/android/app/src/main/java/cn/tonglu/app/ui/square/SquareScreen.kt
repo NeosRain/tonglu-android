@@ -104,6 +104,7 @@ internal fun SquareScreen(
     onReport: (PostDto) -> Unit,
     onOpen: (PostDto) -> Unit,
     onOpenPack: (LinkedPackDto) -> Unit = {},
+    onPullRefresh: (String?) -> Unit = onRefresh,
 ) {
     // 存标签而不是存整个对象：rememberSaveable 只能存 Bundle 认识的类型，
     // 而且分类表一旦改动，存下来的下标/枚举会错位。
@@ -131,7 +132,7 @@ internal fun SquareScreen(
     )
 
     SquarePullRefresh(
-        onRefresh = { onRefresh(SquareCategories.serverQuery(category)) },
+        onRefresh = { onPullRefresh(SquareCategories.serverQuery(category)) },
         topInset = topInset,
         modifier = Modifier.fillMaxSize(),
     ) {
@@ -267,8 +268,9 @@ internal fun SquareScreen(
  * 用 0dp 宽会让整行高度跟着变，点一下就上下跳一格。
  */
 @Composable
-private fun CategoryTab(label: String, selected: Boolean, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
+internal fun CategoryTab(label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom,
+        modifier = Modifier.clickable(onClick = onClick).then(modifier)) {
         Text(
             label,
             color = if (selected) AppColors.TextPrimary else Muted,
@@ -306,6 +308,7 @@ internal fun SquarePostCard(
     showReport: Boolean = true,
     /** 来源行覆写：社团帖传「社团名 · 频道名」（复用卡片默认写分类名，对社团帖是错误文案）。 */
     sourceOverride: String? = null,
+    showShare: Boolean = true,
 ) {
     val context = LocalContext.current
     val categoryName = remember(post.category) { post.category.toCategoryName() }
@@ -397,14 +400,16 @@ internal fun SquarePostCard(
                     tint = Accent,
                     onClick = onOpen,
                 )
-                Spacer(Modifier.width(16.dp))
-                ActionItem(
-                    icon = { Icon(Icons.Outlined.Share, null, tint = Muted, modifier = Modifier.size(16.dp)) },
-                    label = "分享",
-                    tint = Muted,
-                    onClick = { sharePost(context, post, categoryName, excerpt, truncated) },
-                    modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
-                )
+                if (showShare) {
+                    Spacer(Modifier.width(16.dp))
+                    ActionItem(
+                        icon = { Icon(Icons.Outlined.Share, null, tint = Muted, modifier = Modifier.size(16.dp)) },
+                        label = "分享",
+                        tint = Muted,
+                        onClick = { sharePost(context, post, categoryName, excerpt, truncated) },
+                        modifier = Modifier.sizeIn(minWidth = 48.dp, minHeight = 48.dp),
+                    )
+                }
                 Spacer(Modifier.weight(1f))
                 if (showReport) TextButton(onClick = onReport, contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)) {
                     Icon(Icons.Outlined.Flag, null, modifier = Modifier.size(16.dp))

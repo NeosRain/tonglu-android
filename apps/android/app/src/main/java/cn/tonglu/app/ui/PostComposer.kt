@@ -99,6 +99,11 @@ internal fun PostComposerDialog(
     onPickPack: (() -> Unit)? = null,
     /** 清掉已贴的资料。 */
     onClearPack: () -> Unit = {},
+    communityFields: (@Composable (enabled: Boolean) -> Unit)? = null,
+    publishEnabled: Boolean = true,
+    publishError: String? = null,
+    onSaveDraft: ((category: String, title: String, body: String) -> Unit)? = null,
+    overlay: (@Composable () -> Unit)? = null,
 ) {
     var category by remember { mutableStateOf(initialCategory) }
     var title by remember { mutableStateOf(initialTitle) }
@@ -111,7 +116,10 @@ internal fun PostComposerDialog(
     // 这一层原本是「窗口动画关成 0 + Compose 里也不补」，所以是硬切出来、硬切没的 ——
     // 用户 2026-10-04 点名的「突兀」就是这个。现在走统一的一站式方案。
     val motion = rememberOverlayMotion(
-        onClose = onDismiss,
+        onClose = {
+            onSaveDraft?.invoke(category, title, value.text)
+            onDismiss()
+        },
         predictive = OverlayMotion.enabledState,
         selfDrag = true,
         backEnabled = !submitting,
@@ -131,6 +139,7 @@ internal fun PostComposerDialog(
                 clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             }
         }
+        Box(Modifier.fillMaxSize()) {
         Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize().overlayMotion(motion, fade = false)) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
                 Row(
@@ -178,7 +187,7 @@ internal fun PostComposerDialog(
                             // 上限是后端 `CreatePostDto.body @Length(1, 20000)`。
                             // **这里不截断正文** —— 超限只是拦住发布，让用户自己删，
                             // 免得把他写了一半的长文悄悄砍掉（见 data/PostLimits.kt 的注释）。
-                            enabled = value.text.isNotBlank() && value.text.length <= POST_BODY_MAX,
+                            enabled = publishEnabled && value.text.isNotBlank() && value.text.length <= POST_BODY_MAX,
                             onClick = {
                                 submitting = true
                                 onPublish(category, title.trim().ifBlank { null }, value.text.trim()) { submitting = false }
@@ -194,9 +203,13 @@ internal fun PostComposerDialog(
                 if (submitting) {
                     LinearProgressRow("正在提交并审核，请稍候")
                 }
+                if (publishError != null) {
+                    Text(publishError, color = AppColors.Danger, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                }
 
                 if (!preview) {
-                    Row(
+                    if (communityFields != null) communityFields(!submitting)
+                    else Row(
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -298,6 +311,8 @@ internal fun PostComposerDialog(
                 }
                 }
             }
+        }
+        overlay?.invoke()
         }
     }
 
