@@ -1,6 +1,7 @@
 package cn.tonglu.app.ui.glass
 
 import android.os.Build
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -11,16 +12,28 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.ui.AppColors
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.backdrops.rememberCanvasBackdrop
 import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
+import com.kyant.backdrop.shadow.Shadow
 import top.yukonga.miuix.kmp.shader.isRuntimeShaderSupported
 
 /** Background-only sibling layer. It must never contain the glass that samples it. */
 internal val LocalGlassBaseBackdrop = staticCompositionLocalOf<Backdrop?> { null }
+
+internal val LocalGlassNavigationEnabled = staticCompositionLocalOf { false }
+
+internal fun canUseNavigationGlass(enabled: Boolean, sdk: Int, shaderSupported: () -> Boolean): Boolean =
+    enabled && sdk >= 33 && shaderSupported()
+
+internal fun Modifier.darkNavigationBorder(shape: Shape): Modifier =
+    border(.75.dp, GlassTokens.DarkNavigationOutline, shape)
+
+internal val DarkNavigationShadow = Shadow(radius = 20.dp, color = Color.Black, alpha = .40f)
 
 /** Transparent text layers need the actual page background underneath the blurred copy. */
 @Composable

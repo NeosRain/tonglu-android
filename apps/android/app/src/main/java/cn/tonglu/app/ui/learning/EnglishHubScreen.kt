@@ -7,6 +7,9 @@ import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import cn.tonglu.app.ui.glass.GlassTopBar
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import cn.tonglu.app.ui.glass.GlassTokens
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -270,12 +273,14 @@ internal fun EnglishHubScreen(
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false,
             backEnabled = abilityRoutes.isEmpty() && readingArticle == null), color = AppColors.CanvasOpaque) {
             val backdrop = rememberLayerBackdrop()
+            val listState = rememberLazyListState()
             val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
                 GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier.widthIn(max = 640.dp).fillMaxSize(),
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -310,7 +315,7 @@ internal fun EnglishHubScreen(
                     }
                 }
                 }
-                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }) {
                     IconButton(onClick = { motion.requestClose() }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回学习页", tint = AppColors.TextPrimary)
                     }
@@ -370,13 +375,14 @@ private data class EnglishToolEntry(
 private fun EnglishToolDirectory(title: String, subtitle: String, entries: List<EnglishToolEntry>, onClose: () -> Unit) {
     val motion = rememberOverlayMotion(onClose = { OverlayDismissGuard.arm(); onClose() }, predictive = OverlayMotion.enabledState, selfDrag = true)
     val backdrop = rememberLayerBackdrop()
+    val listState = rememberLazyGridState()
     Dialog(onDismissRequest = { motion.requestClose() }, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = AppColors.CanvasOpaque) {
             val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
-                    LazyVerticalGrid(columns = GridCells.Adaptive(300.dp),
+                    LazyVerticalGrid(columns = GridCells.Adaptive(300.dp), state = listState,
                         modifier = Modifier.widthIn(max = 1040.dp).fillMaxSize(),
                         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 20.dp, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -389,7 +395,7 @@ private fun EnglishToolDirectory(title: String, subtitle: String, entries: List<
                         }
                     }
                 }
-                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }) {
                     IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回上一页", tint = AppColors.TextPrimary) }
                     Text(title, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary, modifier = Modifier.weight(1f))
                 }

@@ -2,6 +2,7 @@ package cn.tonglu.app.ui.profile
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -22,8 +23,13 @@ import cn.tonglu.app.ui.AvatarCropDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.UserAvatar
+import cn.tonglu.app.ui.glass.DarkTopBarBackground
+import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.glass.LocalGlassNavigationEnabled
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
@@ -87,11 +93,14 @@ internal fun AccountSettingsScreen(
         properties = androidx.compose.ui.window.DialogProperties(
             usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
+        val background = MaterialTheme.colorScheme.background
         androidx.compose.material3.Surface(
             Modifier.fillMaxSize().overlayMotion(motion, fade = false),
-            color = MaterialTheme.colorScheme.background,
+            color = background,
         ) {
-            Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+            val dark = GlassTokens.DarkGlass
+            val scrollState = rememberScrollState()
+            val title: @Composable () -> Unit = {
                 Row(
                     Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -101,117 +110,145 @@ internal fun AccountSettingsScreen(
                     }
                     Text("个人资料", fontWeight = FontWeight.SemiBold, modifier = Modifier.weight(1f))
                 }
+            }
 
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 18.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (session == null) {
-                        // 理论上到不了（入口都要求登录），但别让空会话画出一片空白。
-                        Column(
-                            Modifier.fillMaxWidth().padding(top = 60.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            Text("还没有登录应用账号")
-                            Button(onClick = onLogin) { Text("注册或登录") }
+            val safeTop = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+            val insets = if (dark) WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                else WindowInsets.safeDrawing
+            val topInset = if (dark) safeTop.asPaddingValues().calculateTopPadding() + 60.dp else 0.dp
+            val backdrop = if (dark && LocalGlassNavigationEnabled.current) rememberLayerBackdrop() else null
+            Box(Modifier.fillMaxSize().windowInsetsPadding(insets)) {
+                Column(Modifier.fillMaxSize()
+                    .then(if (backdrop != null) Modifier.layerBackdrop(backdrop).background(background) else Modifier)) {
+                    if (!dark) title()
+                    Column(
+                        Modifier.fillMaxWidth().verticalScroll(scrollState)
+                            .padding(top = topInset, start = 18.dp, end = 18.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) fields@{
+                        if (session == null) {
+                            // 理论上到不了（入口都要求登录），但别让空会话画出一片空白。
+                            Column(
+                                Modifier.fillMaxWidth().padding(top = 60.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Text("还没有登录应用账号")
+                                Button(onClick = onLogin) { Text("注册或登录") }
+                            }
+                            return@fields
                         }
-                        return@Column
-                    }
 
-                    // ---- 头像 ----
-                    MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            UserAvatar(
-                                session.displayName, session.avatarUrl,
-                                Modifier.size(64.dp).clickable(enabled = !busy) {
-                                    avatarPicker.launch("image/*")
-                                },
+                        // ---- 头像 ----
+                        MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                UserAvatar(
+                                    session.displayName, session.avatarUrl,
+                                    Modifier.size(64.dp).clickable(enabled = !busy) {
+                                        avatarPicker.launch("image/*")
+                                    },
+                                )
+                                Column(Modifier.padding(start = 14.dp).weight(1f)) {
+                                    Text("头像", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        if (busy) "处理中…" else "点头像更换，支持裁剪",
+                                        color = Muted, style = MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+
+                        // ---- 昵称 ----
+                        MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                            Text("昵称", fontWeight = FontWeight.SemiBold)
+                            TextField(
+                                name, { name = it },
+                                singleLine = true,
+                                shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = AppColors.ChipIdle,
+                                    unfocusedContainerColor = AppColors.ChipIdle,
+                                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    errorIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                                    disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent),
+                                label = { Text("2~24 个字符") },
+                                isError = name.trim().isNotEmpty() && name.trim().length !in 2..24,
+                                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             )
-                            Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                                Text("头像", fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    if (busy) "处理中…" else "点头像更换，支持裁剪",
-                                    color = Muted, style = MaterialTheme.typography.bodySmall,
-                                )
+                            Row(
+                                Modifier.fillMaxWidth().padding(top = 8.dp),
+                                horizontalArrangement = Arrangement.End,
+                            ) {
+                                if (localNotice != null) {
+                                    Text(
+                                        localNotice!!, color = Muted,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
+                                    )
+                                }
+                                Button(
+                                    enabled = nameValid && !busy,
+                                    onClick = {
+                                        onSetDisplayName(name)
+                                        // 真正的成功/失败由上层 notice（state.notice）反馈；
+                                        // 这里把「点了但没反应」的疑虑就地消掉。
+                                        scope.launch { localNotice = "已提交，保存后自动生效" }
+                                    },
+                                ) { Text(if (busy) "保存中…" else "保存") }
                             }
                         }
-                    }
 
-                    // ---- 昵称 ----
-                    MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-                        Text("昵称", fontWeight = FontWeight.SemiBold)
-                        TextField(
-                            name, { name = it },
-                            singleLine = true,
-                            shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
-                            colors = TextFieldDefaults.colors(
-                                focusedContainerColor = AppColors.ChipIdle,
-                                unfocusedContainerColor = AppColors.ChipIdle,
-                                focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                                unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                                errorIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
-                                disabledIndicatorColor = androidx.compose.ui.graphics.Color.Transparent),
-                            label = { Text("2~24 个字符") },
-                            isError = name.trim().isNotEmpty() && name.trim().length !in 2..24,
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        )
-                        Row(
-                            Modifier.fillMaxWidth().padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.End,
-                        ) {
-                            if (localNotice != null) {
-                                Text(
-                                    localNotice!!, color = Muted,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.weight(1f).align(Alignment.CenterVertically),
-                                )
-                            }
-                            Button(
-                                enabled = nameValid && !busy,
-                                onClick = {
-                                    onSetDisplayName(name)
-                                    // 真正的成功/失败由上层 notice（state.notice）反馈；
-                                    // 这里把「点了但没反应」的疑虑就地消掉。
-                                    scope.launch { localNotice = "已提交，保存后自动生效" }
-                                },
-                            ) { Text(if (busy) "保存中…" else "保存") }
+                        // ---- 用户名（只读）：改名有独立引导流程，这里不放编辑 ----
+                        MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                            Text("用户名", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "@${session.username}",
+                                color = Muted, style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(top = 4.dp),
+                            )
                         }
-                    }
 
-                    // ---- 用户名（只读）：改名有独立引导流程，这里不放编辑 ----
-                    MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-                        Text("用户名", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "@${session.username}",
-                            color = Muted, style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(top = 4.dp),
-                        )
-                    }
+                        // ---- 等级（只读）：改不了，但看得见 ----
+                        if (state.myLevel != null) {
+                            MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
+                                Row(
+                                    Modifier.fillMaxWidth().clickable(onClick = onOpenMyLevel),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Column(Modifier.weight(1f)) {
+                                        Text("我的等级", fontWeight = FontWeight.SemiBold)
+                                        Text(
+                                            state.myLevel?.let {
+                                                "Lv${it.level} ${it.levelName} · 学习 ${it.expLearn} · 社区 ${it.expSocial}"
+                                            } ?: "",
+                                            color = Muted, style = MaterialTheme.typography.bodySmall,
+                                            modifier = Modifier.padding(top = 4.dp),
+                                        )
+                                        Text(
+                                            "等级由经验自动成长，不能手动改",
+                                            color = Muted, style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.padding(top = 4.dp),
+                                        )
+                                    }
+                                    Text("查看", color = Accent, style = MaterialTheme.typography.bodyMedium)
+                                }
+                            }
+                        }
 
-                    // ---- 等级（只读）：改不了，但看得见 ----
-                    if (state.myLevel != null) {
+                        // ---- 校园身份（只读入口）----
                         MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                             Row(
-                                Modifier.fillMaxWidth().clickable(onClick = onOpenMyLevel),
+                                Modifier.fillMaxWidth().clickable(onClick = onCampusVerification),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {
-                                    Text("我的等级", fontWeight = FontWeight.SemiBold)
+                                    Text("校园身份", fontWeight = FontWeight.SemiBold)
                                     Text(
-                                        state.myLevel?.let {
-                                            "Lv${it.level} ${it.levelName} · 学习 ${it.expLearn} · 社区 ${it.expSocial}"
-                                        } ?: "",
+                                        state.campusIdentity?.summary() ?: "校园身份待查询",
                                         color = Muted, style = MaterialTheme.typography.bodySmall,
-                                        modifier = Modifier.padding(top = 4.dp),
-                                    )
-                                    Text(
-                                        "等级由经验自动成长，不能手动改",
-                                        color = Muted, style = MaterialTheme.typography.labelSmall,
                                         modifier = Modifier.padding(top = 4.dp),
                                     )
                                 }
@@ -219,25 +256,10 @@ internal fun AccountSettingsScreen(
                             }
                         }
                     }
-
-                    // ---- 校园身份（只读入口）----
-                    MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
-                        Row(
-                            Modifier.fillMaxWidth().clickable(onClick = onCampusVerification),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Column(Modifier.weight(1f)) {
-                                Text("校园身份", fontWeight = FontWeight.SemiBold)
-                                Text(
-                                    state.campusIdentity?.summary() ?: "校园身份待查询",
-                                    color = Muted, style = MaterialTheme.typography.bodySmall,
-                                    modifier = Modifier.padding(top = 4.dp),
-                                )
-                            }
-                            Text("查看", color = Accent, style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
+                }
+                if (dark) Box(Modifier.fillMaxWidth()) {
+                    DarkTopBarBackground(backdrop, { scrollState.value.toFloat() }, Modifier.matchParentSize())
+                    Box(Modifier.fillMaxWidth().windowInsetsPadding(safeTop)) { title() }
                 }
             }
         }

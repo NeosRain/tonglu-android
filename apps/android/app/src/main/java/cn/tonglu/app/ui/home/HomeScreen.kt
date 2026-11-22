@@ -4,6 +4,9 @@ import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.glass.BindMainTopBarScroll
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -175,9 +178,12 @@ internal fun HomeScreen(
     }
 
     // 一级页面仅广场有下拉刷新；首页和学习使用本地状态，社团频道后续接入实时更新。
+    val listState = rememberLazyListState()
+    BindMainTopBarScroll { listState.topBarScrollPx() }
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
+            state = listState,
             contentPadding = PaddingValues(start = 12.dp, end = 12.dp, top = 8.dp + topInset, bottom = LocalMainNavigationBottomPadding.current),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {

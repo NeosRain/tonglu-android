@@ -195,6 +195,18 @@ internal object GlassTokens {
 
     /** 按住时胶囊放大到多少倍（官方取 78/56 ≈ 1.39） */
     const val PressedScale = 78f / 56f
+
+    // 夜间主导航独用，其他底部面板仍使用原来的材质。
+    val DarkNavigationTint = Color(0xFF0E0F12).copy(alpha = .50f)
+    val DarkNavigationFallback = Color(0xFF16171A).copy(alpha = .92f)
+    val DarkNavigationIndicator = Color.White.copy(alpha = .11f)
+    val DarkNavigationInactive = Color.White.copy(alpha = .64f)
+    const val DarkNavigationSaturation = 1.3f
+    val DarkNavigationOutline = Brush.verticalGradient(
+        listOf(Color.White.copy(alpha = .12f), Color.White.copy(alpha = .04f)),
+    )
+
+    fun darkNavigationSurface(glass: Boolean): Color = if (glass) DarkNavigationTint else DarkNavigationFallback
 }
 
 /** Shared frost tint and broad, soft surface light; the backdrop still provides the real blur. */

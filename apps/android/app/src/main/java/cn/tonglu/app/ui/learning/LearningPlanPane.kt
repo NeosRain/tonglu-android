@@ -15,6 +15,8 @@ import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.ui.draw.rotate
 import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.glass.GlassTopBar
+import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
 import androidx.compose.foundation.lazy.LazyColumn
@@ -254,13 +256,14 @@ internal fun LearningPlanPane(
     Dialog(onDismissRequest = { motion.requestClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val backdrop = rememberLayerBackdrop()
+        val listState = rememberLazyListState()
         val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
             GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = MaterialTheme.colorScheme.background) {
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
-                    LazyColumn(Modifier.widthIn(max = 880.dp).fillMaxSize(),
+                    LazyColumn(Modifier.widthIn(max = 880.dp).fillMaxSize(), state = listState,
                         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 20.dp, bottom = 24.dp),
                         verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         item("intro") {
@@ -344,7 +347,7 @@ internal fun LearningPlanPane(
                         }
                     }
                 }
-                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }) {
                     IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语") }
                     Text("学习计划", Modifier.weight(1f), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 }

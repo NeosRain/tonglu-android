@@ -29,11 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.glass.DarkNavigationShadow
+import cn.tonglu.app.ui.glass.darkNavigationBorder
 import cn.tonglu.app.ui.glass.drawFrostSurface
 import cn.tonglu.app.ui.glass.rememberBottomBackdrop
 import com.kyant.backdrop.Backdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
 import com.kyant.backdrop.shadow.Shadow
@@ -71,23 +74,30 @@ internal fun TabletNavigationRail(
         spring(dampingRatio = .78f, stiffness = 420f), label = "rail-indicator")
     val position = if (dragging) previewIndex ?: selectedTab.toFloat() else animated
     val dark = GlassTokens.DarkGlass
-    val container = if (dark) GlassTokens.ContainerDark else GlassTokens.ContainerLight
-    val hairline = AppColors.TextPrimary.copy(alpha = if (dark) .10f else .07f)
-    val indicatorColor = AppColors.Accent.copy(alpha = if (dark) .26f else .14f)
+    val hairline = AppColors.TextPrimary.copy(alpha = .07f)
+    val indicatorColor = if (dark) GlassTokens.DarkNavigationIndicator else AppColors.Accent.copy(alpha = .14f)
 
     val surface = if (glass) Modifier.drawBackdrop(
         backdrop = rememberBottomBackdrop(backdrop),
         shape = { RectangleShape },
-        effects = { vibrancy(); blur(28.dp.toPx()) },
+        effects = {
+            if (dark) colorControls(saturation = GlassTokens.DarkNavigationSaturation) else vibrancy()
+            blur(28.dp.toPx())
+        },
         highlight = { Highlight.Default.copy(alpha = 0f) },
-        shadow = { Shadow(alpha = 0f) },
-        onDrawSurface = { drawFrostSurface(container, if (dark) .48f else .42f) },
-    ) else Modifier.background(AppColors.SurfaceOpaque)
+        shadow = { if (dark) DarkNavigationShadow else Shadow(alpha = 0f) },
+        onDrawSurface = {
+            if (dark) drawRect(GlassTokens.darkNavigationSurface(glass = true))
+            else drawFrostSurface(GlassTokens.ContainerLight, .42f)
+        },
+    ) else Modifier.background(if (dark) GlassTokens.darkNavigationSurface(glass = false) else AppColors.SurfaceOpaque)
 
     Column(
         modifier.fillMaxHeight()
             .then(surface)
-            .drawBehind { drawLine(hairline, Offset(size.width, 0f), Offset(size.width, size.height), 1f) }
+            .then(if (dark) Modifier.darkNavigationBorder(RectangleShape) else Modifier.drawBehind {
+                drawLine(hairline, Offset(size.width, 0f), Offset(size.width, size.height), 1f)
+            })
             .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Start + WindowInsetsSides.Vertical))
             .width(TabletRailWidth)
             .semantics { contentDescription = "主导航侧栏" },
@@ -124,7 +134,11 @@ internal fun TabletNavigationRail(
             Column(verticalArrangement = Arrangement.spacedBy(SlotGap), horizontalAlignment = Alignment.CenterHorizontally) {
                 tabs.forEachIndexed { index, title ->
                     val selected = (previewIndex?.roundToInt() ?: selectedTab) == index
-                    val tint by animateColorAsState(if (selected) GlassTokens.AccentOnGlass else AppColors.TextSecondary, label = "rail-icon")
+                    val tint by animateColorAsState(
+                        if (selected) GlassTokens.AccentOnGlass
+                        else if (dark) GlassTokens.DarkNavigationInactive else AppColors.TextSecondary,
+                        label = "rail-icon",
+                    )
                     val interaction = remember { MutableInteractionSource() }
                     val pressed by interaction.collectIsPressedAsState()
                     val scale by animateFloatAsState(if (pressed) .9f else 1f, spring(.6f, 500f), label = "rail-press")

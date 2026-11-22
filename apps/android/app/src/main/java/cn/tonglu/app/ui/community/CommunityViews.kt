@@ -1,24 +1,30 @@
 package cn.tonglu.app.ui.community
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.SubcomposeLayout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.data.community.communityErrorMessage
 import cn.tonglu.app.data.community.communityResult
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.glass.BindMainTopBarScroll
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import cn.tonglu.app.ui.square.CategoryTab
 import kotlinx.coroutines.launch
 
@@ -131,22 +137,49 @@ internal fun <T> CommunityListStatus(list: CommunityList<T>, empty: String) {
 @Composable
 internal fun CommunityGrid(
     bottom: PaddingValues = PaddingValues(bottom = 16.dp),
+    feedHeaderHeight: Dp = 0.dp,
     content: LazyGridScope.() -> Unit,
 ) {
     val window = LocalConfiguration.current
     val wide = window.screenWidthDp >= 600 && window.screenHeightDp >= 480
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val columns = if (wide && maxWidth >= 520.dp) 2 else 1
+        val gridState = rememberLazyGridState()
+        if (feedHeaderHeight > 0.dp) BindMainTopBarScroll { gridState.topBarScrollPx() }
         LazyVerticalGrid(
             columns = GridCells.Fixed(columns),
+            state = gridState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
-                start = 14.dp, end = 14.dp, top = 8.dp, bottom = bottom.calculateBottomPadding(),
+                start = 14.dp, end = 14.dp, top = feedHeaderHeight + 8.dp, bottom = bottom.calculateBottomPadding(),
             ),
             verticalArrangement = Arrangement.spacedBy(8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             content = content,
         )
+    }
+}
+
+/** 固定控件留在原处，信息流的顶部留白随列表一起滚走。 */
+@Composable
+internal fun CommunityFeedLayout(
+    topInset: Dp,
+    header: @Composable () -> Unit,
+    content: @Composable (Dp) -> Unit,
+) {
+    SubcomposeLayout(Modifier.fillMaxSize()) { constraints ->
+        val controls = subcompose("header") {
+            Column(Modifier.fillMaxWidth().padding(top = topInset).background(AppColors.CanvasOpaque)) {
+                header()
+            }
+        }.single().measure(constraints.copy(minHeight = 0))
+        val feed = subcompose("feed") {
+            Box(Modifier.fillMaxSize()) { content(controls.height.toDp()) }
+        }.single().measure(constraints)
+        layout(feed.width, feed.height) {
+            feed.placeRelative(0, 0)
+            controls.placeRelative(0, 0)
+        }
     }
 }
 

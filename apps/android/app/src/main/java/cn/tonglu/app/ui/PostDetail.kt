@@ -76,6 +76,8 @@ import cn.tonglu.app.ui.glass.GlassBottomActionPanel
 import cn.tonglu.app.ui.glass.GlassPanelStyle
 import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.glass.GlassTopBar
+import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -181,6 +183,7 @@ internal fun PostDetailScreen(
         TrackCommunityRead(post.id, readingSession, visible, onRead)
     }
     val backdrop = rememberLayerBackdrop()
+    val listState = rememberLazyListState()
     val context = LocalContext.current
     fun action(comment: PostCommentDto, action: String) {
         if (action == "copy") {
@@ -270,6 +273,7 @@ internal fun PostDetailScreen(
                 }
                 else -> LazyColumn(
                     Modifier.fillMaxSize(),
+                    state = listState,
                     contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = topSpace, bottom = 230.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -318,7 +322,7 @@ internal fun PostDetailScreen(
             }
         }
 
-        GlassTopBar(backdrop, modifier = Modifier.align(Alignment.TopCenter)) {
+        GlassTopBar(backdrop, modifier = Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }) {
             IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回") }
             Text(
                 post?.author?.displayName?.takeIf { it.isNotBlank() } ?: "帖子详情",

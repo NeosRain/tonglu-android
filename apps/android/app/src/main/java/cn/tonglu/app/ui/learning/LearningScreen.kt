@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.glass.BindMainTopBarScroll
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -298,6 +300,7 @@ internal fun LearningScreen(
     }
     val lastArticleObj = data.articles.firstOrNull { it.id == lastArticle } ?: personalLast
     val browsing = libraryOpen || search.isNotBlank()
+    BindMainTopBarScroll { (if (browsing) libraryListState else homeListState).topBarScrollPx() }
     fun closeLibrary() {
         if (search.isNotBlank()) onClearSearch()
         else if (tab == 0 && focusPath.isNotEmpty()) focusPath = focusPath.dropLast(1)

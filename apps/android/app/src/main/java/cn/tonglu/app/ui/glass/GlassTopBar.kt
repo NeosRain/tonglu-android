@@ -70,6 +70,7 @@ import androidx.compose.ui.geometry.Offset
  * @param backdrop 页面内容层的 backdrop（与底栏传的是同一个）
  * @param barHeight 玻璃条本体高度（不含外边距）；默认取自 [GlassTokens.TopBarHeightDp]
  * @param contentPadding 玻璃条内部左右留白
+ * @param scrollOffsetPx 内容可以滚过顶栏时，提供当前滚动位置以启用夜间渐入
  */
 @Composable
 fun GlassTopBar(
@@ -77,8 +78,30 @@ fun GlassTopBar(
     modifier: Modifier = Modifier,
     barHeight: Dp = GlassTokens.TopBarHeightDp.dp,
     contentPadding: Dp = 12.dp,
+    scrollOffsetPx: (() -> Float)? = null,
     content: @Composable RowScope.() -> Unit,
 ) {
+    val safeInsets = WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+    val glassEnabled = LocalGlassNavigationEnabled.current
+    if (GlassTokens.DarkGlass && (scrollOffsetPx != null || !glassEnabled)) {
+        Box(modifier.fillMaxWidth()) {
+            DarkTopBarBackground(
+                backdrop = backdrop.takeIf { glassEnabled },
+                scrollOffsetPx = scrollOffsetPx ?: { Float.POSITIVE_INFINITY },
+                modifier = Modifier.matchParentSize(),
+            )
+            Row(
+                Modifier.fillMaxWidth()
+                    .windowInsetsPadding(safeInsets)
+                    .padding(top = GlassTokens.TopBarVerticalMarginDp.dp)
+                    .height(barHeight)
+                    .padding(horizontal = contentPadding),
+                verticalAlignment = Alignment.CenterVertically,
+                content = content,
+            )
+        }
+        return
+    }
     // 同底栏：口径统一在 GlassTokens.DarkGlass，不单独读系统夜间
     val statusHeight = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val isLight = !GlassTokens.DarkGlass
@@ -107,7 +130,7 @@ fun GlassTopBar(
             )
             .fillMaxWidth()
             // 留白必须在玻璃绘制节点内部，否则状态栏上方会露出一块空白。
-            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal))
+            .windowInsetsPadding(safeInsets)
             .padding(top = GlassTokens.TopBarVerticalMarginDp.dp),
     ) {
         Row(

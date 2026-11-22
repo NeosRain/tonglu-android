@@ -1,6 +1,15 @@
 package cn.tonglu.app.ui.profile
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.glass.BindMainTopBarScroll
+import cn.tonglu.app.ui.glass.DarkTopBarBackground
+import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.glass.LocalGlassNavigationEnabled
+import cn.tonglu.app.ui.glass.topBarScrollPx
+import com.kyant.backdrop.backdrops.layerBackdrop
+import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.*
@@ -149,24 +158,44 @@ private fun ProfileCategoryPage(title: String, onClose: () -> Unit, content: Laz
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false),
             color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
-            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+            val dark = GlassTokens.DarkGlass
+            val safeTop = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
+            val insets = if (dark) WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+                else WindowInsets.safeDrawing
+            val topInset = if (dark) safeTop.asPaddingValues().calculateTopPadding() + 56.dp else 0.dp
+            val listState = rememberLazyListState()
+            val header: @Composable () -> Unit = {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                    IconButton(onClick = { motion.requestClose() }) {
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回我的", tint = AppColors.TextPrimary)
+                    }
+                }
+            }
+            Box(Modifier.fillMaxSize().windowInsetsPadding(insets),
                 contentAlignment = Alignment.TopCenter) {
-                Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
-                    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
-                        IconButton(onClick = { motion.requestClose() }) {
-                            Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回我的", tint = AppColors.TextPrimary)
+                val backdrop = if (dark && LocalGlassNavigationEnabled.current) rememberLayerBackdrop() else null
+                Box(Modifier.fillMaxSize().then(if (backdrop != null)
+                    Modifier.layerBackdrop(backdrop).background(AppColors.CanvasOpaque) else Modifier),
+                    contentAlignment = Alignment.TopCenter) {
+                    Column(Modifier.widthIn(max = 720.dp).fillMaxSize()) {
+                        if (!dark) header()
+                        LazyColumn(Modifier.weight(1f).fillMaxWidth(),
+                            state = listState,
+                            contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = topInset, bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                            item {
+                                Text(title, style = MaterialTheme.typography.headlineLarge,
+                                    fontWeight = FontWeight.Bold, color = AppColors.TextPrimary,
+                                    modifier = Modifier.padding(top = 8.dp, bottom = 10.dp))
+                            }
+                            content()
                         }
                     }
-                    LazyColumn(Modifier.weight(1f).fillMaxWidth(),
-                        contentPadding = PaddingValues(start = 18.dp, end = 18.dp, bottom = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        item {
-                            Text(title, style = MaterialTheme.typography.headlineLarge,
-                                fontWeight = FontWeight.Bold, color = AppColors.TextPrimary,
-                                modifier = Modifier.padding(top = 8.dp, bottom = 10.dp))
-                        }
-                        content()
-                    }
+                }
+                if (dark) Box(Modifier.fillMaxWidth()) {
+                    DarkTopBarBackground(backdrop, { listState.topBarScrollPx() }, Modifier.matchParentSize())
+                    Box(Modifier.align(Alignment.TopCenter).widthIn(max = 720.dp).fillMaxWidth()
+                        .windowInsetsPadding(safeTop)) { header() }
                 }
             }
         }
@@ -311,7 +340,9 @@ internal fun ProfileScreen(
             else pendingRestore = parsed
         }
     }
-    LazyColumn(Modifier.fillMaxSize(),
+    val listState = rememberLazyListState()
+    BindMainTopBarScroll { listState.topBarScrollPx() }
+    LazyColumn(Modifier.fillMaxSize(), state = listState,
         contentPadding = PaddingValues(start = 18.dp, end = 18.dp, top = topInset + 18.dp, bottom = LocalMainNavigationBottomPadding.current),
         verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {

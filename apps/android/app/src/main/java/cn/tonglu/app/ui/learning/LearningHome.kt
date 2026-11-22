@@ -22,6 +22,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.LearningArticle
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.glass.LocalGlassNavigationEnabled
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 
@@ -138,9 +140,10 @@ internal fun LearningHome(
     }
 }
 
-/** 玻璃顶栏收起后内容继续上移，但不把文章文字画进系统时钟区域。 */
+/** 夜间渐变顶栏使用状态栏后面的内容作为采样，原顶栏继续裁剪这一区域。 */
 @Composable
 internal fun Modifier.learningScrollViewport(topInset: Dp): Modifier {
+    if (GlassTokens.DarkGlass && LocalGlassNavigationEnabled.current) return this
     val statusTop = if (topInset > 0.dp) WindowInsets.statusBars.getTop(LocalDensity.current).toFloat() else 0f
     return drawWithContent { clipRect(top = statusTop) { this@drawWithContent.drawContent() } }
 }

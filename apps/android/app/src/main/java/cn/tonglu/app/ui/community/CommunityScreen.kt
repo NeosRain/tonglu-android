@@ -15,6 +15,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.data.AppViewModel
@@ -53,49 +54,69 @@ private val boardTabs = listOf("latest" to "最新", "featured" to "精华", "pi
 private val boardTypes = mapOf("OFFICIAL" to "官方圈子", "USER" to "用户圈子", "CLUB" to "社团圈子")
 
 @Composable
-internal fun CommunityHome(viewModel: AppViewModel, sessionId: String?, search: String, revision: Int, actions: CommunityActions) {
+internal fun CommunityHome(
+    viewModel: AppViewModel, sessionId: String?, search: String, revision: Int, actions: CommunityActions,
+    overlayHeader: (@Composable () -> Unit)? = null, topInset: Dp = 0.dp,
+) {
     val api = viewModel.apiOrNull()
     val hotTopics = rememberCommunityResource("话题加载失败") {
         api.communityHotTopics().ifEmpty { api.communityTopics().take(20) }
     }
     var sort by rememberSaveable { mutableStateOf("recommended") }
-    CommunityTabs(homeTabs, sort) { sort = it }
+    val controls: @Composable () -> Unit = {
+        overlayHeader?.invoke()
+        CommunityTabs(homeTabs, sort) { sort = it }
+    }
+    if (overlayHeader == null) controls()
     if (sort == "following" && sessionId == null) {
-        CommunityHomeLinks(actions)
-        TextButton(onClick = viewModel::openLogin) { Text("登录后查看关注的帖子") }
-    } else key(sort, sessionId, revision) {
-        val feed = rememberCommunityList(POST_PAGE_SIZE, PostDto::id, "社区帖子加载失败") { cursor, page ->
-            when (sort) {
-                "following" -> viewModel.communityAuthorized(checkNotNull(sessionId)) { communityFollowing(it, cursor) }
-                "recommended" -> if (page <= 500) api.communityFeed(sort, null, page) else emptyList()
-                else -> api.communityFeed(sort, cursor, null)
-            }
+        val guestContent: @Composable () -> Unit = {
+            CommunityHomeLinks(actions)
+            TextButton(onClick = viewModel::openLogin) { Text("登录后查看关注的帖子") }
         }
-        SquarePullRefresh(onRefresh = { feed.load(reset = true) }) {
-            CommunityPostGrid(
-                feed, actions, sessionId != null, search,
-                bottom = PaddingValues(bottom = LocalMainNavigationBottomPadding.current),
-                empty = if (sort == "following") "关注圈子或话题后，可在这里浏览更新" else "暂时没有帖子",
-            ) {
-                communityFullRow {
-                    CommunityHomeLinks(actions)
-                    val topics = hotTopics.value.orEmpty()
-                    if (topics.isNotEmpty()) Row(
-                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        topics.forEach { topic ->
-                            TextButton(onClick = { actions.navigate(CommunityDestination.Topic(topic.id)) }) { Text("#" + topic.name) }
+        if (overlayHeader == null) guestContent()
+        else Column(Modifier.padding(top = topInset)) {
+            controls()
+            guestContent()
+        }
+        return
+    }
+    val feedContent: @Composable (Dp) -> Unit = { headerHeight ->
+        key(sort, sessionId, revision) {
+            val feed = rememberCommunityList(POST_PAGE_SIZE, PostDto::id, "社区帖子加载失败") { cursor, page ->
+                when (sort) {
+                    "following" -> viewModel.communityAuthorized(checkNotNull(sessionId)) { communityFollowing(it, cursor) }
+                    "recommended" -> if (page <= 500) api.communityFeed(sort, null, page) else emptyList()
+                    else -> api.communityFeed(sort, cursor, null)
+                }
+            }
+            SquarePullRefresh(onRefresh = { feed.load(reset = true) }, topInset = headerHeight) {
+                CommunityPostGrid(
+                    feed, actions, sessionId != null, search,
+                    bottom = PaddingValues(bottom = LocalMainNavigationBottomPadding.current),
+                    feedHeaderHeight = headerHeight,
+                    empty = if (sort == "following") "关注圈子或话题后，可在这里浏览更新" else "暂时没有帖子",
+                ) {
+                    communityFullRow {
+                        CommunityHomeLinks(actions)
+                        val topics = hotTopics.value.orEmpty()
+                        if (topics.isNotEmpty()) Row(
+                            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            topics.forEach { topic ->
+                                TextButton(onClick = { actions.navigate(CommunityDestination.Topic(topic.id)) }) { Text("#" + topic.name) }
+                            }
                         }
+                        if (hotTopics.value?.isEmpty() == true) {
+                            Text("暂无话题", color = AppColors.TextSecondary, modifier = Modifier.padding(horizontal = 12.dp))
+                        }
+                        hotTopics.error?.let { CommunityStatus(error = it) { hotTopics.attempt++ } }
                     }
-                    if (hotTopics.value?.isEmpty() == true) {
-                        Text("暂无话题", color = AppColors.TextSecondary, modifier = Modifier.padding(horizontal = 12.dp))
-                    }
-                    hotTopics.error?.let { CommunityStatus(error = it) { hotTopics.attempt++ } }
                 }
             }
         }
     }
+    if (overlayHeader != null) CommunityFeedLayout(topInset, controls, feedContent) else feedContent(0.dp)
 }
 
 @Composable
@@ -299,6 +320,7 @@ private fun FollowButton(viewModel: AppViewModel, sessionId: String, resource: S
 private fun CommunityPostGrid(
     feed: CommunityList<PostDto>, actions: CommunityActions, signedIn: Boolean,
     search: String = "", bottom: PaddingValues = PaddingValues(bottom = 16.dp),
+    feedHeaderHeight: Dp = 0.dp,
     empty: String, source: String? = null, onManage: ((PostDto) -> Unit)? = null,
     header: LazyGridScope.() -> Unit,
 ) {
@@ -306,7 +328,7 @@ private fun CommunityPostGrid(
         search.isBlank() || post.title.orEmpty().contains(search, true) ||
             post.body.contains(search, true) || post.author?.displayName.orEmpty().contains(search, true)
     }
-    CommunityGrid(bottom) {
+    CommunityGrid(bottom, feedHeaderHeight) {
         header()
         if (search.isNotBlank()) communityFullRow {
             Text("正在筛选已加载的帖子", color = AppColors.TextSecondary, modifier = Modifier.padding(8.dp))

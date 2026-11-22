@@ -16,6 +16,8 @@ import cn.tonglu.app.ui.OverlayEnter
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
 import cn.tonglu.app.ui.glass.GlassTopBar
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import cn.tonglu.app.ui.glass.GlassTokens
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.backdrops.layerBackdrop
@@ -47,6 +49,7 @@ internal fun CourseNotesPicker(courses: List<CourseDto>, onOpenTimetable: () -> 
         onClose = { OverlayDismissGuard.arm(); if (openTimetableAfterClose) onOpenTimetable() else onClose() },
         predictive = OverlayMotion.enabledState, selfDrag = true, backEnabled = selected == null && !searchKeyboardVisible)
     val backdrop = rememberLayerBackdrop()
+    val listState = rememberLazyGridState()
     Dialog(onDismissRequest = { if (selected != null) selectedKey = null else if (!searchKeyboardVisible) motion.requestClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         val imeVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
@@ -58,7 +61,7 @@ internal fun CourseNotesPicker(courses: List<CourseDto>, onOpenTimetable: () -> 
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom)).imePadding()) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
-                    LazyVerticalGrid(columns = GridCells.Adaptive(280.dp), modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize(),
+                    LazyVerticalGrid(columns = GridCells.Adaptive(280.dp), state = listState, modifier = Modifier.widthIn(max = 1000.dp).fillMaxSize(),
                         contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 20.dp, bottom = 24.dp),
                         horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         item("intro", span = { GridItemSpan(maxLineSpan) }) {
@@ -91,7 +94,7 @@ internal fun CourseNotesPicker(courses: List<CourseDto>, onOpenTimetable: () -> 
                         }
                     }
                 }
-                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }) {
                     IconButton(onClick = { motion.requestClose() }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回学习页", tint = AppColors.TextPrimary)
                     }

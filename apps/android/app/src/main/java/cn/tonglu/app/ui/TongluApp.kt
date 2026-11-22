@@ -112,9 +112,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -172,6 +176,11 @@ import cn.tonglu.app.ui.glass.LiquidBottomTabs
 import cn.tonglu.app.ui.glass.LiquidBottomTab
 import cn.tonglu.app.ui.glass.rememberBarAutoHide
 import cn.tonglu.app.ui.glass.GlassTokens
+import cn.tonglu.app.ui.glass.LocalGlassNavigationEnabled
+import cn.tonglu.app.ui.glass.LocalMainTopBarScroll
+import cn.tonglu.app.ui.glass.MainTopBarScroll
+import cn.tonglu.app.ui.glass.canUseNavigationGlass
+import cn.tonglu.app.ui.glass.darkNavigationBorder
 import cn.tonglu.app.ui.glass.drawFrostSurface
 import cn.tonglu.app.ui.competition.CompetitionScreen
 import cn.tonglu.app.ui.exam.ExamCalendarScreen
@@ -227,19 +236,34 @@ private val Muted: Color get() = AppColors.TextMuted
 @Composable
 fun TongluApp(viewModel: AppViewModel = viewModel()) {
     ThemeSystemBars()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val settingsPrefs = remember { context.getSharedPreferences("tonglu_settings", android.content.Context.MODE_PRIVATE) }
+    var glassNavSetting by remember { mutableStateOf(settingsPrefs.getBoolean("glass_nav", true)) }
+    val useGlassNav = remember(glassNavSetting) {
+        canUseNavigationGlass(glassNavSetting, Build.VERSION.SDK_INT) { isRuntimeShaderSupported() }
+    }
     val startupState by viewModel.state.collectAsStateWithLifecycle()
     val startupOwner = if (!startupState.ready) null else
         startupState.session?.userId?.takeIf { it.isNotBlank() }
             ?: startupState.session?.username?.takeIf { it.isNotBlank() }
             ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER
     cn.tonglu.app.ui.startup.LaunchAnimationHost(ready = startupState.ready, owner = startupOwner) {
-        TongluAppContent(viewModel)
+        CompositionLocalProvider(LocalGlassNavigationEnabled provides useGlassNav) {
+            TongluAppContent(viewModel, glassNavSetting, onGlassNavChange = { enabled ->
+                glassNavSetting = enabled
+                settingsPrefs.edit().putBoolean("glass_nav", enabled).apply()
+            })
+        }
     }
     cn.tonglu.app.ui.focus.PomodoroHost(startupOwner)
 }
 
 @Composable
-private fun TongluAppContent(viewModel: AppViewModel) {
+private fun TongluAppContent(
+    viewModel: AppViewModel,
+    glassNavSetting: Boolean,
+    onGlassNavChange: (Boolean) -> Unit,
+) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     cn.tonglu.app.ui.update.AppUpdateHost()
     val snackbar = remember { SnackbarHostState() }
@@ -356,7 +380,6 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     val courseColors = remember(state.courses) { buildCourseColors(state.courses) }
     val admissionYearKey = "admission_year@${state.session?.userId ?: state.session?.username ?: "local"}"
     var admissionYear by remember(admissionYearKey) { mutableIntStateOf(settingsPrefs.getInt(admissionYearKey, 0)) }
-    var glassNavSetting by remember { mutableStateOf(settingsPrefs.getBoolean("glass_nav", true)) }
     // 预测性返回开关。默认开（OverlayMotion.enabled 的缺省值），关掉只是不要跟手，
     // 进出场动画照旧 —— 用户不想要跟手，不代表想看界面硬切。
     // remember 初始化只读取持久设置；syncFrom 会写全局 snapshot state，必须在组合提交后执行。
@@ -382,8 +405,9 @@ private fun TongluAppContent(viewModel: AppViewModel) {
     LaunchedEffect(context) { examCountdown = cn.tonglu.app.data.exam.ExamSettings.syncFrom(context) }
     var remindEnabled by remember { mutableStateOf(scheduleStore.remindEnabled) }
     var remindLead by remember { mutableIntStateOf(scheduleStore.remindLeadMinutes) }
-    val glassSupported = remember { Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && isRuntimeShaderSupported() }
-    val useGlassNav = glassNavSetting && glassSupported
+    val useGlassNav = LocalGlassNavigationEnabled.current
+    val darkGlassNav = useGlassNav && GlassTokens.DarkGlass
+    val topBarScroll = remember(tabs) { List(tabs.size) { MainTopBarScroll() } }
     // IME 缩小可用窗口时，全局导航不能被布局到底部键盘上方。
     val navigationImeVisible = WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current) > 0
     val liquidBackdrop = rememberLiquidLayerBackdrop()
@@ -609,6 +633,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                     beyondViewportPageCount = BEYOND_PAGES, key = { tabs[it] }) { page ->
                 Box(Modifier.fillMaxSize().graphicsLayer(), contentAlignment = Alignment.TopCenter) {
                 Box(Modifier.widthIn(max = if (tabs[page] == "首页") windowWidth else 960.dp).fillMaxSize()) {
+                CompositionLocalProvider(LocalMainTopBarScroll provides topBarScroll[page].takeIf { darkGlassNav }) {
                 when (tabs[page]) {
                     "首页" -> CompositionLocalProvider(LocalCourseColors provides courseColors) { HomeScreen(
                         state = state,
@@ -679,6 +704,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         onClose = { tabNavigator.select(0) }, onOpenMaterial = { material ->
                             labListeningMaterial = material; tabNavigator.select(1)
                         }, topInset = topInset, mainSearch = search, visible = selectedTab == page,
+                        glassUnderlap = darkGlassNav,
                         onLayerVisibilityChanged = { communityLayerVisible = it })
                     else -> ProfileScreen(
                         state = state,
@@ -708,10 +734,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         onLocalDataRestored = viewModel::reloadLocal,
                         scoreCount = state.scores.size,
                         glassNav = glassNavSetting,
-                        onGlassNavChange = { enabled ->
-                            glassNavSetting = enabled
-                            settingsPrefs.edit().putBoolean("glass_nav", enabled).apply()
-                        },
+                        onGlassNavChange = onGlassNavChange,
                         predictiveBack = predictiveBackSetting,
                         onPredictiveBackChange = { enabled ->
                             predictiveBackSetting = enabled
@@ -753,6 +776,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                 }
                 }
                 }
+                }
             }
             if (useGlassNav) {
                 // 顶栏玻璃条：必须做成叠加层。如果放在上面的 Column 里，它采样到的是自己所在的那层，
@@ -764,6 +788,7 @@ private fun TongluAppContent(viewModel: AppViewModel) {
                         .align(Alignment.TopCenter)
                         .padding(start = railSpace),
                     contentPadding = if (useRail) 24.dp else 12.dp,
+                    scrollOffsetPx = { topBarScroll[selectedTab].readOffset?.invoke() ?: 0f },
                 ) {
                     // 返回穿透冷却期：整条顶栏这一小会儿点不动（见 OverlayDismissGuard）。
                     // 判一次、传给三个控件，而不是各自去读 —— 免得出现「搜索框解禁了、头像还没有」的错位。
@@ -1137,14 +1162,17 @@ internal fun CoolapkNavigationBar(
     onSelect: (Int) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val dark = GlassTokens.DarkGlass
+    val shape = RoundedCornerShape(GlassBottomTokens.CornerDp.dp)
     Surface(
         modifier = modifier
             .navigationBarsPadding()
             .padding(horizontal = GlassTokens.BarSideMarginDp.dp, vertical = GlassTokens.BarVerticalMarginDp.dp)
             .widthIn(max = (tabs.size * GlassBottomTokens.NavigationSlotWidthDp + 8f).dp)
-            .fillMaxWidth(),
-        color = if (GlassTokens.DarkGlass) GlassTokens.ContainerDark else GlassTokens.ContainerLight,
-        shape = RoundedCornerShape(GlassBottomTokens.CornerDp.dp),
+            .fillMaxWidth()
+            .then(if (dark) Modifier.darkNavigationBorder(shape) else Modifier),
+        color = if (dark) GlassTokens.darkNavigationSurface(glass = false) else GlassTokens.ContainerLight,
+        shape = shape,
         shadowElevation = 4.dp,
     ) {
         Row(
@@ -1157,11 +1185,24 @@ internal fun CoolapkNavigationBar(
             // 按系统夜间转白会变成「白底白图标」，什么都看不见（2026-09-30 踩过）。
             tabs.forEachIndexed { index, title ->
                 val selected = selectedTab == index
-                val tint = if (selected) NavAccent else NavInactive
+                val tint = if (dark) {
+                    if (selected) GlassTokens.AccentOnGlass else GlassTokens.DarkNavigationInactive
+                } else if (selected) NavAccent else NavInactive
                 Column(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .then(if (dark && selected) Modifier.drawBehind {
+                            val inset = GlassTokens.BarCapsulePaddingVerticalDp.dp.toPx()
+                            val horizontalInset = GlassTokens.BarCapsulePaddingHorizontalDp.dp.toPx()
+                            val height = size.height - inset * 2f
+                            drawRoundRect(
+                                GlassTokens.DarkNavigationIndicator,
+                                topLeft = Offset(horizontalInset, inset),
+                                size = Size(size.width - horizontalInset * 2f, height),
+                                cornerRadius = CornerRadius(height / 2f),
+                            )
+                        } else Modifier)
                         .clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                             indication = null,
@@ -1222,10 +1263,11 @@ internal fun GlassBottomBar(
                 vertical = GlassTokens.BarVerticalMarginDp.dp,
             )
             .height(GlassTokens.BarPanelHeightDp.dp),
-    ) {
+    ) { visualSelection ->
         tabs.forEachIndexed { index, title ->
-            val selected = selectedTab == index
-            val tint = if (selected) GlassTokens.AccentOnGlass else NavInactive
+            val selected = (visualSelection ?: selectedTab) == index
+            val tint = if (selected) GlassTokens.AccentOnGlass
+                else if (GlassTokens.DarkGlass) GlassTokens.DarkNavigationInactive else NavInactive
             LiquidBottomTab(index = index, onClick = { onSelect(index) }) {
                 Icon(
                     if (selected) filledIcons[index] else outlinedIcons[index],
@@ -1274,18 +1316,14 @@ private fun SearchField(
     val hint = "搜索当前页面"
     // 聚焦时把占位文案收掉，否则光标会压在第一个字上
     var focused by remember { mutableStateOf(false) }
-    // 同顶栏/底栏：App 强制浅色（MainActivity 写死 lightColorScheme），
-    // 搜索框不能单独跟系统夜间变深，否则白页面上冒出一块深色板。
+    // 搜索框跟随应用主题，外层顶栏负责磨砂。
     val dark = GlassTokens.DarkGlass
     val flat = if (dark) Color(0xFF2A2C31) else Color(0xFFF0F1F4)
     val shape = RoundedCornerShape(GlassTokens.SearchCornerDp.dp)
-    // 玻璃模式下搜索框是**自己一块磨砂玻璃**：底色调实到能看清字，
-    // 再叠一层 blur + 折射 + 光影。老版本只铺 alpha=0.12 的浅色，近乎全透 → 看不清。
-    val glassSurface = if (dark) GlassTokens.ContainerDark else GlassTokens.ContainerLight
     val hintInk = if (onGlass) AppColors.TextSecondary else Muted
     val decor: Modifier = if (onGlass && backdrop != null) {
         // The outer bar supplies the frost; keep the field a quiet rounded inset.
-        Modifier.clip(shape).background(glassSurface.copy(alpha = if (dark) .24f else .46f))
+        Modifier.clip(shape).background(if (dark) Color.White.copy(alpha = .08f) else GlassTokens.ContainerLight.copy(alpha = .46f))
     } else {
         // 非玻璃模式：老老实实一块实色方框
         Modifier.clip(shape).background(fieldColor(onGlass, flat))

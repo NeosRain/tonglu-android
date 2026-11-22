@@ -11,6 +11,8 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.widthIn
 import cn.tonglu.app.ui.glass.GlassTopBar
+import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.AppColors
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
@@ -247,12 +249,13 @@ internal fun QuestionBankScreen(
     ) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = MaterialTheme.colorScheme.background) {
             val backdrop = rememberLayerBackdrop()
+            val listState = rememberLazyListState()
             val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
                 GlassTokens.TopBarHeightDp.dp + GlassTokens.TopBarVerticalMarginDp.dp
             Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Bottom))) {
                 Box(Modifier.fillMaxSize().layerBackdrop(backdrop)
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
-                LazyColumn(modifier = Modifier.widthIn(max = 880.dp).fillMaxSize(),
+                LazyColumn(modifier = Modifier.widthIn(max = 880.dp).fillMaxSize(), state = listState,
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -496,7 +499,7 @@ internal fun QuestionBankScreen(
                     item { Spacer(Modifier.size(24.dp)) }
                 }
                 }
-                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter)) {
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }) {
                     IconButton(onClick = { motion.requestClose() }) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回英语", tint = AppColors.TextPrimary) }
                     Text("做题", fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
                 }
@@ -766,6 +769,7 @@ internal fun BankQuizPane(
     ) {
         Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false), color = MaterialTheme.colorScheme.background) {
             val backdrop = rememberLayerBackdrop()
+            val listState = rememberLazyListState()
             val barHeight = maxOf(GlassTokens.TopBarHeightDp.dp, 44.dp * LocalDensity.current.fontScale)
             val headerInset = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() +
                 barHeight + GlassTokens.TopBarVerticalMarginDp.dp
@@ -774,6 +778,7 @@ internal fun BankQuizPane(
                     .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal)), contentAlignment = Alignment.TopCenter) {
                 LazyColumn(
                     modifier = Modifier.widthIn(max = 880.dp).fillMaxSize(),
+                    state = listState,
                     contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = headerInset + 16.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -867,7 +872,7 @@ internal fun BankQuizPane(
                     item { Spacer(Modifier.size(24.dp)) }
                 }
                 }
-                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), barHeight = barHeight) {
+                GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { listState.topBarScrollPx() }, barHeight = barHeight) {
                     IconButton(onClick = { motion.requestClose() }) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回题组列表", tint = AppColors.TextPrimary)
                     }

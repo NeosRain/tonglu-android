@@ -46,7 +46,10 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
@@ -65,6 +68,7 @@ import com.kyant.backdrop.backdrops.rememberCombinedBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import com.kyant.backdrop.drawBackdrop
 import com.kyant.backdrop.effects.blur
+import com.kyant.backdrop.effects.colorControls
 import com.kyant.backdrop.effects.lens
 import com.kyant.backdrop.effects.vibrancy
 import com.kyant.backdrop.highlight.Highlight
@@ -100,21 +104,14 @@ fun LiquidBottomTabs(
     backdrop: Backdrop,
     tabsCount: Int,
     modifier: Modifier = Modifier,
-    content: @Composable RowScope.() -> Unit
+    content: @Composable RowScope.(visualSelection: Int?) -> Unit
 ) {
-    // 不读 isSystemInDarkTheme：App 强制浅色主题，玻璃单独变深色会和页面割裂。
-    // 口径统一在 GlassTokens.DarkGlass，接入深色主题时改那一处即可。
     val isLightTheme = !GlassTokens.DarkGlass
-    // 主题色与玻璃通透度统一走 GlassTokens —— 顶栏共用同一套参数，两条栏才是"同一块玻璃"
     val accentColor = GlassTokens.AccentOnGlass
-    val containerColor =
-        if (isLightTheme) GlassTokens.ContainerLight
-        else GlassTokens.ContainerDark
 
     val latestSelectedIndex by rememberUpdatedState(selectedTabIndex)
     val latestOnTabSelected by rememberUpdatedState(onTabSelected)
     val bottomBackdrop = rememberBottomBackdrop(backdrop)
-    val tabsBackdrop = rememberLayerBackdrop()
     // 按 skill 的 exportedBackdrop 导出底板，胶囊采样磨砂结果而非原始页面。
     val panelBackdrop = rememberLayerBackdrop()
 
@@ -232,7 +229,7 @@ fun LiquidBottomTabs(
             }
         }
 
-        val interactiveHighlight = remember(animationScope) {
+        val interactiveHighlight = if (isLightTheme) remember(animationScope) {
             InteractiveHighlight(
                 animationScope = animationScope,
                 position = { size, _ ->
@@ -243,6 +240,9 @@ fun LiquidBottomTabs(
                     )
                 }
             )
+        } else null
+        val visualSelection by remember(dampedDragAnimation) {
+            derivedStateOf { dampedDragAnimation.value.fastRoundToInt() }
         }
 
         // 手势坐标固定在整条底栏上；按下任何标签就把胶囊移到手指处。
@@ -260,10 +260,11 @@ fun LiquidBottomTabs(
                     }
                     .drawBackdrop(
                         backdrop = bottomBackdrop,
-                        exportedBackdrop = panelBackdrop,
+                        exportedBackdrop = if (isLightTheme) panelBackdrop else null,
                         shape = { Capsule() },
                         effects = {
-                            vibrancy()
+                            if (isLightTheme) vibrancy()
+                            else colorControls(saturation = GlassTokens.DarkNavigationSaturation)
                             val press = dampedDragAnimation.pressProgress
                             blur(lerp(GlassBottomTokens.BlurDp, GlassBottomTokens.PressedBlurDp, press).dp.toPx())
                             lens(
@@ -273,17 +274,18 @@ fun LiquidBottomTabs(
                             )
                         },
                         // 使用 skill 的低强度常驻轮廓，避免额外描边和厚重阴影。
-                        highlight = {
+                        highlight = if (isLightTheme) ({
                             Highlight.Default.copy(alpha = GlassBottomTokens.HighlightAlpha + GlassTokens.PressHighlightGain * dampedDragAnimation.pressProgress)
-                        },
+                        }) else null,
                         shadow = {
-                            Shadow(alpha = GlassBottomTokens.ShadowAlpha + GlassTokens.PressShadowGain * dampedDragAnimation.pressProgress)
+                            if (isLightTheme) Shadow(alpha = GlassBottomTokens.ShadowAlpha + GlassTokens.PressShadowGain * dampedDragAnimation.pressProgress)
+                            else DarkNavigationShadow
                         },
-                        innerShadow = {
+                        innerShadow = if (isLightTheme) ({
                             val progress = dampedDragAnimation.pressProgress
                             InnerShadow(radius = GlassTokens.RestInnerShadowRadiusDp.dp + GlassTokens.PressInnerShadowRadiusGainDp.dp * progress,
                                 alpha = GlassBottomTokens.InnerShadowAlpha + GlassTokens.PressInnerShadowAlphaGain * progress)
-                        },
+                        }) else null,
                         // 按压时面板整体微微放大（16dp 相对自身宽度）
                         layerBlock = {
                             val progress = dampedDragAnimation.pressProgress
@@ -292,10 +294,27 @@ fun LiquidBottomTabs(
                             scaleY = scale
                         },
                         onDrawSurface = {
-                            drawFrostSurface(containerColor, lerp(GlassBottomTokens.SurfaceAlpha, GlassBottomTokens.PressedSurfaceAlpha, dampedDragAnimation.pressProgress))
+                            if (isLightTheme) {
+                                drawFrostSurface(GlassTokens.ContainerLight, lerp(GlassBottomTokens.SurfaceAlpha, GlassBottomTokens.PressedSurfaceAlpha, dampedDragAnimation.pressProgress))
+                            } else {
+                                drawRect(GlassTokens.darkNavigationSurface(glass = true))
+                            }
                         }
                     )
-                    .then(interactiveHighlight.modifier)
+                    .then(if (interactiveHighlight != null) interactiveHighlight.modifier else Modifier
+                        .darkNavigationBorder(Capsule())
+                        .drawBehind {
+                            val inset = GlassTokens.BarCapsulePaddingVerticalDp.dp.toPx()
+                            val logicalIndex = dampedDragAnimation.value
+                            val index = if (isLtr) logicalIndex else tabsCount - 1f - logicalIndex
+                            val height = size.height - inset * 2f
+                            drawRoundRect(
+                                GlassTokens.DarkNavigationIndicator,
+                                topLeft = Offset(capsulePaddingPx + index * tabWidth - indicatorOverhang, inset),
+                                size = Size(indicatorWidth, height),
+                                cornerRadius = CornerRadius(height / 2f),
+                            )
+                        })
                     .height(GlassTokens.BarPanelHeightDp.dp)
                     .fillMaxWidth()
                     .padding(
@@ -303,10 +322,12 @@ fun LiquidBottomTabs(
                         vertical = GlassTokens.BarCapsulePaddingVerticalDp.dp,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
-                content = content
+                content = { content(if (isLightTheme) null else visualSelection) },
             )
         }
 
+        if (interactiveHighlight != null) {
+        val tabsBackdrop = rememberLayerBackdrop()
         // ---------- 第 2 层：不可见的"染色图标"层，供指示器折射 ----------
         CompositionLocalProvider(
             LocalLiquidBottomTabScale provides {
@@ -335,7 +356,7 @@ fun LiquidBottomTabs(
                     .padding(horizontal = GlassTokens.BarCapsulePaddingHorizontalDp.dp)
                     .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
                 verticalAlignment = Alignment.CenterVertically,
-                content = content
+                content = { content(null) },
             )
         }
 
@@ -390,8 +411,7 @@ fun LiquidBottomTabs(
                         // 静止时的灰底是胶囊「存在感的全部来源」（lens/shadow 静止时都是 0），
                         // 0.03 太浅看不见，统一走 GlassTokens.IndicatorRestAlpha
                         drawRect(
-                            if (isLightTheme) Color.Black.copy(GlassTokens.IndicatorRestAlpha)
-                            else Color.White.copy(GlassTokens.IndicatorRestAlpha),
+                            Color.Black.copy(GlassTokens.IndicatorRestAlpha),
                             alpha = 1f - progress * 0.7f
                         )
                     }
@@ -399,6 +419,7 @@ fun LiquidBottomTabs(
                 .height(GlassTokens.BarContentHeightDp.dp)
                 .width(indicatorWidthDp)
         )
+        }
         }
     }
 }

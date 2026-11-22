@@ -16,12 +16,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -53,6 +55,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.data.AppUiState
@@ -62,6 +65,8 @@ import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.PostPackCard
 import cn.tonglu.app.ui.SquarePullRefresh
 import cn.tonglu.app.ui.UserAvatar
+import cn.tonglu.app.ui.glass.BindMainTopBarScroll
+import cn.tonglu.app.ui.glass.topBarScrollPx
 import cn.tonglu.app.ui.markdownExcerpt
 import cn.tonglu.app.ui.pressable
 import cn.tonglu.app.ui.relativeIsoTime
@@ -105,6 +110,7 @@ internal fun SquareScreen(
     onOpen: (PostDto) -> Unit,
     onOpenPack: (LinkedPackDto) -> Unit = {},
     onPullRefresh: (String?) -> Unit = onRefresh,
+    feedHeaderHeight: Dp = 0.dp,
 ) {
     // 存标签而不是存整个对象：rememberSaveable 只能存 Bundle 认识的类型，
     // 而且分类表一旦改动，存下来的下标/枚举会错位。
@@ -131,16 +137,19 @@ internal fun SquareScreen(
         hasError = state.postsError != null && state.posts.isEmpty(),
     )
 
+    val listState = rememberLazyListState()
+    if (feedHeaderHeight > 0.dp) BindMainTopBarScroll { listState.topBarScrollPx() }
     SquarePullRefresh(
         onRefresh = { onPullRefresh(SquareCategories.serverQuery(category)) },
-        topInset = topInset,
+        topInset = topInset + feedHeaderHeight,
         modifier = Modifier.fillMaxSize(),
     ) {
         LazyColumn(
             Modifier.fillMaxSize(),
+            state = listState,
             // 卡与卡的间距也收一档（8 → 6dp）：录屏里信息流是「密」的，
             // 但**不留到 0** —— 卡是白底直铺浅灰底，间距归零就分不出卡边界了。
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = LocalMainNavigationBottomPadding.current),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = feedHeaderHeight, bottom = LocalMainNavigationBottomPadding.current),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             if (search.isNotBlank()) item(key = "search-hint") {
@@ -162,7 +171,12 @@ internal fun SquareScreen(
             // 下划线那条带子**只铺在 Tab 行自己的高度上**，上面那段留透明 ——
             // 这样内容从顶栏底下滚过去仍然是「玻璃后面能看见内容」，不至于糊成一块实心板。
             stickyHeader(key = "categories") {
-                Column(Modifier.fillMaxWidth().padding(top = topInset)) {
+                val pinBelowHeader = if (feedHeaderHeight > 0.dp) Modifier.offset {
+                    // stickyHeader 的原点是列表顶部；把分类控件固定在社区页头下方。
+                    val categoryTop = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == "categories" }?.offset ?: 0
+                    IntOffset(0, (-categoryTop).coerceIn(0, feedHeaderHeight.roundToPx()))
+                } else Modifier
+                Column(Modifier.fillMaxWidth().then(pinBelowHeader).padding(top = topInset)) {
                     Row(
                         Modifier
                             .fillMaxWidth()

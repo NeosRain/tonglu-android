@@ -163,6 +163,7 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
     visible: Boolean = true, clubsOnly: Boolean = false, initialClubId: String? = null, communityClub: Boolean = false,
     onCommunityNavigate: ((CommunityDestination) -> Unit)? = null,
     onLayerVisibilityChanged: ((Boolean) -> Unit)? = null,
+    glassUnderlap: Boolean = false,
 ) {
     fun closeLayer(action: () -> Unit) { OverlayDismissGuard.arm(); action() }
     val sessionId = state.session?.sessionId
@@ -250,9 +251,7 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
         createClub = { showClubCreate = true },
         refreshFeeds = { feedRevision++ },
     )
-    Column(Modifier.fillMaxSize().hideCoveredCommunityLayer(destinations.isNotEmpty() || showingOtherLayer)
-        .background(AppColors.CanvasOpaque).padding(top = topInset)
-        .then(if (mainSearch != null) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
+    val header: @Composable () -> Unit = {
         CommunityHeader(
             title = if (clubsOnly) "社团" else "社区",
             subtitle = if (clubsOnly) "找到同好，参加社团活动" else "校园动态、求助、二手与学习资源",
@@ -282,14 +281,29 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
             TextButton(onClick = { openedClubId = null; showClubLayer = true }) { Text("社团") }
             TextButton(onClick = { navigate(CommunityDestination.Rules) }) { Text("社区准则") }
         }
+    }
+    val overlayHeader = header.takeIf { glassUnderlap && legacy != null }
+    Column(Modifier.fillMaxSize().hideCoveredCommunityLayer(destinations.isNotEmpty() || showingOtherLayer)
+        .background(AppColors.CanvasOpaque).padding(top = if (overlayHeader == null) topInset else 0.dp)
+        .then(if (mainSearch != null) Modifier.navigationBarsPadding() else Modifier.safeDrawingPadding())) {
+        if (overlayHeader == null) header()
         Box(Modifier.weight(1f)) {
             if (!clubsOnly) when (legacy) {
-                true -> SquareScreen(
-                    state, effectiveSearch, onRefresh = viewModel::refreshPosts, onReport = { reportTarget = it },
-                    onOpen = ::openPost, onOpenPack = { openedPack = it },
-                    onPullRefresh = { category -> viewModel.refreshPosts(category); capabilityAttempt++ },
-                )
-                false -> Column(Modifier.fillMaxSize()) { CommunityHome(viewModel, sessionId, effectiveSearch, feedRevision, actions) }
+                true -> {
+                    val feed: @Composable (Dp) -> Unit = { headerHeight ->
+                        SquareScreen(
+                            state, effectiveSearch, onRefresh = viewModel::refreshPosts, onReport = { reportTarget = it },
+                            onOpen = ::openPost, onOpenPack = { openedPack = it },
+                            onPullRefresh = { category -> viewModel.refreshPosts(category); capabilityAttempt++ },
+                            feedHeaderHeight = headerHeight,
+                        )
+                    }
+                    if (overlayHeader != null) CommunityFeedLayout(topInset, overlayHeader, feed) else feed(0.dp)
+                }
+                false -> Column(Modifier.fillMaxSize()) {
+                    CommunityHome(viewModel, sessionId, effectiveSearch, feedRevision, actions,
+                        overlayHeader = overlayHeader, topInset = topInset)
+                }
                 null -> CommunityStatus(busy = capabilityError == null, error = capabilityError) { capabilityAttempt++ }
             }
             else if (sessionId == null) Column(Modifier.fillMaxSize().padding(24.dp),
