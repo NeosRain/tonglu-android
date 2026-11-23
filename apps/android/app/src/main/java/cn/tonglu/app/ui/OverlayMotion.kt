@@ -2,6 +2,8 @@ package cn.tonglu.app.ui
 
 import android.content.Context
 import android.os.Build
+import android.graphics.drawable.ColorDrawable
+import android.view.WindowManager
 import android.window.BackEvent
 import android.window.OnBackAnimationCallback
 import android.window.OnBackInvokedDispatcher
@@ -9,6 +11,7 @@ import androidx.activity.BackEventCompat
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -24,6 +27,7 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,6 +36,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.MotionDurationScale
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.geometry.isSpecified
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
@@ -44,12 +56,17 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.window.DialogWindowProvider
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import kotlin.math.max
 
 /**
  * 全屏层（弹层 / 内联层）的**统一**返回手势与进出场动画。
@@ -144,6 +161,9 @@ object OverlayMotion {
     /** 一镜到底的展开/收回时长：要看得清从哪来、回哪去，比普通进场长一些。 */
     const val ORIGIN_ENTER_MS = 380
     const val ORIGIN_EXIT_MS = 320
+    const val CONTAINER_ENTER_MS = 330
+    const val CONTAINER_EXIT_MS = 250
+    const val FADE_MS = 120
 
     /** 回弹时长（松手但没拖够）。 */
     const val SETTLE_MS = 160
@@ -299,9 +319,15 @@ class EdgeBackState internal constructor() {
     }
 
     internal fun end(commit: Boolean) {
+        committed = commit && dragging
         dragging = false
-        committed = commit
         if (commit) onCommit()
+    }
+
+    internal fun previewTarget(holdOnCommit: Boolean): Float = when {
+        dragging -> raw
+        committed -> if (holdOnCommit) raw else 1f
+        else -> 0f
     }
 }
 
@@ -338,12 +364,8 @@ fun rememberEdgeBackState(): EdgeBackState = remember { EdgeBackState() }
  * 必须放在一个**只做这件事的叶子 composable** 里读（见 `EdgeBackProgressSink`）。
  */
 @Composable
-fun rememberEdgeBackProgressState(state: EdgeBackState): State<Float> {
-    val target = when {
-        state.dragging -> state.raw
-        state.committed -> 1f
-        else -> 0f
-    }
+fun rememberEdgeBackProgressState(state: EdgeBackState, holdOnCommit: Boolean = false): State<Float> {
+    val target = state.previewTarget(holdOnCommit)
     val millis = when {
         state.dragging -> 0
         state.committed -> OverlayMotion.EXIT_MS
@@ -414,34 +436,33 @@ fun Modifier.edgeSwipeBack(state: EdgeBackState, enabled: Boolean, backEnabled: 
             val fromLeft = down.position.x <= edgePx
             if (!fromLeft && down.position.x < size.width - edgePx) return@awaitEachGesture
             var tracking = false
-            while (true) {
-                // 系统已经接管这次返回（弹层那条路，见 [DialogBackProgress]）：让位。
-                // 不让的话两边各写一次进度，界面会在两个值之间抖。
-                if (state.systemActive) break
-                val event = awaitPointerEvent(PointerEventPass.Main)
-                val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                if (!change.pressed) {
-                    if (tracking) {
-                        val shift = abs(change.position.x - down.position.x) / size.width.toFloat()
-                        complete(shift >= OverlayMotion.COMMIT_RATIO)
-                    }
-                    break
-                }
-                val dx = (change.position.x - down.position.x) * if (fromLeft) 1f else -1f
-                val dy = change.position.y - down.position.y
-                if (!tracking) {
-                    // 判定阈值刻意做小：真机上手指按下就会抖几像素，
-                    // 阈值太大会让「明明拖了却没反应」。
-                    if (dx > 8f && dx > abs(dy) * 1.2f) {
-                        tracking = true
-                    } else if (dx < -8f || abs(dy) > 12f) {
+            var finished = false
+            try {
+                while (!state.systemActive) {
+                    val event = awaitPointerEvent(PointerEventPass.Main)
+                    if (state.systemActive) break
+                    val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                    val dx = (change.position.x - down.position.x) * if (fromLeft) 1f else -1f
+                    if (!change.pressed) {
+                        if (tracking && !change.isConsumed) {
+                            change.consume()
+                            finished = true
+                            complete(dx / size.width >= OverlayMotion.COMMIT_RATIO)
+                        }
                         break
                     }
+                    val dy = change.position.y - down.position.y
+                    if (!tracking) {
+                        if (dx > 8f && dx > abs(dy) * 1.2f) tracking = true
+                        else if (dx < -8f || abs(dy) > 12f) break
+                    }
+                    if (tracking) {
+                        if (preview) state.drag(dx / size.width, if (fromLeft) BackEventCompat.EDGE_LEFT else BackEventCompat.EDGE_RIGHT)
+                        change.consume()
+                    }
                 }
-                if (tracking) {
-                    if (preview) state.drag(dx / size.width.toFloat(), if (fromLeft) BackEventCompat.EDGE_LEFT else BackEventCompat.EDGE_RIGHT)
-                    change.consume()
-                }
+            } finally {
+                if (tracking && !finished && !state.systemActive) state.cancel()
             }
         }
     }
@@ -461,22 +482,27 @@ fun Modifier.edgeSwipeBack(state: EdgeBackState, enabled: Boolean, backEnabled: 
  * （2026-10-06 用户报告：安装中的资料包页按返回直接回桌面）。
  */
 @Composable
-fun SystemBackProgress(state: EdgeBackState, enabled: Boolean, onCommit: () -> Unit) {
-    LaunchedEffect(onCommit) { state.onCommit = onCommit }
+fun SystemBackProgress(state: EdgeBackState, enabled: Boolean, preview: Boolean = enabled, onCommit: () -> Unit) {
+    val latestCommit by rememberUpdatedState(onCommit)
+    SideEffect { state.onCommit = onCommit }
     PredictiveBackHandler(enabled = true) { flow ->
         try {
             flow.collect { event ->
                 // 标记「系统正在跑这次手势」→ [Modifier.edgeSwipeBack] 会主动让位。
                 // 别省这一步：某些设备/模拟器上 App 同时也能收到边缘触摸，两边各写一次进度会抖。
                 state.systemActive = true
-                if (enabled) {
+                if (enabled && preview) {
                     // event.progress 已经是系统按手势算好的 0..1，直接跟手即可。
                     state.drag(event.progress, event.swipeEdge)
                 }
             }
             state.systemActive = false
             // 流正常结束 = 用户拖够了。enabled 时提交返回；否则只吞掉这次返回（不关层）。
-            if (enabled) state.end(commit = true) else state.cancel()
+            if (enabled) {
+                state.committed = preview && state.dragging
+                state.dragging = false
+                latestCommit()
+            } else state.cancel()
         } catch (e: CancellationException) {
             // 取消 = 松手但没拖够，回弹。
             state.systemActive = false
@@ -519,9 +545,12 @@ fun DialogBackProgress(state: EdgeBackState, enabled: Boolean, animate: Boolean 
         generateSequence(view as android.view.View?) { it.parent as? android.view.View }
             .filterIsInstance<DialogWindowProvider>().firstOrNull()?.window?.onBackInvokedDispatcher
     } ?: return
+    val latestEnabled = rememberUpdatedState(enabled)
+    val latestAnimate = rememberUpdatedState(animate)
     val latestCommit by rememberUpdatedState(onCommit)
-    DisposableEffect(dispatcher, enabled, animate) {
-        val cb = DialogBackCallback(state, enabled, animate) { latestCommit() }
+    DisposableEffect(dispatcher, state) {
+        // 提交会关掉输入闸门，当前回调要继续留在窗口上，直到本层退场完毕。
+        val cb = DialogBackCallback(state, latestEnabled, latestAnimate) { latestCommit() }
         dispatcher.registerOnBackInvokedCallback(OnBackInvokedDispatcher.PRIORITY_OVERLAY, cb)
         if (cn.tonglu.app.BuildConfig.DEBUG) android.util.Log.d("TongluBack", "已绑定弹层窗口的预测返回")
         onDispose { dispatcher.unregisterOnBackInvokedCallback(cb) }
@@ -531,8 +560,8 @@ fun DialogBackProgress(state: EdgeBackState, enabled: Boolean, animate: Boolean 
 @androidx.annotation.RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 private class DialogBackCallback(
     private val state: EdgeBackState,
-    private val enabled: Boolean,
-    private val animate: Boolean,
+    private val enabled: State<Boolean>,
+    private val animate: State<Boolean>,
     private val onCommit: () -> Unit,
 ) : OnBackAnimationCallback {
     /** 系统正在跑这次手势 —— 自识别那条路要让位，否则两边各写一次进度会打架。 */
@@ -541,11 +570,11 @@ private class DialogBackCallback(
     override fun onBackStarted(backEvent: BackEvent) {
         if (cn.tonglu.app.BuildConfig.DEBUG) android.util.Log.d("TongluBack", "系统返回手势开始")
         markActive(true)
-        if (enabled && animate) state.drag(backEvent.progress, backEvent.swipeEdge)
+        if (enabled.value && animate.value) state.drag(backEvent.progress, backEvent.swipeEdge)
     }
 
     override fun onBackProgressed(backEvent: BackEvent) {
-        if (enabled && animate) state.drag(backEvent.progress, backEvent.swipeEdge)
+        if (enabled.value && animate.value) state.drag(backEvent.progress, backEvent.swipeEdge)
     }
 
     override fun onBackCancelled() {
@@ -559,7 +588,7 @@ private class DialogBackCallback(
         markActive(false)
         // enabled = false 时**返回仍要被吃掉**（与内联层同一条规矩）：
         // 不注册的话这次返回会一路落到 Activity 默认行为 = 退回桌面。
-        if (enabled) onCommit() else state.cancel()
+        if (enabled.value) onCommit() else state.cancel()
     }
 }
 
@@ -631,8 +660,36 @@ class OverlayMotionState internal constructor(
 
     /** 一镜到底来源（窗口坐标：进场矩形 to 收回矩形），见 [LaunchOrigin]。null = 沿用进场方向。 */
     internal var origin: Pair<Rect, Rect>? = null
+    internal var containerOrigin: ContainerOrigin? = null
+    internal var container = false
+    internal var reducedMotion by mutableStateOf(false)
+    internal var backPreview: State<Float>? = null
+    internal var beforeClose: () -> Boolean = { true }
+    private val exit = Animatable(0f)
+    private var closeFrom = 1f
+    private var closeGesture = 0f
+    private var closeFromLeft = true
+    private var exitBounds: Rect? = null
+    private var lastRenderedFrame: ContainerFrame? = null
+    private var exitStartFrame: ContainerFrame? = null
+    private var afterExit: (() -> Unit)? = null
+
+    internal val blocksInput: Boolean
+        get() = container && (closing || enter.value < 1f)
+
+    private suspend fun animateContainer(animation: Animatable<Float, *>, duration: Int) {
+        val spec = tween<Float>(duration, easing = LinearEasing)
+        if (reducedMotion) withContext(FadeDurationScale) { animation.animateTo(1f, spec) }
+        else animation.animateTo(1f, spec)
+    }
 
     internal suspend fun runEnter() {
+        if (closing) return
+        if (container) {
+            animateContainer(enter, if (reducedMotion || containerOrigin == null) OverlayMotion.FADE_MS
+                else OverlayMotion.CONTAINER_ENTER_MS)
+            return
+        }
         enter.animateTo(1f, if (origin != null) tween(OverlayMotion.ORIGIN_ENTER_MS, easing = EmphasizedDecelerate)
             else tween(OverlayMotion.ENTER_MS, easing = FastOutSlowInEasing))
     }
@@ -646,18 +703,90 @@ class OverlayMotionState internal constructor(
      */
     fun requestClose() {
         if (closing) return
+        if (!beforeClose()) {
+            edge.cancel()
+            return
+        }
+        if (container) {
+            closeFrom = enter.value
+            closeGesture = if (!predictive || reducedMotion) 0f else when {
+                edge.dragging || edge.committed -> edge.raw
+                else -> backPreview?.value ?: 0f
+            }
+            closeFromLeft = edge.fromLeft
+            exitBounds = containerOrigin?.target?.bounds()
+            exitStartFrame = lastRenderedFrame
+        }
         closing = true
         // 手势提交的路径上 [EdgeBackState.committed] 已经是 true，这里**不能**再 cancel，
         // 否则刚要飞出去的位移又被拽回 0（就是那个「先回弹再淡出」的观感 bug）。
         // 其余关闭路径（返回按钮、点遮罩、返回键）没有位移，归位本来也不影响观感。
         if (!edge.committed) edge.cancel()
         scope.launch {
-            enter.animateTo(0f, tween(if (origin != null) OverlayMotion.ORIGIN_EXIT_MS else OverlayMotion.EXIT_MS,
-                easing = FastOutSlowInEasing))
+            if (container) {
+                enter.stop()
+                animateContainer(exit, if (reducedMotion) OverlayMotion.FADE_MS else OverlayMotion.CONTAINER_EXIT_MS)
+            } else {
+                enter.animateTo(0f, tween(if (origin != null) OverlayMotion.ORIGIN_EXIT_MS else OverlayMotion.EXIT_MS,
+                    easing = FastOutSlowInEasing))
+            }
             OverlayDismissGuard.arm()
-            closeAction()
+            (afterExit ?: closeAction)()
         }
     }
+
+    internal fun requestCloseWith(action: () -> Unit) {
+        if (closing) return
+        afterExit = action
+        requestClose()
+    }
+
+    private fun previewProgress(): Float = if (!predictive || reducedMotion) 0f
+        else if (edge.dragging) edge.raw else backPreview?.value ?: 0f
+
+    // 保存真正绘制过的几何。系统回调可能先更新手势进度，窗口也可能在松手后重新布局。
+    internal fun recordRenderedContainer(frame: ContainerFrame, at: Offset) {
+        if (!closing) lastRenderedFrame = frame.copy(bounds = frame.bounds.translate(at))
+    }
+
+    internal fun containerFrame(
+        size: Size, at: Offset, destinationCorner: Float, gestureCorner: Float,
+    ): ContainerFrame {
+        val time = if (closing) closeFrom else enter.value
+        val full = Rect(Offset.Zero, size)
+        val source = containerOrigin
+        val initial = source?.initial?.translate(-at)
+        val rendered = if (closing) exitStartFrame else null
+        val frame = if (rendered != null) rendered.copy(bounds = rendered.bounds.translate(-at)) else {
+            val start = containerEnter(initial, full, source?.cornerPx ?: 0f, destinationCorner,
+                ContainerExpand.transform(time), time, reducedMotion)
+            val preview = if (closing) closeGesture else previewProgress()
+            if (preview > 0f) containerBackFrame(start, preview,
+                if (closing) closeFromLeft else edge.fromLeft, gestureCorner) else start
+        }
+        if (!closing) return frame
+        val t = exit.value
+        return containerExit(frame, exitBounds?.translate(-at), source?.cornerPx ?: 0f,
+            ContainerContract.transform(t), t, reducedMotion)
+    }
+
+    internal fun sourceOpacity(): Float = if (reducedMotion) 1f else if (!closing) {
+        enterSourceAlpha(enter.value)
+    } else {
+        val reveal = if (exitBounds != null) exitSourceReveal(ContainerContract.transform(exit.value)) else exit.value
+        androidx.compose.ui.util.lerp(exitStartFrame?.sourceAlpha ?: enterSourceAlpha(closeFrom), 1f, reveal)
+    }
+
+    internal fun shadeOpacity(includeReduced: Boolean = false): Float {
+        if (reducedMotion && !includeReduced) return 0f
+        val time = if (closing) closeFrom * (1f - exit.value) else enter.value
+        val gesture = if (closing) closeGesture else previewProgress()
+        return time * (1f - gesture)
+    }
+}
+
+private object FadeDurationScale : MotionDurationScale {
+    override val scaleFactor: Float = 1f
 }
 
 @Composable
@@ -673,24 +802,61 @@ fun rememberOverlayMotion(
      * 关掉开关后返回键和点关闭**照样要走退出动画**，不能连带失效。
      */
     backEnabled: Boolean = true,
+    container: Boolean = false,
+): OverlayMotionState = rememberOverlayMotionImpl(onClose, predictive, selfDrag, backEnabled, container)
+
+@Composable
+internal fun rememberOverlayMotionImpl(
+    onClose: () -> Unit,
+    predictive: Boolean,
+    selfDrag: Boolean,
+    backEnabled: Boolean = true,
+    container: Boolean = true,
+    origin: ContainerOrigin? = null,
+    takePending: Boolean = true,
+    beforeClose: () -> Boolean = { true },
 ): OverlayMotionState {
     val scope = rememberCoroutineScope()
     val touchSize = with(LocalDensity.current) { 96.dp.toPx() }
+    val scale = scope.coroutineContext[MotionDurationScale]
+    val reduced = scale?.scaleFactor == 0f ||
+        (Build.VERSION.SDK_INT >= 26 && !android.animation.ValueAnimator.areAnimatorsEnabled())
     // key 里**只放** selfDrag：predictive 和 onClose 都是可变的（理由见
     // OverlayMotionState 里各自的注释），进 key 会让 state 反复重建、
     // 表现为这一层不停重播进场动画。
     val state = remember(selfDrag) {
-        OverlayMotionState(predictive, onClose, selfDrag, scope).also { it.origin = LaunchOrigin.take(touchSize) }
+        val captured = origin ?: if (takePending) LaunchOrigin.takeContainer() else null
+        val legacy = if (takePending && captured == null) LaunchOrigin.take(touchSize, includeTouch = !container) else null
+        OverlayMotionState(predictive, onClose, selfDrag, scope).apply {
+            this.container = container || captured != null
+            containerOrigin = captured
+            this.origin = legacy.takeUnless { this.container }
+            reducedMotion = reduced
+        }
     }
-    LaunchedEffect(state, predictive) { state.predictive = predictive }
-    LaunchedEffect(state, backEnabled) { state.shellBackEnabled = backEnabled }
-    LaunchedEffect(state, onClose) { state.setOnClose(onClose) }
+    SideEffect {
+        state.predictive = predictive
+        state.reducedMotion = reduced
+        state.shellBackEnabled = backEnabled
+        state.setOnClose(onClose)
+        state.beforeClose = beforeClose
+        state.edge.onCommit = state::requestClose
+    }
     LaunchedEffect(state) { state.runEnter() }
-    LaunchedEffect(state) { state.edge.onCommit = state::requestClose }
+    val source = state.containerOrigin?.target
+    if (source != null) {
+        DisposableEffect(state, source) {
+            val opacity = derivedStateOf { state.sourceOpacity() }
+            source.alpha = opacity
+            onDispose { if (source.alpha === opacity) source.alpha = null }
+        }
+    }
 
     if (!selfDrag) {
         // 内联层：注册在 Activity 的 dispatcher 上，系统直接把进度送进来。
-        SystemBackProgress(state = state.edge, enabled = backEnabled, onCommit = state::requestClose)
+        SystemBackProgress(state = state.edge, enabled = backEnabled,
+            preview = backEnabled && predictive && !state.reducedMotion && !state.isClosing,
+            onCommit = state::requestClose)
     }
     return state
 }
@@ -721,23 +887,24 @@ fun OverlayLayerHost(
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
     backEnabled: Boolean = true,
+    dialog: Boolean = false,
     content: @Composable (requestClose: () -> Unit) -> Unit,
 ) {
     val motion = rememberOverlayMotion(
         onClose = onClose,
         predictive = OverlayMotion.enabledState,
-        selfDrag = false,
+        selfDrag = dialog,
         backEnabled = backEnabled,
     )
     // 进度只算一次，两处共用：这层自己拿去位移，下层拿去做视差。
     // 各算各的会出现「上层动了、下层慢半拍」（两个 animateFloatAsState 的起点不同）。
     //
     // 🔴 这里拿到的是 `State`，**不要把它的值读出来**（读 = 本层每帧重组，BUGS A16）。
-    val back = rememberEdgeBackProgressState(motion.edge)
+    val back = rememberEdgeBackProgressState(motion.edge, holdOnCommit = motion.container)
     // 广播给下层。**读值发生在 [UnderlayParallaxSync] 这个叶子里**，所以本层不跟着重组。
     // 用 SideEffect 而不是在组合里直接赋值：直接赋值是「组合期写 State」，
     // 一旦下层也在组合期读它就会互相触发，最坏情况是无限重组。
-    UnderlayParallaxSync(motion.predictive, back, motion.edge)
+    if (!motion.container) UnderlayParallaxSync(motion.predictive, back, motion.edge)
     // ⚠️ 复位是**必须的**：这一层从组合里消失时 SideEffect 不会再跑，
     // 下层会永远停在「被推开一半、还缩了一点」的位置上。
     DisposableEffect(motion) { onDispose { OverlayMotion.publishDrag(0f) } }
@@ -758,12 +925,21 @@ fun OverlayLayerHost(
     // 取 `colorScheme.background`：MainActivity 里它就是 `Canvas`(0xFFF5F6F8)，
     // 与主内容 Scaffold 的 containerColor 同一个值，接上不会有色差。
     // 写在 `overlayMotion` **之后**是有意的：这样底色落在图形层里面，跟手拖动时会跟着这一页一起走。
-    Box(
-        modifier.fillMaxSize()
-            .overlayMotion(motion, back, fade = false)
-            .background(MaterialTheme.colorScheme.background)
-    ) {
-        content(motion::requestClose)
+    val page: @Composable () -> Unit = {
+        Box(
+            modifier.fillMaxSize()
+                .overlayMotion(motion, back, fade = false)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            content(motion::requestClose)
+        }
+    }
+    if (dialog) {
+        Dialog(onDismissRequest = { if (backEnabled) motion.requestClose() },
+            properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
+            content = page)
+    } else {
+        page()
     }
 }
 
@@ -794,20 +970,90 @@ fun Modifier.overlayMotion(
     enter: OverlayEnter = LocalOverlayEnter.current,
     /** 仅在松手提交返回，拖动期间不改变页面；默认保留其它页面的既有行为。 */
     gestureWithoutPreview: Boolean = false,
+    containerColor: Color = MaterialTheme.colorScheme.background,
+    destinationCorner: Dp = 0.dp,
+    dimBehind: Boolean = true,
+    systemBarsDark: Boolean = AppTheme.darkState,
+    handleGestures: Boolean = true,
 ): Modifier {
-    ThemeSystemBars()
+    ThemeSystemBars(dark = systemBarsDark)
     cn.tonglu.app.ui.focus.RegisterPomodoroWindow()
     val origin = state.origin
-    if ((enter == OverlayEnter.Right && !fade) || origin != null) {
+    if ((enter == OverlayEnter.Right && !fade) || origin != null || state.container) {
         val view = LocalView.current
         // These are full-page navigation windows. Compose already animates the opaque page;
         // a platform dim/exit animation otherwise leaves the revealed parent dark afterwards.
-        SideEffect {
+        DisposableEffect(view, state.container) {
             val window = generateSequence(view as android.view.View?) { it.parent as? android.view.View }
                 .filterIsInstance<DialogWindowProvider>().firstOrNull()?.window
+            if (state.container && window != null) {
+                window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            }
             window?.setDimAmount(0f)
             window?.setWindowAnimations(0)
+            onDispose { }
         }
+    }
+    if (state.container) {
+        val edgeProgress = back ?: rememberEdgeBackProgressState(state.edge, holdOnCommit = true)
+        SideEffect { state.backPreview = edgeProgress }
+        var at by remember(state) { mutableStateOf(Offset.Zero) }
+        val preview = state.predictive && !state.reducedMotion && onBack == null
+        val allowBack = backEnabled && !state.isClosing
+        val sourceColor = state.containerOrigin?.target?.surfaceColor ?: containerColor
+        val gestures = if (handleGestures) Modifier.edgeSwipeBack(
+            state.edge, enabled = (state.predictive || gestureWithoutPreview) && allowBack,
+            backEnabled = allowBack, onBack = onBack, preview = preview && allowBack,
+        ) else Modifier
+        return this
+            .onGloballyPositioned { coordinates ->
+                val position = coordinates.localToScreen(Offset.Zero)
+                if (position.isSpecified) at = position
+            }
+            .drawBehind {
+                if (dimBehind) drawRect(Color.Black, alpha = .12f * state.shadeOpacity())
+                val corner = destinationCorner.toPx()
+                val frame = state.containerFrame(size, at, corner, max(corner, 24.dp.toPx()))
+                state.recordRenderedContainer(frame, at)
+                // 在未缩放的宿主里画实体轮廓，详情透明时仍看得到正在收拢的轮廓。
+                if (frame.detailAlpha < 1f && frame.containerAlpha > 0f) {
+                    val bounds = frame.bounds
+                    val radius = minOf(frame.radius, minOf(bounds.width, bounds.height) / 2f)
+                    drawRoundRect(lerp(sourceColor, containerColor, frame.surfaceBlend),
+                        topLeft = bounds.topLeft, size = bounds.size, cornerRadius = CornerRadius(radius),
+                        alpha = frame.containerAlpha)
+                }
+            }
+            .pointerInput(state) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    if (state.blocksInput) {
+                        down.consume()
+                        do {
+                            val event = awaitPointerEvent(PointerEventPass.Initial)
+                            event.changes.forEach { it.consume() }
+                        } while (event.changes.any { it.pressed })
+                    }
+                }
+            }
+            .then(gestures)
+            .graphicsLayer {
+                if (size.width <= 0f || size.height <= 0f) return@graphicsLayer
+                val corner = destinationCorner.toPx()
+                val frame = state.containerFrame(size, at, corner, max(corner, 24.dp.toPx()))
+                val transform = fitOriginFrame(frame.bounds, size, frame.radius)
+                transformOrigin = TransformOrigin(0f, 0f)
+                scaleX = transform.scale
+                scaleY = transform.scale
+                translationX = transform.translationX
+                translationY = transform.translationY
+                clip = frame.bounds.size != size || frame.radius != corner
+                if (clip) shape = OriginClipShape(transform.clip, transform.radius)
+                alpha = frame.containerAlpha
+            }
+            .graphicsLayer { alpha = state.containerFrame(size, at, destinationCorner.toPx(),
+                max(destinationCorner.toPx(), 24.dp.toPx())).detailAlpha }
     }
     val edgeProgress = back ?: rememberEdgeBackProgressState(state.edge)
     // 🔴 圆角形状必须在**这里**（@Composable 函数体）remember，不能在 `graphicsLayer {}` 里读。
@@ -885,3 +1131,5 @@ fun Modifier.overlayMotion(
 
 /** 强调型减速曲线：起步快、落点柔和，展开到全屏时不显得「砸」下来。 */
 private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+private val ContainerExpand = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+private val ContainerContract = CubicBezierEasing(0.3f, 0f, 0.7f, 0.75f)

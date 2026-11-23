@@ -15,6 +15,7 @@ import okhttp3.Protocol
 import okhttp3.Response
 import okhttp3.ResponseBody.Companion.toResponseBody
 import okhttp3.Request
+import okio.Buffer
 import okio.Timeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -49,6 +50,48 @@ class CommunityContractTest {
         assertNull(post.boardId)
         assertTrue(post.topics.orEmpty().isEmpty())
         assertEquals("正文", post.body)
+    }
+
+    @Test fun boardDetailDistinguishesGuestDenialFromLegacyMissingPermissions() = runBlocking {
+        val guest = apiWithResponse { request ->
+            assertNull(request.header("Authorization"))
+            200 to """{"id":"new","viewerRole":null,"canReviewReports":false}"""
+        }.communityBoard("new")
+        assertEquals(false, guest.viewerCanManage)
+        assertEquals(false, guest.canReviewReports)
+        val legacy = apiWithResponse { 200 to """{"id":"legacy"}""" }.communityBoard("legacy")
+        assertNull(legacy.viewerCanManage)
+        assertNull(legacy.canReviewReports)
+    }
+
+    @Test fun boardDetailSendsSessionAndPreservesPlatformReviewScope() = runBlocking {
+        val api = apiWithResponse { request ->
+            assertEquals("Bearer mine", request.header("Authorization"))
+            val clubId = if (request.url.encodedPath.endsWith("/club")) "\"club\"" else "null"
+            200 to """{"id":"board","clubId":$clubId,"viewerRole":null,"canReviewReports":true}"""
+        }
+        assertEquals(true, api.communityBoard("public", "Bearer mine").viewerCanManage)
+        val club = api.communityBoard("club", "Bearer mine")
+        assertEquals(false, club.viewerCanManage)
+        assertEquals(true, club.canReviewReports)
+    }
+
+    @Test fun quizSubmissionSendsZeroBasedChoicesAndReadsServerResult() = runBlocking {
+        val api = apiWithResponse { request ->
+            assertEquals("POST", request.method)
+            assertEquals("/me/level/trust-quiz", request.url.encodedPath)
+            assertEquals("Bearer mine", request.header("Authorization"))
+            val buffer = Buffer()
+            checkNotNull(request.body).writeTo(buffer)
+            val answers = gson.fromJson(buffer.readUtf8(), SubmitTrustQuizRequest::class.java).answers
+            assertEquals(mapOf("board" to 0, "topic" to 2), answers)
+            200 to """{"passed":false,"correct":7,"questionCount":10,"requiredCorrect":8,"retryAt":"2026-11-24T12:00:00.000Z"}"""
+        }
+        val result = api.submitTrustQuiz("Bearer mine", SubmitTrustQuizRequest(mapOf("board" to 0, "topic" to 2)))
+        assertFalse(result.passed)
+        assertEquals(7, result.correct)
+        assertEquals("2026-11-24T12:00:00.000Z", result.retryAt)
+        assertTrue(result.questions.orEmpty().isEmpty())
     }
 
     @Test fun createPayloadKeepsLegacyCategoryAndCommunityBoardSeparate() {
@@ -131,12 +174,19 @@ class CommunityContractTest {
 
     private fun apiWithStatuses(vararg statuses: Pair<String, Int>): TongluApi {
         val replies = statuses.toMap()
-        val transport = Call.Factory { request -> TestCall(request, replies[request.url.encodedPath] ?: 200) }
+        return apiWithResponse { request -> (replies[request.url.encodedPath] ?: 200) to "[]" }
+    }
+
+    private fun apiWithResponse(reply: (Request) -> Pair<Int, String>): TongluApi {
+        val transport = Call.Factory { request ->
+            val (status, body) = reply(request)
+            TestCall(request, status, body)
+        }
         return Retrofit.Builder().baseUrl("https://test.invalid/").callFactory(transport)
             .addConverterFactory(GsonConverterFactory.create()).build().create(TongluApi::class.java)
     }
 
-    private class TestCall(private val request: Request, private val status: Int) : Call {
+    private class TestCall(private val request: Request, private val status: Int, private val body: String) : Call {
         private val tags = mutableMapOf<Class<*>, Any>()
         private var executed = false
         private var cancelled = false
@@ -150,12 +200,12 @@ class CommunityContractTest {
         override fun <T : Any> tag(type: KClass<T>, computeIfAbsent: () -> T): T = tag(type.java, computeIfAbsent)
         override fun <T : Any> tag(type: Class<T>, computeIfAbsent: () -> T): T =
             type.cast(tags.getOrPut(type, computeIfAbsent))
-        override fun clone(): Call = TestCall(request, status)
+        override fun clone(): Call = TestCall(request, status, body)
         override fun enqueue(responseCallback: Callback) = responseCallback.onResponse(this, execute())
         override fun execute(): Response {
             executed = true
             return Response.Builder().request(request).protocol(Protocol.HTTP_1_1).code(status)
-                .message("Test response").body("[]".toResponseBody("application/json".toMediaType())).build()
+                .message("Test response").body(body.toResponseBody("application/json".toMediaType())).build()
         }
     }
 }

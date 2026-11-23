@@ -48,8 +48,12 @@ import kotlinx.coroutines.launch
  */
 class InteractiveHighlight(
     val animationScope: CoroutineScope,
-    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset }
+    val position: (size: Size, offset: Offset) -> Offset = { _, offset -> offset },
+    private val darkPressProgress: (() -> Float)? = null,
 ) {
+    private val washAlpha = if (darkPressProgress == null) .08f else GlassTokens.DarkNavigationPressWashAlpha
+    private val glowAlpha = if (darkPressProgress == null) .15f else GlassTokens.DarkNavigationPressGlowAlpha
+    private val fallbackAlpha = if (darkPressProgress == null) .25f else washAlpha + glowAlpha
 
     private val pressProgressAnimationSpec =
         spring(0.5f, 300f, 0.001f)
@@ -86,17 +90,17 @@ half4 main(float2 coord) {
 
     val modifier: Modifier =
         Modifier.drawWithContent {
-            val progress = pressProgressAnimation.value
+            val progress = darkPressProgress?.invoke() ?: pressProgressAnimation.value
             if (progress > 0f) {
                 if (shader != null) {
                     drawRect(
-                        AppColors.OnAccent.copy(0.08f * progress),
+                        AppColors.OnAccent.copy(washAlpha * progress),
                         blendMode = BlendMode.Plus
                     )
                     shader.apply {
                         val position = position(size, positionAnimation.value)
                         setFloatUniform("size", size.width, size.height)
-                        setColorUniform("color", AppColors.OnAccent.copy(0.15f * progress))
+                        setColorUniform("color", AppColors.OnAccent.copy(glowAlpha * progress))
                         setFloatUniform("radius", size.minDimension * 1.5f)
                         setFloatUniform(
                             "position",
@@ -110,7 +114,7 @@ half4 main(float2 coord) {
                     )
                 } else {
                     drawRect(
-                        AppColors.OnAccent.copy(0.25f * progress),
+                        AppColors.OnAccent.copy(fallbackAlpha * progress),
                         blendMode = BlendMode.Plus
                     )
                 }

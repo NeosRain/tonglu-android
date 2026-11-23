@@ -9,11 +9,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -21,6 +18,9 @@ import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.data.PeriodTable
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import cn.tonglu.app.ui.shortPlace
 import cn.tonglu.app.ui.timetable.*
 
@@ -31,7 +31,7 @@ internal fun courseTiming(course: CourseDto, now: Int): TodayCourseTiming = toda
 
 /** 全天列表保持稳定，只有首课摘要和每行状态各自订阅分钟。 */
 @Composable
-internal fun TodayGlassCourses(courses: List<CourseDto>, onTap: (CourseDto, Rect) -> Unit,
+internal fun TodayGlassCourses(courses: List<CourseDto>, onTap: (CourseDto, ContainerOrigin?) -> Unit,
     onLongPress: (CourseDto) -> Unit, forceFinished: Boolean = false) {
     if (!forceFinished) NextGlassCourse(courses, onTap, onLongPress)
     val grouped = courses.sortedBy { it.startPeriod }.groupBy { courseTiming(it, 0).group }
@@ -50,18 +50,18 @@ internal fun TodayGlassCourses(courses: List<CourseDto>, onTap: (CourseDto, Rect
 }
 
 @Composable
-private fun NextGlassCourse(courses: List<CourseDto>, onTap: (CourseDto, Rect) -> Unit, onLongPress: (CourseDto) -> Unit) {
+private fun NextGlassCourse(courses: List<CourseDto>, onTap: (CourseDto, ContainerOrigin?) -> Unit, onLongPress: (CourseDto) -> Unit) {
     val now by rememberTimetableMinute()
     val course = courses.sortedBy { it.startPeriod }.firstOrNull {
         courseTiming(it, now).state == TodayCourseState.Ongoing
     } ?: courses.sortedBy { it.startPeriod }.firstOrNull { courseTiming(it, now).state == TodayCourseState.Upcoming }
     if (course == null) return
     val timing = courseTiming(course, now)
-    var bounds by remember(course.id) { mutableStateOf(Rect.Zero) }
+    val origin = rememberLaunchSource(course.id, 18.dp)
     Row(Modifier.fillMaxWidth().padding(top = 10.dp)
         .background(AppColors.Accent.copy(alpha = .08f), RoundedCornerShape(18.dp))
-        .onGloballyPositioned { val at = it.positionInWindow(); bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height) }
-        .pointerInput(course) { detectTapGestures(onTap = { onTap(course, bounds) }, onLongPress = { onLongPress(course) }) }
+        .launchOrigin(origin)
+        .pointerInput(course) { detectTapGestures(onTap = { onTap(course, origin.capture()) }, onLongPress = { onLongPress(course) }) }
         .padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f)) {
             Text(if (timing.state == TodayCourseState.Ongoing) "正在上课" else "下节课",
@@ -80,12 +80,12 @@ private fun coursePeople(course: CourseDto): String = listOfNotNull(shortPlace(c
     course.teacher?.takeIf { it.isNotBlank() }).joinToString(" · ").ifBlank { "教室与老师待补充" }
 
 @Composable
-private fun TodayGlassCourseRow(course: CourseDto, onTap: (CourseDto, Rect) -> Unit,
+private fun TodayGlassCourseRow(course: CourseDto, onTap: (CourseDto, ContainerOrigin?) -> Unit,
     onLongPress: (CourseDto) -> Unit, forceFinished: Boolean) {
-    var bounds by remember(course.id) { mutableStateOf(Rect.Zero) }
+    val origin = rememberLaunchSource(course.id)
     Row(Modifier.fillMaxWidth()
-        .onGloballyPositioned { val at = it.positionInWindow(); bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height) }
-        .pointerInput(course) { detectTapGestures(onTap = { onTap(course, bounds) }, onLongPress = { onLongPress(course) }) }
+        .launchOrigin(origin)
+        .pointerInput(course) { detectTapGestures(onTap = { onTap(course, origin.capture()) }, onLongPress = { onLongPress(course) }) }
         .padding(vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
         // 完成透明度在绘制层读取，正文不因分钟变化重新排版。
         val now = rememberTimetableMinute()

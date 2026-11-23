@@ -1,10 +1,5 @@
 package cn.tonglu.app.ui
 
-import android.view.WindowManager
-import androidx.compose.ui.layout.boundsInWindow
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -15,91 +10,50 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.layout.positionInWindow
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import androidx.compose.ui.window.DialogWindowProvider
 import cn.tonglu.app.data.*
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.OverlayMotion
+import cn.tonglu.app.ui.edgeSwipeBack
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.overlayMotion
+import cn.tonglu.app.ui.rememberLaunchSource
+import cn.tonglu.app.ui.rememberOverlayMotionImpl
 
-internal data class CourseSelection(val course: CourseDto, val origin: Rect = Rect.Zero)
+internal data class CourseSelection(val course: CourseDto, val origin: ContainerOrigin? = null)
 
-internal data class CoursePopupTransform(val scaleX: Float, val scaleY: Float, val x: Float, val y: Float)
-internal fun coursePopupTransform(source: Rect, target: Rect, progress: Float): CoursePopupTransform {
-    val p = progress.coerceIn(0f, 1f)
-    if (p >= 1f) return CoursePopupTransform(1f, 1f, 0f, 0f)
-    if (source.width <= 0f || source.height <= 0f || target.width <= 0f || target.height <= 0f)
-        return CoursePopupTransform(.94f + .06f * p, .94f + .06f * p, 0f, 0f)
-    return CoursePopupTransform(source.width / target.width * (1f - p) + p,
-        source.height / target.height * (1f - p) + p,
-        (source.center.x - target.center.x) * (1f - p),
-        (source.center.y - target.center.y) * (1f - p))
-}
-
-/** One motion for course details and move confirmation. All exit paths finish the reverse animation. */
 @Composable
-internal fun CoursePopup(origin: Rect, onDismiss: () -> Unit, dismissEnabled: Boolean = true,
-    onCardBounds: (Rect) -> Unit = {},
+internal fun CoursePopup(origin: ContainerOrigin?, onDismiss: () -> Unit, dismissEnabled: Boolean = true,
     content: @Composable ColumnScope.(close: () -> Unit) -> Unit) {
-    val motion = remember { Animatable(0f) }
-    val scope = rememberCoroutineScope()
-    val latestDismiss by rememberUpdatedState(onDismiss)
-    var closing by remember { mutableStateOf(false) }
-    var area by remember { mutableStateOf(Rect.Zero) }
-    var cardSize by remember { mutableStateOf(IntSize.Zero) }
-    fun close() {
-        if (closing) return
-        closing = true
-        OverlayDismissGuard.arm()
-        scope.launch {
-            motion.animateTo(0f, tween(280, easing = FastOutSlowInEasing))
-            latestDismiss()
-        }
-    }
-    LaunchedEffect(Unit) {
-        snapshotFlow { cardSize.width > 0 && area.width > 0f }.first { it }
-        if (!closing) motion.animateTo(1f, tween(360, easing = FastOutSlowInEasing))
-    }
-    Dialog(onDismissRequest = { if (dismissEnabled) close() }, properties = DialogProperties(
+    val motion = rememberOverlayMotionImpl(
+        onClose = onDismiss, predictive = OverlayMotion.enabledState, selfDrag = true,
+        backEnabled = dismissEnabled, origin = origin, takePending = false,
+    )
+    val canDismiss = dismissEnabled && motion.canHandleBack
+    val preview = OverlayMotion.enabledState && !motion.reducedMotion && canDismiss
+    Dialog(onDismissRequest = { if (canDismiss) motion.requestClose() }, properties = DialogProperties(
         usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        val view = LocalView.current
-        SideEffect {
-            (view.parent as? DialogWindowProvider)?.window?.let {
-                it.setWindowAnimations(0)
-                it.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            }
-        }
-        ThemeSystemBars()
-        Box(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize().graphicsLayer { alpha = motion.value }
-                .background(Color.Black.copy(alpha = .32f)).clickable(enabled = dismissEnabled) { close() })
-            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp)
-                .onGloballyPositioned { c ->
-                    val at = c.positionInWindow()
-                    area = Rect(at.x, at.y, at.x + c.size.width, at.y + c.size.height)
-                }, contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().edgeSwipeBack(motion.edge, enabled = OverlayMotion.enabledState && canDismiss,
+            backEnabled = canDismiss, preview = preview)) {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = motion.shadeOpacity(includeReduced = true) }
+                .background(Color.Black.copy(alpha = .32f)).clickable(enabled = canDismiss) {
+                    if (!motion.blocksInput) motion.requestClose()
+                })
+            Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(20.dp),
+                contentAlignment = Alignment.Center) {
+                val background = AppColors.SurfaceOpaque
                 Surface(Modifier.widthIn(max = 520.dp).fillMaxWidth().heightIn(max = 640.dp)
-                    .onSizeChanged { cardSize = it }.onGloballyPositioned { onCardBounds(it.boundsInWindow()) }.graphicsLayer {
-                        val target = Rect(area.center.x - cardSize.width / 2f, area.center.y - cardSize.height / 2f,
-                            area.center.x + cardSize.width / 2f, area.center.y + cardSize.height / 2f)
-                        val transform = coursePopupTransform(origin, target, motion.value)
-                        scaleX = transform.scaleX; scaleY = transform.scaleY
-                        translationX = transform.x; translationY = transform.y
-                        alpha = motion.value
-                    }, shape = RoundedCornerShape(24.dp), color = AppColors.SurfaceOpaque, contentColor = AppColors.TextPrimary,
+                    .overlayMotion(motion, fade = false, containerColor = background, destinationCorner = 24.dp,
+                        dimBehind = false, handleGestures = false),
+                    shape = RoundedCornerShape(24.dp), color = background, contentColor = AppColors.TextPrimary,
                     shadowElevation = 12.dp) {
-                    Column(Modifier.fillMaxWidth()) { content { close() } }
+                    Column(Modifier.fillMaxWidth()) { content(motion::requestClose) }
                 }
             }
         }
@@ -113,11 +67,9 @@ internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List
     val course = selection.course
     var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
     var showClassNotes by remember { mutableStateOf(false) }
-    val cardBounds = remember { arrayOf(Rect.Zero) }
     val accent = courseColor(course.name)
-    // 一镜到底：笔记直接从这张卡片展开（不再先缩回课表格子、再从右侧推入），关闭时收回到课表上这门课。
-    if (!showClassNotes) CoursePopup(selection.origin, onDismiss = { onDismiss(); afterClose?.invoke() },
-        onCardBounds = { cardBounds[0] = it }) { close ->
+    CoursePopup(selection.origin, onDismiss = { onDismiss(); afterClose?.invoke() },
+        dismissEnabled = !showClassNotes) { close ->
         Column(Modifier.fillMaxWidth().background(accent).padding(22.dp)) {
             Text(course.name, color = AppColors.OnAccent, fontSize = 22.sp, lineHeight = 29.sp,
                 fontWeight = FontWeight.SemiBold, maxLines = 4,
@@ -139,7 +91,8 @@ internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List
             if (onDelete != null) TextButton(onClick = { afterClose = { onDelete(course) }; close() }) {
                 Text("删除课程", color = AppColors.Danger)
             }
-            TextButton(onClick = { LaunchOrigin.arm(cardBounds[0], selection.origin); showClassNotes = true }) {
+            val origin = rememberLaunchSource(course.id, 20.dp)
+            TextButton(onClick = { origin.launch { showClassNotes = true } }, modifier = Modifier.launchOrigin(origin)) {
                 Text("课堂笔记", color = AppColors.Accent)
             }
             if (onEdit != null) TextButton(onClick={afterClose={onEdit(course)};close()}) { Text("编辑",color=AppColors.Accent) }
@@ -147,7 +100,7 @@ internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List
             TextButton(onClick = close) { Text("完成", color = AppColors.Accent) }
         }
     }
-    if (showClassNotes) ClassNotesDialog(course, relatedCourses) { showClassNotes = false; onDismiss() }
+    if (showClassNotes) ClassNotesDialog(course, relatedCourses) { showClassNotes = false }
 }
 
 @Composable
@@ -159,14 +112,13 @@ private fun CourseDetailField(label: String, value: String) {
 }
 
 
-internal data class CourseOverlapSelection(val courses: List<CourseDto>, val origin: Rect)
+internal data class CourseOverlapSelection(val courses: List<CourseDto>, val origin: ContainerOrigin?)
 
 /** The compact overlap chooser uses the same motion, colors and detail entry as a single course. */
 @Composable
 internal fun CourseOverlapDialog(selection: CourseOverlapSelection,
-    onSelect: (CourseDto, Rect) -> Unit, onDismiss: () -> Unit) {
-    var afterClose by remember { mutableStateOf<(() -> Unit)?>(null) }
-    CoursePopup(selection.origin, onDismiss = { onDismiss(); afterClose?.invoke() }) { close ->
+    onSelect: (CourseDto, ContainerOrigin?) -> Unit, onDismiss: () -> Unit) {
+    CoursePopup(selection.origin, onDismiss = onDismiss) { close ->
         Column(Modifier.fillMaxWidth().padding(22.dp)) {
             Text("同一时段 · ${selection.courses.size} 门课", fontSize = 20.sp, lineHeight = 28.sp,
                 fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
@@ -177,11 +129,9 @@ internal fun CourseOverlapDialog(selection: CourseOverlapSelection,
         Column(Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState())
             .padding(horizontal = 18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             selection.courses.forEach { course ->
-                var bounds by remember(course.id) { mutableStateOf(Rect.Zero) }
-                Surface(Modifier.fillMaxWidth().onGloballyPositioned {
-                    val at = it.positionInWindow()
-                    bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height)
-                }.clickable { afterClose = { onSelect(course, bounds) }; close() },
+                val origin = rememberLaunchSource(course.id, 18.dp)
+                Surface(Modifier.fillMaxWidth().launchOrigin(origin)
+                    .clickable { onSelect(course, origin.capture()) },
                     shape = RoundedCornerShape(18.dp), color = courseColor(course.name),
                     contentColor = AppColors.OnAccent) {
                     Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {

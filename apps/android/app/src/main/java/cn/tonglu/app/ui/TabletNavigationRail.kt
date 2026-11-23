@@ -133,12 +133,16 @@ internal fun TabletNavigationRail(
                 .background(indicatorColor, RoundedCornerShape(50)))
             Column(verticalArrangement = Arrangement.spacedBy(SlotGap), horizontalAlignment = Alignment.CenterHorizontally) {
                 tabs.forEachIndexed { index, title ->
-                    val selected = (previewIndex?.roundToInt() ?: selectedTab) == index
-                    val tint by animateColorAsState(
-                        if (selected) GlassTokens.AccentOnGlass
-                        else if (dark) GlassTokens.DarkNavigationInactive else AppColors.TextSecondary,
-                        label = "rail-icon",
-                    )
+                    val selected = (if (dark) position.roundToInt() else previewIndex?.roundToInt() ?: selectedTab) == index
+                    val tint = if (dark) {
+                        GlassTokens.darkNavigationTabTint(GlassTokens.AccentOnGlass, position, index)
+                    } else {
+                        val lightTint by animateColorAsState(
+                            if (selected) GlassTokens.AccentOnGlass else AppColors.TextSecondary,
+                            label = "rail-icon",
+                        )
+                        lightTint
+                    }
                     val interaction = remember { MutableInteractionSource() }
                     val pressed by interaction.collectIsPressedAsState()
                     val scale by animateFloatAsState(if (pressed) .9f else 1f, spring(.6f, 500f), label = "rail-press")

@@ -208,6 +208,7 @@ internal fun PostDetailScreen(
         onClose = onBack,
         predictive = OverlayMotion.enabledState,
         selfDrag = false,
+        container = true,
     )
 
     // 顶部给玻璃顶栏让出的高度 = 状态栏 + 顶栏本体（GlassTokens.TopBarInsetDp）。
@@ -245,9 +246,7 @@ internal fun PostDetailScreen(
     Box(
         Modifier
             .fillMaxSize()
-            // 从**右侧**整页推入（酷安详情页的观感，plan §四.2）。
-            // `fade = false` 是必需的：下层广场是真的画着的，淡出会让两层叠成花脸。
-            .overlayMotion(motion, fade = false, enter = OverlayEnter.Right)
+            .overlayMotion(motion, fade = false, containerColor = AppColors.Canvas)
             .background(AppColors.Canvas)
             // 部分系统已经把内容高度缩到键盘上缘；只补尚未避让的覆盖量。
             // 不再把safeDrawing的IME底部与imePadding混在一起，避免整块键盘高的空白。

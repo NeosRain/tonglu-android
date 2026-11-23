@@ -28,6 +28,7 @@ import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.glass.LocalGlassNavigationEnabled
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberOverlayMotion
+import cn.tonglu.app.ui.launchClickable
 import com.kyant.backdrop.backdrops.layerBackdrop
 import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import kotlinx.coroutines.launch
@@ -87,6 +88,7 @@ internal fun AccountSettingsScreen(
         onClose = { OverlayDismissGuard.arm(); onClose() },
         predictive = OverlayMotion.enabledState,
         selfDrag = true,
+        container = true,
     )
     androidx.compose.ui.window.Dialog(
         onDismissRequest = { motion.requestClose() },
@@ -213,7 +215,7 @@ internal fun AccountSettingsScreen(
                         if (state.myLevel != null) {
                             MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                                 Row(
-                                    Modifier.fillMaxWidth().clickable(onClick = onOpenMyLevel),
+                                    Modifier.fillMaxWidth().launchClickable("level", onClick = onOpenMyLevel),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically,
                                 ) {
@@ -240,7 +242,7 @@ internal fun AccountSettingsScreen(
                         // ---- 校园身份（只读入口）----
                         MiuixCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(16.dp)) {
                             Row(
-                                Modifier.fillMaxWidth().clickable(onClick = onCampusVerification),
+                                Modifier.fillMaxWidth().launchClickable("verification", onClick = onCampusVerification),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {

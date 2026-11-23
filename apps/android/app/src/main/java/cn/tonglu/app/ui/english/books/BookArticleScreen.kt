@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.english.books
 
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -239,7 +241,8 @@ private fun SelectBody(book: PersonalWordBook, selected: Set<String>, level: Str
                 Text("已保存（AI 生成 · 仅本机）", fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 8.dp))
             }
             items(savedArticles, key = { it.id }) { record ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                val origin = rememberLaunchSource(record.id)
+                Row(Modifier.fillMaxWidth().launchOrigin(origin), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f).clickable { onOpenSaved(record) }) {
                         Text(record.title, fontWeight = FontWeight.Medium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         val read = progressOf(record)
@@ -247,7 +250,7 @@ private fun SelectBody(book: PersonalWordBook, selected: Set<String>, level: Str
                             (read?.let { " · 读到 ${(it * 100).toInt()}%" } ?: ""),
                             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (onOpenArticle != null) TextButton(onClick = { onOpenArticle(record) }) { Text("精读") }
+                    if (onOpenArticle != null) TextButton(onClick = { origin.launch { onOpenArticle(record) } }) { Text("精读") }
                     TextButton(onClick = { onDeleteSaved(record.id) }) { Text("删除") }
                 }
             }
@@ -276,7 +279,9 @@ private fun PreviewBody(draft: BookArticleDraft, coverage: BookArticleCoverage?,
         items(draft.paragraphs) { paragraph -> Text(paragraph, style = MaterialTheme.typography.bodyMedium) }
         if (savedRecord != null && onOpenArticle != null) {
             item {
-                Button(onClick = { onOpenArticle(savedRecord) }, modifier = Modifier.fillMaxWidth()) {
+                val origin = rememberLaunchSource(savedRecord.id, 20.dp)
+                Button(onClick = { origin.launch { onOpenArticle(savedRecord) } },
+                    modifier = Modifier.fillMaxWidth().launchOrigin(origin)) {
                     Text("进入精读（原阅读器 · 可点词/记进度）")
                 }
             }

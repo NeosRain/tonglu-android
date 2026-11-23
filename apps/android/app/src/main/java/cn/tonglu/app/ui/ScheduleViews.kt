@@ -404,7 +404,7 @@ internal fun TodayClassesCard(
                 )
             }
             TodayGlassCourses(todayCourses, forceFinished = true,
-                onTap = { course, origin -> selectedCourse = CourseSelection(course, origin) },
+                onTap = { course: CourseDto, origin: ContainerOrigin? -> selectedCourse = CourseSelection(course, origin) },
                 onLongPress = onLongPressCourse)
             if (busy) {
                 Spacer(Modifier.height(6.dp))
@@ -412,10 +412,10 @@ internal fun TodayClassesCard(
             }
         } else {
             TodayGlassCourses(todayCourses,
-                onTap = { course, origin ->
+                onTap = { course: CourseDto, origin: ContainerOrigin? ->
                     if (courseTiming(course, ScheduleText.nowMinutes()).state == TodayCourseState.Ongoing) {
                         // 笔记入口也携带当前行的来源，保持连续展开。
-                        LaunchOrigin.arm(origin)
+                        origin?.let(LaunchOrigin::arm)
                         activeClassNotes = course
                     } else selectedCourse = CourseSelection(course, origin)
                 },
@@ -654,7 +654,7 @@ internal fun TimetableCard(
             termStart = termStart, search = search, nowMinutes = nowMinutes,
             onWeekChange = onWeekChange, expanded = false, onImport = onImport,
             onLongPressCourse = onLongPressCourse,
-            onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
+            onTapCourse = { course: CourseDto, origin: ContainerOrigin? -> selectedCourse = CourseSelection(course, origin) },
         )
         selectedCourse?.let { CourseDetailDialog(it, relatedCourses = allCourses, onDelete = onLongPressCourse, onEdit=onEditCourse) { selectedCourse = null } }
         Spacer(Modifier.height(6.dp))
@@ -776,12 +776,12 @@ internal fun FullscreenTimetableDialog(
                     termStart = termStart, search = search, nowMinutes = nowMinutes,
                     onWeekChange = onWeekChange, expanded = true,
                     onLongPressCourse = onLongPressCourse, modifier = Modifier.weight(1f),
-                    onTapCourse = { course, bounds -> selectedCourse = CourseSelection(course, bounds) },
+                    onTapCourse = { course: CourseDto, origin: ContainerOrigin? -> selectedCourse = CourseSelection(course, origin) },
                     onRescheduleCourse = onRescheduleCourse,
                 )
-                selectedCourse?.let { CourseDetailDialog(it, relatedCourses = allCourses, onDelete = onLongPressCourse,onEdit=onEditCourse) { selectedCourse = null } }
                 if(managing) CourseManagementDialog(allCourses,onAdd,onEditCourse,onLongPressCourse,
-                    onDetails={ selectedCourse=CourseSelection(it) },onClose={managing=false})
+                    onDetails={ course, origin -> selectedCourse=CourseSelection(course, origin) },onClose={managing=false})
+                selectedCourse?.let { CourseDetailDialog(it, relatedCourses = allCourses, onDelete = onLongPressCourse,onEdit=onEditCourse) { selectedCourse = null } }
                 // 底部提示条：只留点击收起。
                 // 2026-10-05 起不再挂 dragHandle —— 用户点名「只有顶部灰色把手响应拖拽，
                 // 其下区域不响应」。这里原本也能下拖，结果是从正文区域往下拉会被误判成收起。
@@ -804,7 +804,7 @@ internal fun FullscreenTimetableDialog(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun CourseManagementDialog(courses:List<CourseDto>,onAdd:()->Unit,onEdit:(CourseDto)->Unit,
-    onDelete:(CourseDto)->Unit,onDetails:(CourseDto)->Unit,onClose:()->Unit) {
+    onDelete:(CourseDto)->Unit,onDetails:(CourseDto, ContainerOrigin?)->Unit,onClose:()->Unit) {
     var query by remember { mutableStateOf("") }
     val motion=rememberOverlayMotion(onClose=onClose,predictive=OverlayMotion.enabledState,selfDrag=true)
     val rows=remember(courses,query) { courses.filter { query.isBlank()||it.name.contains(query,true)||it.teacher.orEmpty().contains(query,true)||it.location.orEmpty().contains(query,true) }
@@ -823,14 +823,15 @@ private fun CourseManagementDialog(courses:List<CourseDto>,onAdd:()->Unit,onEdit
                 LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(16.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
                     if(rows.isEmpty()) item { Text(if(courses.isEmpty()) "还没有课程，点右上角添加。" else "没有匹配的课程。") }
                     items(rows,key={it.id}) { course ->
-                        Surface(shape=RoundedCornerShape(18.dp),color=AppColors.SurfaceOpaque) {
+                        val origin = rememberLaunchSource(course.id, 18.dp)
+                        Surface(modifier=Modifier.launchOrigin(origin), shape=RoundedCornerShape(18.dp),color=AppColors.SurfaceOpaque) {
                             Column(Modifier.fillMaxWidth().padding(16.dp)) {
                                 Text(course.name,style=MaterialTheme.typography.titleMedium)
                                 Text("${ScheduleText.weekdayLabel(course.weekday)} · ${periodLabel(course)} · ${course.weekLabel()}",
                                     style=MaterialTheme.typography.bodySmall,color=AppColors.TextSecondary)
                                 course.location?.takeIf { it.isNotBlank() }?.let { Text(it,style=MaterialTheme.typography.bodySmall,color=AppColors.TextSecondary) }
                                 FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                                    TextButton(onClick={onDetails(course)}) { Text("详情") }
+                                    TextButton(onClick={onDetails(course, origin.capture())}) { Text("详情") }
                                     TextButton(onClick={onEdit(course)}) { Text("编辑") }
                                     TextButton(onClick={onDelete(course)}) { Text("删除",color=AppColors.Danger) }
                                 }
@@ -854,7 +855,7 @@ internal fun TimetableGrid(
     weekStartMillis: Long?,
     modifier: Modifier = Modifier,
     onLongPressCourse: (CourseDto) -> Unit = {},
-    onTapCourse: (CourseDto, Rect) -> Unit = { _, _ -> },
+    onTapCourse: (CourseDto, ContainerOrigin?) -> Unit = { _, _ -> },
 ) {
     val maxPeriod = maxOf(PeriodTable.maxPeriod(), courses.maxOfOrNull { it.endPeriod } ?: 8).coerceIn(8, 30)
     val groupsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> scheduleOverlapGroups(items) } }
@@ -963,11 +964,10 @@ internal fun TimetableGrid(
 
 /** 一个时段只占一个可点区域，避免窄列里把两门课压成无法点中的细条。 */
 @Composable
-private fun OverlappingCourseBlock(courses: List<CourseDto>, height: Dp, onOpen: (Rect) -> Unit) {
-    var bounds by remember { mutableStateOf(Rect.Zero) }
+private fun OverlappingCourseBlock(courses: List<CourseDto>, height: Dp, onOpen: (ContainerOrigin?) -> Unit) {
+    val origin = rememberLaunchSource(courses.map { it.id }, 14.dp)
     Column(Modifier.fillMaxWidth().height(height).padding(2.dp)
-        .onGloballyPositioned { val at = it.positionInWindow(); bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height) }
-        .clip(RoundedCornerShape(14.dp)).clickable { onOpen(bounds) },
+        .launchOrigin(origin).clip(RoundedCornerShape(14.dp)).clickable { onOpen(origin.capture()) },
         verticalArrangement = Arrangement.spacedBy(1.dp)) {
         courses.take(2).forEach { course ->
             val glass = glassColors(courseColor(course.name))
@@ -993,9 +993,9 @@ private fun CourseBlock(
     height: Dp,
     expanded: Boolean,
     onLongPress: () -> Unit,
-    onTap: (Rect) -> Unit = {},
+    onTap: (ContainerOrigin?) -> Unit = {},
 ) {
-    var tapBounds by remember(course.id) { mutableStateOf(Rect.Zero) }
+    val origin = rememberLaunchSource(course.id, 14.dp)
     val glass = glassColors(courseColor(course.name))
     Box(
         Modifier
@@ -1004,8 +1004,8 @@ private fun CourseBlock(
             .padding(2.dp)
             .clip(RoundedCornerShape(14.dp))
             // 点击看详情（2026-10-10 用户要求）；长按删除保留不变。
-            .onGloballyPositioned { tapBounds = Rect(it.positionInWindow(), it.size.toSize()) }
-            .pointerInput(course) { detectTapGestures(onTap = { onTap(tapBounds) }, onLongPress = { onLongPress() }) }
+            .launchOrigin(origin)
+            .pointerInput(course) { detectTapGestures(onTap = { onTap(origin.capture()) }, onLongPress = { onLongPress() }) }
             .courseGlass(glass)
             .border(1.dp, glass.border, RoundedCornerShape(14.dp)),
     ) {

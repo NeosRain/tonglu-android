@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import cn.tonglu.app.ui.AppTheme
 import cn.tonglu.app.ui.AppColors
+import kotlin.math.abs
 
 /**
  * 液态玻璃的**统一视觉参数**。
@@ -202,12 +203,34 @@ internal object GlassTokens {
     val DarkNavigationIndicator = Color.White.copy(alpha = .11f)
     val DarkNavigationInactive = Color.White.copy(alpha = .64f)
     const val DarkNavigationSaturation = 1.3f
+    const val DarkNavigationPressWashAlpha = .015f
+    const val DarkNavigationPressGlowAlpha = .06f
+    const val DarkNavigationLensShadowAlpha = .28f
     val DarkNavigationOutline = Brush.verticalGradient(
         listOf(Color.White.copy(alpha = .12f), Color.White.copy(alpha = .04f)),
     )
 
+    private val LightNavigationLens = NavigationLensMaterial(1f, 8f, 1f)
+    private val DarkNavigationLens = NavigationLensMaterial(.28f, 4f, .18f)
+
+    fun navigationLensMaterial(dark: Boolean): NavigationLensMaterial =
+        if (dark) DarkNavigationLens else LightNavigationLens
+
     fun darkNavigationSurface(glass: Boolean): Color = if (glass) DarkNavigationTint else DarkNavigationFallback
+
+    fun darkNavigationTabTint(accent: Color, position: Float, index: Int): Color =
+        when (val fraction = (1f - abs(position - index)).coerceIn(0f, 1f)) {
+            0f -> DarkNavigationInactive
+            1f -> accent
+            else -> lerp(DarkNavigationInactive, accent, fraction)
+        }
 }
+
+internal data class NavigationLensMaterial(
+    val highlightAlpha: Float,
+    val innerShadowRadiusDp: Float,
+    val innerShadowAlpha: Float,
+)
 
 /** Shared frost tint and broad, soft surface light; the backdrop still provides the real blur. */
 internal fun DrawScope.drawFrostSurface(color: Color, alpha: Float) {

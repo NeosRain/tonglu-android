@@ -221,7 +221,6 @@ internal fun ReadingShelfScreen(
                                     title = titles[record.article].orEmpty().ifBlank { record.article },
                                     onOpen = {
                                         onOpen(ShelfTarget(record.article, record.document))
-                                        dismiss()
                                     },
                                     onRemove = {
                                         onPendingDelete(PendingDelete("progress", "${record.article}@${record.document}",
@@ -240,7 +239,6 @@ internal fun ReadingShelfScreen(
                                     title = titles[record.article].orEmpty().ifBlank { record.article },
                                     onOpen = {
                                         onOpen(ShelfTarget(record.article, record.document, record.anchor))
-                                        dismiss()
                                     },
                                     onRemove = {
                                         onPendingDelete(PendingDelete("bookmark", record.key, record.text))
@@ -260,7 +258,6 @@ internal fun ReadingShelfScreen(
                                     onOpen = {
                                         onOpen(ShelfTarget(record.article, record.document, null,
                                             if (record.isWholeArticle) -1 else record.startOffset))
-                                        dismiss()
                                     },
                                     onRemove = {
                                         onPendingDelete(PendingDelete("note", record.key, record.text))
@@ -358,10 +355,11 @@ private fun ProgressEntry(
     onRemove: () -> Unit,
 ) {
     val primary = MaterialTheme.colorScheme.primary
+    val origin = rememberLaunchSource(record.article to record.document, 14.dp)
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().pressable(scale = 0.985f, onClick = onOpen),
+        modifier = Modifier.fillMaxWidth().launchOrigin(origin).pressable(scale = 0.985f, onClick = { origin.launch(onOpen) }),
     ) {
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -407,10 +405,11 @@ private fun BookmarkEntry(
     onOpen: () -> Unit,
     onRemove: () -> Unit,
 ) {
+    val origin = rememberLaunchSource(record.key, 14.dp)
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().pressable(scale = 0.985f, onClick = onOpen),
+        modifier = Modifier.fillMaxWidth().launchOrigin(origin).pressable(scale = 0.985f, onClick = { origin.launch(onOpen) }),
     ) {
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {
@@ -447,10 +446,11 @@ private fun NoteEntry(
     onRemove: () -> Unit,
 ) {
     val accent = Color(0xFF7C3AED)
+    val origin = rememberLaunchSource(record.key, 14.dp)
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surface,
-        modifier = Modifier.fillMaxWidth().pressable(scale = 0.985f, onClick = onEdit),
+        modifier = Modifier.fillMaxWidth().launchOrigin(origin).pressable(scale = 0.985f, onClick = { origin.launch(onEdit) }),
     ) {
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 12.dp, bottom = 12.dp)) {
             Column(Modifier.weight(1f)) {
@@ -476,7 +476,7 @@ private fun NoteEntry(
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.padding(top = 7.dp),
                 )
-                TextButton(onClick = onOpen, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
+                TextButton(onClick = { origin.launch(onOpen) }, contentPadding = PaddingValues(horizontal = 0.dp, vertical = 0.dp)) {
                     Text("跳到原文", fontSize = 11.sp)
                 }
             }

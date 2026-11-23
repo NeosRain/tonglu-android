@@ -102,6 +102,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -138,6 +139,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.lerp
 import kotlin.math.abs
@@ -182,6 +184,7 @@ import cn.tonglu.app.ui.glass.MainTopBarScroll
 import cn.tonglu.app.ui.glass.canUseNavigationGlass
 import cn.tonglu.app.ui.glass.darkNavigationBorder
 import cn.tonglu.app.ui.glass.drawFrostSurface
+import cn.tonglu.app.ui.glass.navigationTabSpring
 import cn.tonglu.app.ui.competition.CompetitionScreen
 import cn.tonglu.app.ui.exam.ExamCalendarScreen
 import cn.tonglu.app.ui.exam.ExamDetailSheet
@@ -266,6 +269,7 @@ private fun TongluAppContent(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     cn.tonglu.app.ui.update.AppUpdateHost()
+    var showTrustLevel by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(state.error, state.notice, state.session) {
         val message = state.error ?: state.notice
@@ -614,8 +618,9 @@ private fun TongluAppContent(
             ) {
                 // 非玻璃模式：顶栏还是老老实实占一行；玻璃模式下它是叠加层（见下），
                 // 页面内容靠 topInset 让位，才能从顶栏底下滚过去
+                val topActionHeight = 52.dp
                 if (!useGlassNav && !communityInDetail) {
-                    Box(Modifier.fillMaxWidth().height(52.dp)) {
+                    Box(Modifier.fillMaxWidth().height(topActionHeight)) {
                     TopActionRow(
                         search = search,
                         onSearchChange = { search = it },
@@ -703,7 +708,10 @@ private fun TongluAppContent(
                         state = state, viewModel = viewModel,
                         onClose = { tabNavigator.select(0) }, onOpenMaterial = { material ->
                             labListeningMaterial = material; tabNavigator.select(1)
-                        }, topInset = topInset, mainSearch = search, visible = selectedTab == page,
+                        },
+                        // 详情铺满 Pager；下层列表仍留出原来那行顶栏的高度，返回目标不会跟着上下跳。
+                        topInset = if (!useGlassNav && communityInDetail) topActionHeight else topInset,
+                        mainSearch = search, visible = selectedTab == page,
                         glassUnderlap = darkGlassNav,
                         onLayerVisibilityChanged = { communityLayerVisible = it })
                     else -> ProfileScreen(
@@ -728,6 +736,7 @@ private fun TongluAppContent(
                         onOpenScores = { showScores = true },
                         onOpenAccountSettings = { showAccountSettings = true },
                         onOpenMyLevel = { showMyLevel = true },
+                        onOpenTrustLevel = { showTrustLevel = true },
                         onOpenNotices = { showNotices = true },
                         onOpenLaboratory = { showLaboratory = true },
                         onOpenQrLogin = openQrLogin,
@@ -834,7 +843,7 @@ private fun TongluAppContent(
                     tabs = tabs,
                     filledIcons = filledIcons,
                     outlinedIcons = outlinedIcons,
-                    selectedTab = selectedTab,
+                    selectedTab = if (GlassTokens.DarkGlass) mainPager.targetPage else selectedTab,
                     onSelect = tabNavigator::select,
                     modifier = Modifier.align(Alignment.BottomCenter),
                 )
@@ -913,6 +922,7 @@ private fun TongluAppContent(
         OverlayLayerHost(
             onClose = { closeLayer { showVerification = false } },
             backEnabled = true,
+            dialog = showAccountSettings,
         ) { requestClose ->
             CampusVerificationScreen(state, viewModel,
                 onBack = requestClose,
@@ -1063,25 +1073,29 @@ private fun TongluAppContent(
     // 🔴 关层一律走 closeLayer：漏掉 OverlayDismissGuard.arm() 就会在关掉这一下的
     // 瞬间把点击穿透到刚露出来的顶栏（用户点名的「点返回时同时点到了搜索框」）。
     if (showAccountSettings) {
-        OverlayLayerHost(onClose = { closeLayer { showAccountSettings = false } }) { requestClose ->
-            AccountSettingsScreen(
-                state = state,
-                onAvatar = viewModel::uploadAvatar,
-                onSetDisplayName = viewModel::setDisplayName,
-                onOpenMyLevel = { closeLayer { showAccountSettings = false; showMyLevel = true } },
-                onCampusVerification = { closeLayer { showAccountSettings = false; showVerification = true } },
-                onLogin = viewModel::openLogin,
-                onClose = requestClose,
-            )
-        }
+        AccountSettingsScreen(
+            state = state,
+            onAvatar = viewModel::uploadAvatar,
+            onSetDisplayName = viewModel::setDisplayName,
+            onOpenMyLevel = { showMyLevel = true },
+            onCampusVerification = { showVerification = true },
+            onLogin = viewModel::openLogin,
+            onClose = { closeLayer { showAccountSettings = false } },
+        )
     }
     if (showMyLevel) {
-        OverlayLayerHost(onClose = { closeLayer { showMyLevel = false } }) { requestClose ->
+        OverlayLayerHost(onClose = { closeLayer { showMyLevel = false } },
+            dialog = showAccountSettings) { requestClose ->
             MyLevelScreen(
                 load = { viewModel.loadMyLevel() },
                 onToggleGrowth = { optOut -> viewModel.setGrowthOptOut(optOut) },
                 onClose = requestClose,
             )
+        }
+    }
+    if (showTrustLevel) {
+        OverlayLayerHost(onClose = { closeLayer { showTrustLevel = false } }) { requestClose ->
+            cn.tonglu.app.ui.community.CommunityRulesPage(viewModel, state.session?.sessionId, requestClose, showTrustFirst = true)
         }
     }
     if (showLaboratory) {
@@ -1164,6 +1178,9 @@ internal fun CoolapkNavigationBar(
 ) {
     val dark = GlassTokens.DarkGlass
     val shape = RoundedCornerShape(GlassBottomTokens.CornerDp.dp)
+    val position = if (dark) {
+        animateFloatAsState(selectedTab.toFloat(), navigationTabSpring(), label = "bottom-opaque-indicator")
+    } else null
     Surface(
         modifier = modifier
             .navigationBarsPadding()
@@ -1178,31 +1195,30 @@ internal fun CoolapkNavigationBar(
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(GlassTokens.BarPanelHeightDp.dp),
+                .height(GlassTokens.BarPanelHeightDp.dp)
+                .then(if (position != null) Modifier.drawBehind {
+                    val slotWidth = size.width / tabs.size
+                    val index = if (layoutDirection == LayoutDirection.Ltr) position.value
+                        else tabs.lastIndex - position.value
+                    val inset = GlassTokens.BarCapsulePaddingVerticalDp.dp.toPx()
+                    val horizontalInset = GlassTokens.BarCapsulePaddingHorizontalDp.dp.toPx()
+                    val height = size.height - inset * 2f
+                    drawRoundRect(
+                        GlassTokens.DarkNavigationIndicator,
+                        topLeft = Offset(index * slotWidth + horizontalInset, inset),
+                        size = Size(slotWidth - horizontalInset * 2f, height),
+                        cornerRadius = CornerRadius(height / 2f),
+                    )
+                } else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             // 酷安风底栏是 Surface(color = Color.White) —— 白底，图标必须保持深色，
             // 按系统夜间转白会变成「白底白图标」，什么都看不见（2026-09-30 踩过）。
             tabs.forEachIndexed { index, title ->
-                val selected = selectedTab == index
-                val tint = if (dark) {
-                    if (selected) GlassTokens.AccentOnGlass else GlassTokens.DarkNavigationInactive
-                } else if (selected) NavAccent else NavInactive
                 Column(
                     Modifier
                         .weight(1f)
                         .fillMaxHeight()
-                        .then(if (dark && selected) Modifier.drawBehind {
-                            val inset = GlassTokens.BarCapsulePaddingVerticalDp.dp.toPx()
-                            val horizontalInset = GlassTokens.BarCapsulePaddingHorizontalDp.dp.toPx()
-                            val height = size.height - inset * 2f
-                            drawRoundRect(
-                                GlassTokens.DarkNavigationIndicator,
-                                topLeft = Offset(horizontalInset, inset),
-                                size = Size(size.width - horizontalInset * 2f, height),
-                                cornerRadius = CornerRadius(height / 2f),
-                            )
-                        } else Modifier)
                         .clickable(
                             interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
                             indication = null,
@@ -1210,6 +1226,10 @@ internal fun CoolapkNavigationBar(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center,
                 ) {
+                    val selected = (position?.value?.roundToInt() ?: selectedTab) == index
+                    val tint = if (position != null) {
+                        GlassTokens.darkNavigationTabTint(GlassTokens.AccentOnGlass, position.value, index)
+                    } else if (selected) NavAccent else NavInactive
                     Icon(
                         if (selected) filledIcons[index] else outlinedIcons[index],
                         contentDescription = title,
@@ -1263,12 +1283,17 @@ internal fun GlassBottomBar(
                 vertical = GlassTokens.BarVerticalMarginDp.dp,
             )
             .height(GlassTokens.BarPanelHeightDp.dp),
-    ) { visualSelection ->
+    ) { visualSelection, visualPosition ->
+        val accent = GlassTokens.AccentOnGlass
         tabs.forEachIndexed { index, title ->
             val selected = (visualSelection ?: selectedTab) == index
-            val tint = if (selected) GlassTokens.AccentOnGlass
-                else if (GlassTokens.DarkGlass) GlassTokens.DarkNavigationInactive else NavInactive
             LiquidBottomTab(index = index, onClick = { onSelect(index) }) {
+                val tint = if (visualPosition != null) {
+                    val animatedTint by remember(visualPosition, accent, index) {
+                        derivedStateOf { GlassTokens.darkNavigationTabTint(accent, visualPosition(), index) }
+                    }
+                    animatedTint
+                } else if (selected) accent else NavInactive
                 Icon(
                     if (selected) filledIcons[index] else outlinedIcons[index],
                     contentDescription = title,

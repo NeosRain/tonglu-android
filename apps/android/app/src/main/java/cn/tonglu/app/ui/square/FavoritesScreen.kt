@@ -1,5 +1,6 @@
 package cn.tonglu.app.ui.square
 
+import cn.tonglu.app.ui.launchClickable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -106,7 +107,7 @@ private fun FavoriteCard(post: FavoritePostDto, onClick: () -> Unit) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(14.dp),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().launchClickable(post.id, 14.dp, onClick = onClick),
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {

@@ -23,7 +23,6 @@ package cn.tonglu.app.ui.glass
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseOut
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
@@ -46,10 +45,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.graphicsLayer
@@ -90,9 +86,9 @@ import kotlin.math.sign
  * ## 三层结构（关键）
  * 1. **底层**：玻璃面板 `GlassTokens.BarPanelHeightDp`（模糊 + 边缘折射 + 容器色），整条落在页面之上
  * 2. **中层**：`GlassTokens.BarContentHeightDp`、`alpha(0f)` 不可见，但被导出成 [tabsBackdrop]；内容用
- *    `ColorFilter.tint(accentColor)` 染成主题色 —— 它是"指示器要折射的东西"
+ *    浅色用 `ColorFilter.tint(accentColor)` 染成主题色，夜间沿用可见标签的渐变色。
  * 3. **顶层**：指示器胶囊，宽 1/tabsCount，backdrop 取
- *    `rememberCombinedBackdrop(bottomBackdrop, tabsBackdrop)`
+ *    `rememberCombinedBackdrop(panelBackdrop, tabsBackdrop)`
  *
  * 第 2、3 层这个组合是精髓：胶囊里透出的不是原始页面，而是**已经染色的图标经过玻璃折射**，
  * 所以滑到哪里，哪里的图标就被"吸"进胶囊里放大变亮。直接把页面内容喂给胶囊是做不出这个效果的。
@@ -104,13 +100,15 @@ fun LiquidBottomTabs(
     backdrop: Backdrop,
     tabsCount: Int,
     modifier: Modifier = Modifier,
-    content: @Composable RowScope.(visualSelection: Int?) -> Unit
+    content: @Composable RowScope.(visualSelection: Int?, visualPosition: (() -> Float)?) -> Unit
 ) {
     val isLightTheme = !GlassTokens.DarkGlass
     val accentColor = GlassTokens.AccentOnGlass
+    val lensMaterial = GlassTokens.navigationLensMaterial(dark = !isLightTheme)
 
     val latestSelectedIndex by rememberUpdatedState(selectedTabIndex)
     val latestOnTabSelected by rememberUpdatedState(onTabSelected)
+    val latestIsLightTheme by rememberUpdatedState(isLightTheme)
     val bottomBackdrop = rememberBottomBackdrop(backdrop)
     // 按 skill 的 exportedBackdrop 导出底板，胶囊采样磨砂结果而非原始页面。
     val panelBackdrop = rememberLayerBackdrop()
@@ -174,8 +172,10 @@ fun LiquidBottomTabs(
                 },
                 onDragStopped = {
                     val targetIndex = targetValue.fastRoundToInt().fastCoerceIn(0, tabsCount - 1)
+                    // 夜间短按切页也沿用拖动松手的形变。连点当前页仍走轻反馈。
+                    val morph = didDrag || (!latestIsLightTheme && targetIndex != latestSelectedIndex())
                     currentIndex = targetIndex
-                    animateToValue(targetIndex.toFloat(), morph = didDrag)
+                    animateToValue(targetIndex.toFloat(), morph = morph)
                     latestOnTabSelected(targetIndex)
                     animationScope.launch {
                         offsetAnimation.animateTo(
@@ -209,7 +209,7 @@ fun LiquidBottomTabs(
             { index ->
                 if (currentIndex != index) {
                     currentIndex = index
-                    dampedDragAnimation.animateToValue(index.toFloat())
+                    dampedDragAnimation.animateToValue(index.toFloat(), morph = !latestIsLightTheme)
                 }
             }
         }
@@ -229,21 +229,26 @@ fun LiquidBottomTabs(
             }
         }
 
-        val interactiveHighlight = if (isLightTheme) remember(animationScope) {
+        val darkHighlightAnimation = if (isLightTheme) null else dampedDragAnimation
+        val interactiveHighlight = remember(animationScope, darkHighlightAnimation) {
             InteractiveHighlight(
                 animationScope = animationScope,
                 position = { size, _ ->
+                    val centerFromStart = (dampedDragAnimation.value + 0.5f) * tabWidth +
+                        if (isLightTheme) 0f else capsulePaddingPx
                     Offset(
-                        if (isLtr) (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset
-                        else size.width - (dampedDragAnimation.value + 0.5f) * tabWidth + panelOffset,
+                        (if (isLtr) centerFromStart else size.width - centerFromStart) + panelOffset,
                         size.height / 2f
                     )
-                }
+                },
+                // 夜间用同一个按压进度点亮高光，手势仍由整条底栏处理。
+                darkPressProgress = darkHighlightAnimation?.let { animation -> { animation.pressProgress } },
             )
-        } else null
+        }
         val visualSelection by remember(dampedDragAnimation) {
             derivedStateOf { dampedDragAnimation.value.fastRoundToInt() }
         }
+        val visualPosition = remember(dampedDragAnimation) { { dampedDragAnimation.value } }
 
         // 手势坐标固定在整条底栏上；按下任何标签就把胶囊移到手指处。
         // 不能挂在会平移、形变的胶囊上，否则其他标签只在松手点击后才移动。
@@ -260,7 +265,7 @@ fun LiquidBottomTabs(
                     }
                     .drawBackdrop(
                         backdrop = bottomBackdrop,
-                        exportedBackdrop = if (isLightTheme) panelBackdrop else null,
+                        exportedBackdrop = panelBackdrop,
                         shape = { Capsule() },
                         effects = {
                             if (isLightTheme) vibrancy()
@@ -301,20 +306,8 @@ fun LiquidBottomTabs(
                             }
                         }
                     )
-                    .then(if (interactiveHighlight != null) interactiveHighlight.modifier else Modifier
-                        .darkNavigationBorder(Capsule())
-                        .drawBehind {
-                            val inset = GlassTokens.BarCapsulePaddingVerticalDp.dp.toPx()
-                            val logicalIndex = dampedDragAnimation.value
-                            val index = if (isLtr) logicalIndex else tabsCount - 1f - logicalIndex
-                            val height = size.height - inset * 2f
-                            drawRoundRect(
-                                GlassTokens.DarkNavigationIndicator,
-                                topLeft = Offset(capsulePaddingPx + index * tabWidth - indicatorOverhang, inset),
-                                size = Size(indicatorWidth, height),
-                                cornerRadius = CornerRadius(height / 2f),
-                            )
-                        })
+                    .then(if (isLightTheme) Modifier else Modifier.darkNavigationBorder(Capsule()))
+                    .then(interactiveHighlight.modifier)
                     .height(GlassTokens.BarPanelHeightDp.dp)
                     .fillMaxWidth()
                     .padding(
@@ -322,13 +315,12 @@ fun LiquidBottomTabs(
                         vertical = GlassTokens.BarCapsulePaddingVerticalDp.dp,
                     ),
                 verticalAlignment = Alignment.CenterVertically,
-                content = { content(if (isLightTheme) null else visualSelection) },
+                content = { content(if (isLightTheme) null else visualSelection, if (isLightTheme) null else visualPosition) },
             )
         }
 
-        if (interactiveHighlight != null) {
         val tabsBackdrop = rememberLayerBackdrop()
-        // ---------- 第 2 层：不可见的"染色图标"层，供指示器折射 ----------
+        // ---------- 第 2 层：不可见的标签层，供指示器折射 ----------
         CompositionLocalProvider(
             LocalLiquidBottomTabScale provides {
                 lerp(1f, 1.2f, dampedDragAnimation.pressProgress)
@@ -354,9 +346,9 @@ fun LiquidBottomTabs(
                     .height(GlassTokens.BarContentHeightDp.dp)
                     .fillMaxWidth()
                     .padding(horizontal = GlassTokens.BarCapsulePaddingHorizontalDp.dp)
-                    .graphicsLayer(colorFilter = ColorFilter.tint(accentColor)),
+                    .then(if (isLightTheme) Modifier.graphicsLayer(colorFilter = ColorFilter.tint(accentColor)) else Modifier),
                 verticalAlignment = Alignment.CenterVertically,
-                content = { content(null) },
+                content = { content(if (isLightTheme) null else visualSelection, if (isLightTheme) null else visualPosition) },
             )
         }
 
@@ -373,7 +365,7 @@ fun LiquidBottomTabs(
                         if (isLtr) dampedDragAnimation.value * tabWidth - indicatorOverhang + panelOffset + expansionOffset
                         else size.width - (dampedDragAnimation.value + 1f) * tabWidth - indicatorOverhang + panelOffset + expansionOffset
                 }
-                .then(interactiveHighlight.gestureModifier)
+                .then(if (isLightTheme) interactiveHighlight.gestureModifier else Modifier)
                 .drawBackdrop(
                     backdrop = rememberCombinedBackdrop(panelBackdrop, tabsBackdrop),
                     shape = { Capsule() },
@@ -387,12 +379,16 @@ fun LiquidBottomTabs(
                         )
                     },
                     // 胶囊恢复 skill 的按压轮廓，静置时不叠加一圈硬亮边。
-                    highlight = { Highlight.Default.copy(alpha = dampedDragAnimation.pressProgress) },
-                    shadow = { Shadow(alpha = dampedDragAnimation.pressProgress) },
+                    highlight = { Highlight.Default.copy(alpha = lensMaterial.highlightAlpha * dampedDragAnimation.pressProgress) },
+                    shadow = {
+                        val progress = dampedDragAnimation.pressProgress
+                        Shadow(alpha = if (isLightTheme) progress else GlassTokens.DarkNavigationLensShadowAlpha * progress)
+                    },
                     innerShadow = {
                         val progress = dampedDragAnimation.pressProgress
-                        InnerShadow(radius = 8.dp * progress, alpha = progress)
-                    },                    // 松手瞬间按速度做非均匀拉伸：X 拉扁、Y 略压，像被甩出去的液体
+                        InnerShadow(radius = lensMaterial.innerShadowRadiusDp.dp * progress, alpha = lensMaterial.innerShadowAlpha * progress)
+                    },
+                    // 松手瞬间按速度做非均匀拉伸：X 拉扁、Y 略压，像被甩出去的液体
                     layerBlock = {
                         // 形变只在"真的按下去"的时候才跟着走（pressProgress > 0）。
                         // 轻按压（停在当前页连点）pressProgress 恒为 0，但 1.0↔1.04 的轻微弹簧
@@ -408,10 +404,9 @@ fun LiquidBottomTabs(
                     },
                     onDrawSurface = {
                         val progress = dampedDragAnimation.pressProgress
-                        // 静止时的灰底是胶囊「存在感的全部来源」（lens/shadow 静止时都是 0），
-                        // 0.03 太浅看不见，统一走 GlassTokens.IndicatorRestAlpha
+                        // 静止时有轻微底色，按压后逐渐让出底色，显出折射后的标签。
                         drawRect(
-                            Color.Black.copy(GlassTokens.IndicatorRestAlpha),
+                            if (isLightTheme) Color.Black.copy(GlassTokens.IndicatorRestAlpha) else GlassTokens.DarkNavigationIndicator,
                             alpha = 1f - progress * 0.7f
                         )
                     }
@@ -419,7 +414,6 @@ fun LiquidBottomTabs(
                 .height(GlassTokens.BarContentHeightDp.dp)
                 .width(indicatorWidthDp)
         )
-        }
         }
     }
 }

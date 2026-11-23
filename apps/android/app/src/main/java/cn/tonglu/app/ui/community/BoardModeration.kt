@@ -32,14 +32,17 @@ internal sealed interface BoardTool {
 internal class BoardModeration(
     val viewModel: AppViewModel,
     val sessionId: String,
-    val board: BoardDto,
+    board: BoardDto,
     private val scope: CoroutineScope,
+    private val onReloadAccess: () -> Unit,
     private val onChanged: () -> Unit,
 ) {
-    var canManage by mutableStateOf(false)
+    var board by mutableStateOf(board)
         private set
-    var canReview by mutableStateOf(false)
-        private set
+    private var legacyManage by mutableStateOf(false)
+    private var legacyReview by mutableStateOf(false)
+    val canManage get() = board.viewerCanManage ?: legacyManage
+    val canReview get() = board.canReviewReports ?: legacyReview
     private var manageError by mutableStateOf<String?>(null)
     private var reviewError by mutableStateOf<String?>(null)
     val error get() = manageError ?: reviewError
@@ -54,19 +57,29 @@ internal class BoardModeration(
     var busy by mutableStateOf(false)
         private set
 
-    fun retryAccess() { attempt++ }
+    fun retryAccess() {
+        if (board.canReviewReports == null) attempt++ else onReloadAccess()
+    }
 
-    suspend fun checkAccess() = coroutineScope {
-        launch {
-            check({ communityTrash(it, board.id) }) { allowed, failure ->
-                canManage = allowed
-                manageError = failure
+    suspend fun checkAccess(detail: BoardDto) {
+        board = detail
+        manageError = null
+        reviewError = null
+        if (detail.canReviewReports != null) return
+        legacyManage = false
+        legacyReview = false
+        coroutineScope {
+            launch {
+                check({ communityTrash(it, detail.id) }) { allowed, failure ->
+                    legacyManage = allowed
+                    manageError = failure
+                }
             }
-        }
-        launch {
-            check({ communityReports(it, board.id) }) { allowed, failure ->
-                canReview = allowed
-                reviewError = failure
+            launch {
+                check({ communityReports(it, detail.id) }) { allowed, failure ->
+                    legacyReview = allowed
+                    reviewError = failure
+                }
             }
         }
     }
@@ -123,11 +136,16 @@ internal class BoardModeration(
 }
 
 @Composable
-internal fun rememberBoardModeration(viewModel: AppViewModel, sessionId: String, board: BoardDto, onChanged: () -> Unit): BoardModeration {
+internal fun rememberBoardModeration(
+    viewModel: AppViewModel, sessionId: String, board: BoardDto, onReloadAccess: () -> Unit, onChanged: () -> Unit,
+): BoardModeration {
     val scope = rememberCoroutineScope()
     val latestChanged by rememberUpdatedState(onChanged)
-    val state = remember(viewModel, sessionId, board.id) { BoardModeration(viewModel, sessionId, board, scope) { latestChanged() } }
-    LaunchedEffect(state, state.attempt) { state.checkAccess() }
+    val latestReload by rememberUpdatedState(onReloadAccess)
+    val state = remember(viewModel, sessionId, board.id) {
+        BoardModeration(viewModel, sessionId, board, scope, { latestReload() }) { latestChanged() }
+    }
+    LaunchedEffect(state, board, state.attempt) { state.checkAccess(board) }
     return state
 }
 
@@ -199,10 +217,15 @@ private fun BoardMoveDialog(state: BoardModeration, postId: String) {
     val board = selected
     val access = if (board == null) null else key(board.id) {
         rememberCommunityResource("无法确认目标圈子的管理权限") {
-            state.viewModel.communityAuthorized(state.sessionId) { communityTrash(it, board.id) }
+            state.viewModel.communityAuthorized(state.sessionId) { bearer ->
+                communityBoard(board.id, bearer).viewerCanManage ?: run {
+                    communityTrash(bearer, board.id)
+                    true
+                }
+            }
         }
     }
-    BoardActionDialog(state, "选择目标圈子", "确认移帖", enabled = state.canManage && access?.value != null,
+    BoardActionDialog(state, "选择目标圈子", "确认移帖", enabled = state.canManage && access?.value == true,
         onConfirm = { state.moderate(postId, ModerateBoardPostRequest("move", checkNotNull(board).id)) }) {
         Column {
             LazyColumn(Modifier.heightIn(max = 260.dp)) {
@@ -214,7 +237,10 @@ private fun BoardMoveDialog(state: BoardModeration, postId: String) {
                 item { CommunityListStatus(boards, "暂无目标圈子") }
             }
             if (access != null) {
-                CommunityStatus(busy = access.value == null && access.error == null, error = access.error) { access.attempt++ }
+                CommunityStatus(
+                    busy = access.value == null && access.error == null, error = access.error,
+                    empty = "你没有目标圈子的管理权限".takeIf { access.value == false },
+                ) { access.attempt++ }
             }
         }
     }

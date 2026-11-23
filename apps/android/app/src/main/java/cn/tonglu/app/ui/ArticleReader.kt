@@ -15,9 +15,6 @@ import android.net.Uri
 import android.view.KeyEvent
 import android.view.WindowManager
 import android.widget.Toast
-import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.*
 import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -252,7 +249,9 @@ internal fun ArticleReader(article: LearningArticle, store: ReadingStore, favori
      *
      * 阅读器不关心槽里是什么（精读浮层由宿主装配），只保证它在正文之上、在阅读器主题之内。
      */
-    overlay: @Composable () -> Unit = {}) {
+    overlay: @Composable () -> Unit = {},
+    launchOrigin: ContainerOrigin? = null,
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     // 阅读计时：进页面记开始时刻，离开时算差值。
@@ -315,6 +314,7 @@ internal fun ArticleReader(article: LearningArticle, store: ReadingStore, favori
             initialAnchor = targetAnchor, initialIndex = targetIndex, onAiSearch = onAiSearch,
             onAskAiScope = onAskAiScope, onReadingSelection = onReadingSelection,
             overlay = { if (topPage) overlay() }, isTopPage = topPage,
+            launchOrigin = launchOrigin.takeIf { page.id == article.id },
             isChapter = page.id != article.id, rootId = article.id,
             documentPath = if (page.id == article.id) "" else page.id.removePrefix("${article.id}:"),
             // 章节列表里要标出「正在读」的那一章。封面那篇（根文档）本身也在 chapters 里，
@@ -340,6 +340,7 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
     onReadingSelection: ((ReaderParagraphSelection) -> Unit)? = null,
     /** 宿主浮层内容槽；见 [ArticleReader] 上同名参数的说明。 */
     overlay: @Composable () -> Unit = {},
+    launchOrigin: ContainerOrigin? = null,
     isChapter: Boolean = false,
     isTopPage: Boolean = true,
     isCurrentChapter: (ReaderDocument) -> Boolean = { false }) {
@@ -347,9 +348,6 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
     val scope = rememberCoroutineScope()
     val library = store.library
     val readerFocus = remember { FocusRequester() }
-    val motion = remember { Animatable(if (isTopPage) 0f else 1f) }
-    val latestClose by rememberUpdatedState(onClose)
-    var closing by remember { mutableStateOf(false) }
     val englishReading = remember(article.id, article.body) { isEnglishReadingArticle(article) }
     val directReading = englishReading && onReadingSelection != null
     var fontSize by rememberSaveable { mutableIntStateOf(if (englishReading) store.englishFontSize else store.fontSize) }
@@ -605,23 +603,14 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
         lifecycle.addObserver(observer)
         onDispose { latestSave(); lifecycle.removeObserver(observer) }
     }
+    val motion = rememberOverlayMotionImpl(
+        onClose = onClose, predictive = OverlayMotion.enabledState, selfDrag = true,
+        backEnabled = isTopPage, origin = launchOrigin, takePending = isChapter,
+    )
     val close: () -> Unit = {
-        if (noteDraft != null) {
-            noteDraft = null
-        } else if (isTopPage && !closing) {
-            closing = true
-            // 全屏层收起后顶栏立刻可见，先开返回穿透冷却（组件自兜底：无论宿主有没有包守卫都生效）。
-            OverlayDismissGuard.arm()
-            scope.launch {
-                motion.animateTo(0f, tween(OverlayMotion.EXIT_MS, easing = FastOutSlowInEasing)); latestClose()
-            }
-        }
+        if (noteDraft != null) noteDraft = null
+        else if (isTopPage) motion.requestClose()
     }
-    // 跟手返回：**叠加**在这一层自己的进出场动画之上，不替换（理由见 OverlayMotion）。
-    // 拖够了松手 → 走的是本页原本那套 close（会把退出动画播完再真正 dismiss）。
-    val edgeBack = rememberEdgeBackState()
-    val predictiveBack = OverlayMotion.enabledState
-    LaunchedEffect(close) { edgeBack.onCommit = close }
 
     fun findMatch(direction: Int) {
         if (matches.isEmpty()) return
@@ -655,12 +644,6 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
         surfaceVariant = paper.muted.copy(alpha = 0.09f), surfaceContainer = paper.bg,
         outline = paper.muted.copy(alpha = 0.55f), outlineVariant = paper.muted.copy(alpha = 0.2f),
     )
-    LaunchedEffect(isTopPage) {
-        if (isTopPage) motion.animateTo(1f, tween(OverlayMotion.ENTER_MS, easing = FastOutSlowInEasing))
-        else { closing = false; motion.snapTo(1f) }
-    }
-    val backProgress = rememberEdgeBackProgressState(edgeBack)
-
     Dialog(onDismissRequest = close, properties = DialogProperties(usePlatformDefaultWidth = false,
         decorFitsSystemWindows = false, dismissOnClickOutside = false)) {
         Box(Modifier.fillMaxSize()) {
@@ -693,11 +676,9 @@ private fun ArticleReaderPage(article: LearningArticle, store: ReadingStore, fav
             }
         }) {
             Surface(color = background, modifier = Modifier.fillMaxSize()
-                .edgeSwipeBack(edgeBack, enabled = predictiveBack && isTopPage && noteDraft == null)
-                .graphicsLayer {
-                    alpha = motion.value; translationY = (1f - motion.value) * 48.dp.toPx()
-                    applyEdgeBack(backProgress.value, edgeBack.fromLeft, fade = false)
-                }) {
+                .overlayMotion(motion, fade = false, backEnabled = isTopPage,
+                    onBack = close.takeIf { noteDraft != null }, containerColor = background,
+                    systemBarsDark = readerDark)) {
                 Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()
                     .onPreviewKeyEvent { event ->
                         if (event.nativeKeyEvent.action != KeyEvent.ACTION_DOWN || showSearch) return@onPreviewKeyEvent false

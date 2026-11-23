@@ -40,7 +40,7 @@ interface TongluApi {
     suspend fun communityBoards(@Query("cursor") cursor: String? = null): List<BoardDto>
 
     @GET("boards/{id}")
-    suspend fun communityBoard(@Path("id") id: String): BoardDto
+    suspend fun communityBoard(@Path("id") id: String, @Header("Authorization") bearer: String? = null): BoardDto
 
     @GET("boards/{id}/posts")
     suspend fun communityBoardPosts(@Header("Authorization") bearer: String, @Path("id") id: String,
@@ -496,6 +496,12 @@ interface TongluApi {
     /** 我的等级：EXP 双线、Lv、TL 及逐条件达成态、宽限截止。仅本人。 */
     @GET("me/level")
     suspend fun myLevel(@Header("Authorization") bearer: String): MyLevelDto
+
+    @GET("me/level/trust-quiz")
+    suspend fun trustQuiz(@Header("Authorization") bearer: String): TrustQuizDto
+
+    @POST("me/level/trust-quiz")
+    suspend fun submitTrustQuiz(@Header("Authorization") bearer: String, @Body request: SubmitTrustQuizRequest): TrustQuizDto
 
     /** 学习计数上报。幂等、服务端按日截断，只收数字。 */
     @POST("me/level/learn-report")

@@ -1,6 +1,8 @@
 package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.BackHandler
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -418,9 +420,10 @@ private fun EnglishEntryCard(
     subtitle: String,
     onClick: () -> Unit,
 ) {
+    val origin = rememberLaunchSource(title, 24.dp)
     OutlinedCard(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        onClick = { origin.launch(onClick) },
+        modifier = Modifier.fillMaxWidth().launchOrigin(origin),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.outlinedCardColors(containerColor = AppColors.SurfaceOpaque),
     ) {
@@ -464,9 +467,10 @@ private fun EnglishReadingCard(
     onChoose: () -> Unit,
 ) {
     val progress = ratio?.coerceIn(0f, 1f) ?: 0f
+    val origin = rememberLaunchSource(article?.id, 24.dp)
     OutlinedCard(
-        onClick = { if (article != null) onOpen(article) else onChoose() },
-        modifier = Modifier.fillMaxWidth(),
+        onClick = { origin.launch { if (article != null) onOpen(article) else onChoose() } },
+        modifier = Modifier.fillMaxWidth().launchOrigin(origin),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.outlinedCardColors(containerColor = AppColors.SurfaceOpaque),
     ) {
@@ -500,7 +504,7 @@ private fun EnglishReadingCard(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1, overflow = TextOverflow.Ellipsis,
                 )
-                Button(onClick = { onOpen(article) }, modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { origin.launch { onOpen(article) } }, modifier = Modifier.fillMaxWidth()) {
                     Text(
                         when {
                             finished -> "回看文章"

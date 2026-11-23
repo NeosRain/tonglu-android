@@ -18,12 +18,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
@@ -40,12 +38,12 @@ import kotlinx.coroutines.delay
 @Composable
 internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<CourseDto>, modifier: Modifier = Modifier,
     weekStartMillis: Long? = null, today: Int? = null,
-    onTapCourse: (CourseDto, Rect) -> Unit = { _, _ -> }, onDragging: (Boolean) -> Unit = {},
+    onTapCourse: (CourseDto, ContainerOrigin?) -> Unit = { _, _ -> }, onDragging: (Boolean) -> Unit = {},
     onSave: (CourseDto, CourseDto, (Boolean, String) -> Unit) -> Unit) {
     var active by remember { mutableStateOf<CourseDto?>(null) }
     var proposed by remember { mutableStateOf<CourseDto?>(null) }
     var mode by remember { mutableStateOf(CourseDragMode.Move) }
-    var pending by remember { mutableStateOf<Triple<CourseDto, CourseDto, Rect>?>(null) }
+    var pending by remember { mutableStateOf<Triple<CourseDto, CourseDto, ContainerOrigin?>?>(null) }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var dx by remember { mutableFloatStateOf(0f) }
@@ -54,7 +52,7 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
     var viewportTop by remember { mutableFloatStateOf(0f) }
     var viewportBottom by remember { mutableFloatStateOf(0f) }
     var scrollAtStart by remember { mutableIntStateOf(0) }
-    var sourceBounds by remember { mutableStateOf(Rect.Zero) }
+    var dragOrigin by remember { mutableStateOf<ContainerOrigin?>(null) }
     val scroll = rememberScrollState()
     val density = LocalDensity.current
     val haptic = LocalHapticFeedback.current
@@ -162,7 +160,7 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                             .width(dayWidth * 7).maskTimetableBreak(covered))
                     }
                     courses.forEach { course -> key(course.id) {
-                        var bounds by remember { mutableStateOf(Rect.Zero) }
+                        val origin = rememberLaunchSource(course.id, 14.dp)
                         var rootY by remember { mutableFloatStateOf(0f) }
                         val glass = glassColors(courseColor(course.name))
                         val shown = if (active?.id == course.id) proposed ?: course else course
@@ -175,14 +173,12 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                             .height(courseGridHeight(shown.startPeriod, shown.endPeriod, rowHeight.value, breaks, 22f).dp).padding(2.dp)
                             .zIndex(if (active?.id == course.id) 2f else 0f)
                             .onGloballyPositioned {
-                                val at = it.positionInWindow()
-                                bounds = Rect(at.x, at.y, at.x + it.size.width, at.y + it.size.height)
                                 rootY = it.positionInRoot().y
-                            }.shadow(if (active?.id == course.id) 8.dp else 0.dp, RoundedCornerShape(14.dp))
+                            }.launchOrigin(origin).shadow(if (active?.id == course.id) 8.dp else 0.dp, RoundedCornerShape(14.dp))
                             .clip(RoundedCornerShape(14.dp)).courseGlass(glass)
                             .border(1.dp, glass.border, RoundedCornerShape(14.dp))
                             .semantics { contentDescription = "${course.name}，${ScheduleText.weekdayLabel(shown.weekday)}，${shown.startPeriod}–${shown.endPeriod}节；长按中间移动，上下边缘调整时长" }
-                            .pointerInput(course, busy) { detectTapGestures(onTap = { if (!busy) latestTap(course, bounds) }) }
+                            .pointerInput(course, busy) { detectTapGestures(onTap = { if (!busy) latestTap(course, origin.capture()) }) }
                             .pointerInput(course, dayPx, rowPx, breaks, busy) {
                                 if (!busy && course.startPeriod in 1..course.endPeriod && course.endPeriod <= rows)
                                     detectDragGesturesAfterLongPress(
@@ -190,15 +186,16 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                                             dx = 0f; dy = 0f; scrollAtStart = scroll.value
                                             pointerStartY = periodTop(course.startPeriod, rowPx, breaks, breakPx) + insetPx + point.y
                                             mode = ScheduleMoveRules.gripMode(point.y, size.height.toFloat(), edgePx)
-                                            fingerY = rootY + point.y; sourceBounds = bounds
+                                            fingerY = rootY + point.y; dragOrigin = origin.capture()
                                             active = course; proposed = course; latestDragging(true)
                                             haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                                         },
-                                        onDragCancel = { active = null; proposed = null; latestDragging(false) },
+                                        onDragCancel = { active = null; proposed = null; dragOrigin = null; latestDragging(false) },
                                         onDragEnd = {
                                             val next = proposed
                                             active = null; proposed = null; latestDragging(false)
-                                            if (next != null && next != course) { pending = Triple(course, next, sourceBounds); error = null }
+                                            if (next != null && next != course) { pending = Triple(course, next, dragOrigin); error = null }
+                                            dragOrigin = null
                                         },
                                         onDrag = { change, amount ->
                                             change.consume(); dx += amount.x; dy += amount.y; fingerY += amount.y; updateProposal()

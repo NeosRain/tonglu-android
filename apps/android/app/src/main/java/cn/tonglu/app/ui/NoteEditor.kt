@@ -119,6 +119,7 @@ internal fun NoteEditorDialog(
         onClose = onDismiss,
         predictive = OverlayMotion.enabledState,
         selfDrag = true,
+        container = true,
     )
 
     fun close() {
@@ -136,7 +137,7 @@ internal fun NoteEditorDialog(
                 clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             }
         }
-        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize().overlayMotion(motion, fade = false, onBack = { close() })) {
+        Surface(color = MaterialTheme.colorScheme.background, modifier = Modifier.fillMaxSize().overlayMotion(motion, fade = false, onBack = if (dirty) ::close else null)) {
             Column(Modifier.fillMaxSize().safeDrawingPadding().imePadding()) {
                 EditorTopBar(
                     title = title,
@@ -148,9 +149,9 @@ internal fun NoteEditorDialog(
                         if (!preview) panel = NotePanel.None
                         preview = !preview
                     },
-                    onPublish = { onPublish?.invoke(value.text.trim()) },
+                    onPublish = { onPublish?.let { publish -> motion.requestCloseWith { publish(value.text.trim()) } } },
                     onDelete = { confirmDelete = true },
-                    onSave = { onSave(value.text.trim()) },
+                    onSave = { motion.requestCloseWith { onSave(value.text.trim()) } },
                 )
 
                 if (quote.isNotBlank() && !preview) {
@@ -232,7 +233,7 @@ internal fun NoteEditorDialog(
             title = { Text("删除这条笔记？", fontSize = 17.sp) },
             text = { Text("删掉之后其他设备也会同步消失。", fontSize = 13.sp) },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete?.invoke() }) { Text("删除") }
+                TextButton(onClick = { confirmDelete = false; onDelete?.let { motion.requestCloseWith(it) } }) { Text("删除") }
             },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )

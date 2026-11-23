@@ -32,6 +32,8 @@ import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.ClassNotesDialog
 import cn.tonglu.app.ui.classNoteCourseKey
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 
 /** Uses the timetable's actual course key and original store, including legacy per-cell notes. */
 @Composable
@@ -79,7 +81,9 @@ internal fun CourseNotesPicker(courses: List<CourseDto>, onOpenTimetable: () -> 
                                 modifier = Modifier.fillMaxWidth())
                         }
                         items(visible, key = ::classNoteCourseKey) { course ->
-                            Surface(onClick = { selectedKey = classNoteCourseKey(course) }, modifier = Modifier.animateItem(),
+                            val key = classNoteCourseKey(course)
+                            val origin = rememberLaunchSource(key, 20.dp)
+                            Surface(onClick = { origin.launch { selectedKey = key } }, modifier = Modifier.animateItem().launchOrigin(origin),
                                 shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque) {
                                 Column(Modifier.fillMaxWidth().padding(18.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                     Text(course.name, style = MaterialTheme.typography.titleMedium, color = AppColors.TextPrimary)

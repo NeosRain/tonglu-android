@@ -3,6 +3,9 @@ package cn.tonglu.app.ui.learning
 import android.os.Bundle
 import android.view.WindowManager
 import android.widget.Toast
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.LaunchOrigin
+import cn.tonglu.app.ui.LocalReaderOrigin
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -78,7 +81,8 @@ import kotlinx.coroutines.launch
 internal sealed interface LearningDialog {
     data object None : LearningDialog
     data class Reader(val articleId: String, val documentPath: String? = null,
-        val anchor: String? = null, val index: Int = -1) : LearningDialog
+        val anchor: String? = null, val index: Int = -1,
+        val parent: LearningDialog = None, val origin: ContainerOrigin? = null) : LearningDialog
     data class Ai(val articleId: String? = null, val reader: Reader? = null) : LearningDialog
     data object Updates : LearningDialog
     data object Graph : LearningDialog
@@ -114,6 +118,7 @@ private fun LearningDialog.save(): Bundle = Bundle().also { bundle ->
             bundle.putString("kind", "reader"); bundle.putString("article", articleId)
             bundle.putString("document", documentPath); bundle.putString("anchor", anchor)
             bundle.putInt("index", index)
+            if (parent != LearningDialog.None) bundle.putBundle("parent", parent.save())
         }
         is LearningDialog.Ai -> {
             bundle.putString("kind", "ai"); bundle.putString("article", articleId)
@@ -138,7 +143,8 @@ private fun LearningDialog.save(): Bundle = Bundle().also { bundle ->
 
 private fun restoreDialog(bundle: Bundle): LearningDialog = when (bundle.getString("kind")) {
     "reader" -> LearningDialog.Reader(requireNotNull(bundle.getString("article")),
-        bundle.getString("document"), bundle.getString("anchor"), bundle.getInt("index", -1))
+        bundle.getString("document"), bundle.getString("anchor"), bundle.getInt("index", -1),
+        bundle.getBundle("parent")?.let(::restoreDialog) ?: LearningDialog.None)
     "ai" -> LearningDialog.Ai(bundle.getString("article"),
         bundle.getBundle("reader")?.let { restoreDialog(it) as? LearningDialog.Reader })
     "updates" -> LearningDialog.Updates
@@ -172,10 +178,36 @@ internal fun LearningDialogs(
     /** 首次学会一个单词（plan/66 学习线 words.learned）。 */
     onWordLearned: () -> Unit = {},
 ) {
+    val reader = (dialog as? LearningDialog.Reader) ?: (dialog as? LearningDialog.Ai)?.reader
+    val readerParent = reader?.parent ?: dialog
+    when (readerParent) {
+        LearningDialog.Updates -> TodayUpdatesScreen(catalog = catalog, recent = lastArticle,
+            favorites = favorites, lastArticle = lastArticle,
+            onOpen = { onOpen(LearningDialog.Reader(it.id, parent = LearningDialog.Updates)) }, onClose = { onClose(LearningDialog.None) })
+        LearningDialog.Graph -> LearningGraphScreen(catalog = catalog,
+            onOpenArticle = { onOpen(LearningDialog.Reader(it.id, parent = LearningDialog.Graph)) },
+            onClose = { onClose(LearningDialog.None) })
+        LearningDialog.Reading, is LearningDialog.NoteEditor, is LearningDialog.DeleteReading -> ReadingShelfScreen(
+            catalog = catalog, library = store.library,
+            editing = (dialog as? LearningDialog.NoteEditor)?.record,
+            pending = (dialog as? LearningDialog.DeleteReading)?.request,
+            onEdit = { onShow(LearningDialog.NoteEditor(it)) },
+            onPendingDelete = { onShow(LearningDialog.DeleteReading(it)) },
+            onCloseChild = { onClose(LearningDialog.Reading) },
+            onOpen = { target -> onOpen(LearningDialog.Reader(target.articleId.substringBefore(':'),
+                target.documentPath, target.anchor, target.index, LearningDialog.Reading)) },
+            onChanged = onLibraryChanged, onClose = { onClose(LearningDialog.None) }, onPublishNote = onPublishNote,
+        )
+        else -> Unit
+    }
     when (dialog) {
-        LearningDialog.None -> Unit
+        LearningDialog.None, LearningDialog.Updates, LearningDialog.Graph, LearningDialog.Reading,
+        is LearningDialog.NoteEditor, is LearningDialog.DeleteReading -> Unit
         is LearningDialog.Reader, is LearningDialog.Ai -> {
-            val reader = (dialog as? LearningDialog.Reader) ?: (dialog as LearningDialog.Ai).reader
+            val inheritedOrigin = LocalReaderOrigin.current
+            val launchOrigin = remember(reader?.articleId) {
+                reader?.origin ?: inheritedOrigin ?: if (reader != null) LaunchOrigin.takeContainer() else null
+            }
             // B5 A2：阅读器里「问这一节」。范围由 ArticleReader 截好再冒泡上来，
             // 这里只负责弹面板 —— 阅读器不直接持有 AI 密钥存储，避免两处各读一份配置。
             val context = androidx.compose.ui.platform.LocalContext.current
@@ -362,7 +394,8 @@ internal fun LearningDialogs(
                     onTranslate = onTranslate,
                     onReadingSeconds = onReadingSeconds,
                     onFavorite = { onFavorite(article.id, it) }, onLibraryChanged = onLibraryChanged,
-                    onClose = { onClose(LearningDialog.None) })
+                    launchOrigin = launchOrigin,
+                    onClose = { onClose(target.parent) })
             } }
             scoped.value?.let { pair ->
                 val (scope, label) = pair
@@ -380,11 +413,6 @@ internal fun LearningDialogs(
                 onOpen = { hit -> onOpen(LearningDialog.Reader(hit.article.id, hit.documentPath, hit.anchor)) },
                 onClose = { onClose(dialog.reader ?: LearningDialog.None) })
         }
-        LearningDialog.Updates -> TodayUpdatesScreen(catalog = catalog, recent = lastArticle,
-            favorites = favorites, lastArticle = lastArticle,
-            onOpen = { onOpen(LearningDialog.Reader(it.id)) }, onClose = { onClose(LearningDialog.None) })
-        LearningDialog.Graph -> LearningGraphScreen(catalog = catalog,
-            onOpenArticle = { onOpen(LearningDialog.Reader(it.id)) }, onClose = { onClose(LearningDialog.None) })
         // 精听层与「从精听点词进来的英语页」共用同一个分支：
         // 切过去查词时精听层**不失活**，返回时原样还在（材料 / 播放位置 / 打点 / 录音都留着）。
         is LearningDialog.Listening, is LearningDialog.English -> {
@@ -453,17 +481,6 @@ internal fun LearningDialogs(
                         onPracticeChanged = onPracticeChanged, onReadingSeconds = onReadingSeconds, onWordLearned = onWordLearned)
                 })
         }
-        LearningDialog.Reading, is LearningDialog.NoteEditor, is LearningDialog.DeleteReading -> ReadingShelfScreen(
-            catalog = catalog, library = store.library,
-            editing = (dialog as? LearningDialog.NoteEditor)?.record,
-            pending = (dialog as? LearningDialog.DeleteReading)?.request,
-            onEdit = { onShow(LearningDialog.NoteEditor(it)) },
-            onPendingDelete = { onShow(LearningDialog.DeleteReading(it)) },
-            onCloseChild = { onClose(LearningDialog.Reading) },
-            onOpen = { target -> onOpen(LearningDialog.Reader(target.articleId.substringBefore(':'),
-                target.documentPath, target.anchor, target.index)) },
-            onChanged = onLibraryChanged, onClose = { onClose(LearningDialog.None) }, onPublishNote = onPublishNote,
-        )
     }
 }
 

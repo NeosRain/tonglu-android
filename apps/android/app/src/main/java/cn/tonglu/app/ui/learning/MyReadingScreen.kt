@@ -2,6 +2,11 @@ package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.LaunchOrigin
+import cn.tonglu.app.ui.LocalReaderOrigin
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -96,12 +101,21 @@ fun MyReadingScreen(owner: String, onClose: () -> Unit, onOpen: (LearningArticle
         chapters.associate { it.id to library.articleProgress(it.id)?.copy() }
     }
 
+    var articleOrigin by remember(owner) { mutableStateOf<ContainerOrigin?>(null) }
+    var openingArticle by remember(owner) { mutableStateOf(false) }
     fun openArticle(row: MyReadingArticle) {
+        val origin = LaunchOrigin.takeContainer()
+        if (openingArticle || activeReading != null) return
+        openingArticle = true
         scope.launch {
             try {
                 val article = repository.myArticle(row.id, owner) ?: error("文章已不存在，请重新导入")
                 val converted = repository.toLearningArticle(article)
-                if (reader == null) onOpen(converted) else {
+                if (reader == null) {
+                    origin?.let(LaunchOrigin::arm)
+                    onOpen(converted)
+                } else {
+                    articleOrigin = origin
                     cn.tonglu.app.data.ReadingStore(context, owner).apply {
                         recordOpen(converted); lastArticle = converted.id
                     }
@@ -109,6 +123,7 @@ fun MyReadingScreen(owner: String, onClose: () -> Unit, onOpen: (LearningArticle
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (cause: Exception) { notice = cause.message ?: "文章无法打开" }
+            finally { openingArticle = false }
         }
     }
 
@@ -245,7 +260,9 @@ fun MyReadingScreen(owner: String, onClose: () -> Unit, onOpen: (LearningArticle
                                 }
                                 resume?.let { row ->
                                     val seen = chapterProgress[row.id]
-                                    Button(onClick = { openArticle(row) }, modifier = Modifier.fillMaxWidth()) {
+                                    val origin = rememberLaunchSource(row.id, 20.dp)
+                                    Button(onClick = { origin.launch { openArticle(row) } },
+                                        modifier = Modifier.fillMaxWidth().launchOrigin(origin)) {
                                         Text(if (seen == null) "开始阅读" else if (seen.finished) "回看这一章" else "继续阅读")
                                     }
                                 }
@@ -274,11 +291,12 @@ fun MyReadingScreen(owner: String, onClose: () -> Unit, onOpen: (LearningArticle
                     }
                     item("chapters-heading") { Text("章节目录", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold) }
                     items(chapters, key = { it.id }) { row ->
+                        val origin = rememberLaunchSource(row.id, 18.dp)
                         Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             shape = RoundedCornerShape(18.dp), onClick = {
-                            if (row.textAvailable) openArticle(row)
+                            if (row.textAvailable) origin.launch { openArticle(row) }
                             else { previewPage = row.sourcePage ?: 1; previewFile = row.sourceFile }
-                        }, modifier = Modifier.fillMaxWidth()) {
+                        }, modifier = Modifier.fillMaxWidth().launchOrigin(origin)) {
                             Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                                 Text((chapters.indexOf(row) + 1).toString().padStart(2, '0'),
@@ -360,7 +378,11 @@ fun MyReadingScreen(owner: String, onClose: () -> Unit, onOpen: (LearningArticle
             Text(licenseText, style = MaterialTheme.typography.bodySmall)
         } }, confirmButton = { TextButton({ showLicense = false }) { Text("关闭") } })
     // 与考试选材页相同的子阅读器入口；书架/书页窗口保持组合，关闭正文回到原书/原页码列表。
-    activeReading?.let { current -> reader?.invoke(current) { OverlayDismissGuard.arm(); activeReading = null } }
+    activeReading?.let { current ->
+        androidx.compose.runtime.CompositionLocalProvider(LocalReaderOrigin provides articleOrigin) {
+            reader?.invoke(current) { OverlayDismissGuard.arm(); activeReading = null; articleOrigin = null }
+        }
+    }
 }
 
 /**

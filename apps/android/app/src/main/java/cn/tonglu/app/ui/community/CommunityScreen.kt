@@ -1,5 +1,8 @@
 package cn.tonglu.app.ui.community
 
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
+
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.LazyGridScope
@@ -123,7 +126,7 @@ internal fun CommunityHome(
 private fun CommunityHomeLinks(actions: CommunityActions) {
     Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = { actions.navigate(CommunityDestination.Directory) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("圈子目录") }
-        TextButton(onClick = { actions.navigate(CommunityDestination.Rules) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("社区准则") }
+        CommunityRulesLink { actions.navigate(CommunityDestination.Rules) }
     }
 }
 
@@ -132,12 +135,12 @@ internal fun CommunityPage(
     destination: CommunityDestination, viewModel: AppViewModel, sessionId: String?, userId: String?,
     revision: Int, actions: CommunityActions, onBack: () -> Unit,
 ) {
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+    Column(Modifier.fillMaxSize().then(if (destination == CommunityDestination.Rules) Modifier else Modifier.safeDrawingPadding())) {
         when (destination) {
-            is CommunityDestination.Board -> BoardPage(destination.id, viewModel, sessionId, userId, revision, actions, onBack)
+            is CommunityDestination.Board -> key(sessionId) { BoardPage(destination.id, viewModel, sessionId, userId, revision, actions, onBack) }
             is CommunityDestination.Topic -> TopicPage(destination.id, viewModel, sessionId, revision, actions, onBack)
             CommunityDestination.Directory -> DirectoryPage(viewModel, sessionId, revision, actions, onBack)
-            CommunityDestination.Rules -> RulesPage(onBack)
+            CommunityDestination.Rules -> CommunityRulesPage(viewModel, sessionId, onBack)
             CommunityDestination.Apply -> ApplyBoardPage(viewModel, sessionId, onBack)
         }
     }
@@ -160,8 +163,10 @@ private fun DirectoryPage(viewModel: AppViewModel, sessionId: String?, revision:
             TextButton(onClick = actions.createClub) { Text("创建社团") }
         }
         items(boards.items, key = BoardDto::id) { board ->
+            val origin = rememberLaunchSource(board.id, 14.dp)
             Surface(
-                onClick = { actions.navigate(CommunityDestination.Board(board.id)) },
+                onClick = { origin.launch { actions.navigate(CommunityDestination.Board(board.id)) } },
+                modifier = Modifier.launchOrigin(origin),
                 color = AppColors.Surface, shape = RoundedCornerShape(14.dp),
             ) {
                 CommunityDescription(
@@ -179,7 +184,10 @@ private fun BoardPage(
     id: String, viewModel: AppViewModel, sessionId: String?, userId: String?, revision: Int,
     actions: CommunityActions, onBack: () -> Unit,
 ) {
-    val source = rememberCommunityResource("圈子加载失败") { viewModel.apiOrNull().communityBoard(id) }
+    val source = rememberCommunityResource("圈子加载失败") {
+        if (sessionId == null) viewModel.apiOrNull().communityBoard(id)
+        else viewModel.communityAuthorized(sessionId) { communityBoard(id, it) }
+    }
     val board = source.value
     CommunityPageHeader(board?.name ?: "圈子", onBack) {
         if (board != null && sessionId != null) FollowButton(viewModel, sessionId, "boards", board.id, actions.refreshFeeds)
@@ -194,7 +202,7 @@ private fun BoardPage(
         return
     }
     CommunityTabs(boardTabs, sort) { sort = it }
-    val moderation = rememberBoardModeration(viewModel, sessionId, board, actions.refreshFeeds)
+    val moderation = rememberBoardModeration(viewModel, sessionId, board, { source.attempt++ }, actions.refreshFeeds)
     val feed = key(sort, revision) {
         rememberCommunityList(POST_PAGE_SIZE, PostDto::id, "圈子帖子加载失败") { cursor, _ ->
             viewModel.communityAuthorized(sessionId) { communityBoardPosts(it, id, sort, cursor) }
@@ -216,6 +224,7 @@ private fun BoardPage(
                     if (moderation.canReview) TextButton(onClick = moderation::openReports) { Text("处理举报") }
                 }
                 moderation.error?.let { CommunityStatus(error = it, onNext = moderation::retryAccess) }
+                source.error?.let { CommunityStatus(error = it) { source.attempt++ } }
             }
         }
     }
@@ -360,7 +369,7 @@ private fun CommunityPostGrid(
 }
 
 @Composable
-private fun CommunityPageHeader(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
+internal fun CommunityPageHeader(title: String, onBack: () -> Unit, actions: @Composable RowScope.() -> Unit = {}) {
     Row(Modifier.fillMaxWidth().padding(end = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "返回", tint = AppColors.TextPrimary) }
         Text(title, modifier = Modifier.weight(1f), fontSize = 20.sp, fontWeight = FontWeight.SemiBold, color = AppColors.TextPrimary)
@@ -415,18 +424,5 @@ private fun ApplyBoardPage(viewModel: AppViewModel, sessionId: String?, onBack: 
                 }
             }) { Text(if (busy) "提交中…" else "提交申请") }
         }
-    }
-}
-
-@Composable
-private fun RulesPage(onBack: () -> Unit) {
-    CommunityPageHeader("社区准则", onBack)
-    Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(vertical = 8.dp)) {
-        CommunityDescription("讨论秩序", "选择适合内容的圈子，回复围绕主题。尊重对方，保护隐私，分享资料前确认有权公开。")
-        CommunityDescription("信任等级", "TL0 观察中，TL1 同窗，TL2 骨干，TL3 主理，TL4 领袖。服务端根据参与和违规记录判定等级。建圈申请需要 TL2，由管理员审核。")
-        CommunityDescription("新人限制", "发图需要发布资格。全站禁言期间不能发帖、回复或申请建圈。")
-        val categories = PostReportCategory.entries.joinToString("、") { it.label }
-        CommunityDescription("举报", "可以按$categories 五类举报。同一帖子收到至少 3 名未被禁言的 TL2 及以上成员举报后自动隐藏，等待复核。")
-        CommunityDescription("圈子管理", "圈子管理者可置顶、加精、将帖子移入回收站或恢复、复核举报、执行最长 7 天的圈内禁言。移帖需要两个圈子的管理权限，社团圈子不能跨圈移帖。")
     }
 }

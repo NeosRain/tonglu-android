@@ -15,12 +15,28 @@ data class BoardDto(
     val defaultCategory: String,
     val clubId: String?,
     val status: String,
-)
+    val viewerRole: String? = null,
+    val canReviewReports: Boolean? = null,
+) {
+    // 新版详情总是返回复核权限，用它区分空角色和旧版缺字段。
+    internal val viewerCanManage: Boolean?
+        get() = canReviewReports?.let { viewerRole == "OWNER" || viewerRole == "MODERATOR" || (it && clubId == null) }
+}
 
 data class TopicDto(val id: String, val name: String, val description: String?, val postCount: Int?)
 data class PostTopicDto(val topic: TopicDto)
 data class CommunityFollowDto(val following: Boolean)
 data class CommunityLevelDto(val trustLevel: Int, val muted: Boolean)
+data class TrustQuizQuestionDto(val id: String, val prompt: String, val options: List<String>)
+data class TrustQuizDto(
+    val passed: Boolean,
+    val correct: Int?,
+    val questionCount: Int,
+    val requiredCorrect: Int,
+    val retryAt: String?,
+    val questions: List<TrustQuizQuestionDto>?,
+)
+data class SubmitTrustQuizRequest(val answers: Map<String, Int>)
 data class ApplyBoardRequest(val name: String, val description: String)
 data class CreateTopicRequest(val name: String)
 data class RecordPostReadRequest(val seconds: Int)

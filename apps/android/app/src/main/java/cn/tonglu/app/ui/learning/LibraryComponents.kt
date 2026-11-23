@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.learning
 
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -151,7 +153,9 @@ internal fun PersonalLibraryShelf(
             val started = rows.count { progress[it.id] != null }
             val complete = rows.count { progress[it.id]?.finished == true }
             val pending = rows.count { !it.textAvailable }
-            Surface(onClick = { onOpen(row) }, shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface) {
+            val origin = rememberLaunchSource(key, 22.dp)
+            Surface(onClick = { origin.launch { onOpen(row) } }, modifier = Modifier.launchOrigin(origin),
+                shape = RoundedCornerShape(22.dp), color = MaterialTheme.colorScheme.surface) {
                 Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                     LibraryCover(row.documentTitle ?: row.title, if (paper) "试卷" else row.sourceFormat)

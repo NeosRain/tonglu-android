@@ -90,7 +90,8 @@ private fun CommunityHeader(title: String, subtitle: String, action: String, act
 /** 快捷入口胶囊：图标 + 文字，浅色底。 */
 @Composable
 private fun ShortcutPill(label: String, icon: ImageVector, onClick: () -> Unit) {
-    Surface(onClick = onClick, modifier = Modifier.launchOrigin(), shape = RoundedCornerShape(50), color = AppColors.Surface,
+    val origin = rememberLaunchSource(label, 24.dp)
+    Surface(onClick = { origin.launch(onClick) }, modifier = Modifier.launchOrigin(origin), shape = RoundedCornerShape(50), color = AppColors.Surface,
         border = androidx.compose.foundation.BorderStroke(1.dp, AppColors.Divider)) {
         Row(Modifier.padding(horizontal = 14.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(icon, null, tint = AppColors.Accent, modifier = Modifier.size(18.dp))
@@ -137,7 +138,7 @@ internal fun LaboratoryScreen(state: AppUiState, viewModel: AppViewModel,
                                 checkedTrackColor = AppColors.Accent, checkedThumbColor = AppColors.OnAccent))
                         }
                         androidx.compose.animation.AnimatedVisibility(on) {
-                            Row(Modifier.fillMaxWidth().launchOrigin().clickable { module = feature.id }
+                            Row(Modifier.fillMaxWidth().launchClickable(feature.id) { module = feature.id }
                                 .padding(start = 70.dp, end = 16.dp, top = 2.dp, bottom = 14.dp),
                                 verticalAlignment = Alignment.CenterVertically) {
                                 Text("进入${feature.title}", color = AppColors.Accent, fontSize = 15.sp, modifier = Modifier.weight(1f))
@@ -279,7 +280,7 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
         }
         if (legacy == true) Row(Modifier.padding(horizontal = 12.dp)) {
             TextButton(onClick = { openedClubId = null; showClubLayer = true }) { Text("社团") }
-            TextButton(onClick = { navigate(CommunityDestination.Rules) }) { Text("社区准则") }
+            CommunityRulesLink { navigate(CommunityDestination.Rules) }
         }
     }
     val overlayHeader = header.takeIf { glassUnderlap && legacy != null }
@@ -405,7 +406,8 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
 
     LaunchedEffect(showFavorites) { if (showFavorites) viewModel.refreshFavorites() }
     if (showFavorites) {
-        OverlayLayerHost(onClose = { closeLayer { showFavorites = false } }) { requestClose ->
+        OverlayLayerHost(onClose = { closeLayer { showFavorites = false } },
+            modifier = Modifier.hideCoveredCommunityLayer(detailPostId != null)) { requestClose ->
             FavoritesScreen(
                 posts = state.favorites,
                 loading = state.favoritesLoading,
@@ -413,7 +415,6 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
                 onBack = requestClose,
                 onRefresh = { viewModel.refreshFavorites() },
                 onOpen = { postId ->
-                    closeLayer { showFavorites = false }
                     detailPostId = postId
                     viewModel.openPost(postId)
                 },

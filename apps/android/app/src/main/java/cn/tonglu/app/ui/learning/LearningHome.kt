@@ -26,6 +26,8 @@ import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.glass.LocalGlassNavigationEnabled
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 
 /** 首页只负责分流；书库目录、导入和阅读仍使用同一份账号数据与原阅读器。 */
 @Composable
@@ -61,7 +63,9 @@ internal fun LearningHome(
                     Text("读点喜欢的，学点有用的", style = MaterialTheme.typography.bodyMedium,
                         color = AppColors.TextSecondary)
                 }
-                FilledTonalButton(onClick = onCourseNotes, shape = RoundedCornerShape(24.dp),
+                val notesOrigin = rememberLaunchSource("course-notes", 24.dp)
+                FilledTonalButton(onClick = { notesOrigin.launch(onCourseNotes) }, modifier = Modifier.launchOrigin(notesOrigin),
+                    shape = RoundedCornerShape(24.dp),
                     colors = ButtonDefaults.filledTonalButtonColors(containerColor = AppColors.ChipIdle, contentColor = AppColors.TextPrimary)) {
                     Text("课堂笔记")
                 }
@@ -80,8 +84,10 @@ internal fun LearningHome(
             }
         }
         if (recent != null) item("continue") {
+            val origin = rememberLaunchSource(recent.id, 22.dp)
             Surface(
-                onClick = onContinue,
+                onClick = { origin.launch(onContinue) },
+                modifier = Modifier.launchOrigin(origin),
                 shape = RoundedCornerShape(22.dp),
                 color = learningCardColor(AppColors.SurfaceOpaque),
             ) {

@@ -4,7 +4,6 @@ import android.view.WindowManager
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -74,7 +73,7 @@ internal fun TodayUpdatesScreen(catalog: LearningCatalog, recent: LearningArticl
                     if (articles.isEmpty()) item { Text("暂时没有收录资料", modifier = Modifier.padding(vertical = 24.dp)) }
                     items(articles, key = { it.id }) { article ->
                         Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surface) {
-                            Row(Modifier.fillMaxWidth().clickable { dismiss { onOpen(article) } }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Row(Modifier.fillMaxWidth().launchClickable(article.id, 14.dp) { onOpen(article) }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
                                     Text(sections[article.sectionId]?.title.orEmpty(), color = sections[article.sectionId]?.sectionColor ?: MaterialTheme.colorScheme.primary, fontSize = 11.sp)
                                     Text(article.title, fontSize = 16.sp, lineHeight = 24.sp, fontWeight = FontWeight.Medium,

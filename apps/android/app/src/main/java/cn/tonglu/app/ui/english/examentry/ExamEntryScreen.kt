@@ -1,5 +1,6 @@
 package cn.tonglu.app.ui.english.examentry
 
+import cn.tonglu.app.ui.launchClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -473,7 +474,7 @@ private fun FilterChip(
 @Composable
 private fun ArticleRow(row: ReadingArticleRow, onClick: () -> Unit) {
     MiuixCard(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = Modifier.fillMaxWidth().launchClickable(row.articleId, 14.dp, onClick = onClick),
         insideMargin = PaddingValues(14.dp),
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {

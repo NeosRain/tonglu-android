@@ -418,7 +418,7 @@ internal fun LearningGraphScreen(
                                 }
                                 if (!moved && !multi) {
                                     selected = hit
-                                    nodes.getOrNull(hit)?.article?.let { article -> dismiss { onOpenArticle(article) } }
+                                    nodes.getOrNull(hit)?.article?.let(onOpenArticle)
                                 }
                             }
                         },
@@ -513,11 +513,12 @@ internal fun LearningGraphScreen(
                                     )
                                     if (picked == null) {
                                         sectionArticles.forEach { article ->
+                                            val origin = rememberLaunchSource(article.id, 20.dp)
                                             TextButton(
                                                 enabled = interactive,
-                                                onClick = { dismiss { onOpenArticle(article) } },
+                                                onClick = { origin.launch { onOpenArticle(article) } },
                                                 contentPadding = PaddingValues(horizontal = 0.dp, vertical = 8.dp),
-                                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+                                                modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp).launchOrigin(origin),
                                             ) {
                                                 Text(article.title, fontSize = 13.sp, color = GraphInk,
                                                     modifier = Modifier.weight(1f))
@@ -532,8 +533,11 @@ internal fun LearningGraphScreen(
                                 }
                                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.End) {
-                                    if (picked != null) TextButton(enabled = interactive,
-                                        onClick = { dismiss { onOpenArticle(picked) } }) { Text("阅读这篇") }
+                                    if (picked != null) {
+                                        val origin = rememberLaunchSource(picked.id, 20.dp)
+                                        TextButton(enabled = interactive, modifier = Modifier.launchOrigin(origin),
+                                            onClick = { origin.launch { onOpenArticle(picked) } }) { Text("阅读这篇") }
+                                    }
                                     TextButton(enabled = interactive, onClick = { selected = -1 }) { Text("取消选中") }
                                 }
                             }

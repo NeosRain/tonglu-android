@@ -3,6 +3,9 @@ package cn.tonglu.app.ui.learning
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.LaunchOrigin
+import cn.tonglu.app.ui.LocalReaderOrigin
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -179,7 +182,15 @@ internal fun ExamReadingHost(owner: String, onClose: () -> Unit,
             openId = null
         } finally { opening = false }
     }
-    val openArticle: (String) -> Unit = { if (!opening) { opening = true; openId = it } }
+    var articleOrigin by remember(owner) { mutableStateOf<ContainerOrigin?>(null) }
+    val openArticle: (String) -> Unit = {
+        val origin = LaunchOrigin.takeContainer()
+        if (!opening && openId == null) {
+            articleOrigin = origin
+            opening = true
+            openId = it
+        }
+    }
     val importPersonal: (() -> Unit)? = if (personalImportTag.isNotBlank()) ({ importOpen = true }) else null
     ExamLevelWindow(opening = opening, notice = notice,
         onClose = { OverlayDismissGuard.arm(); onClose() }) { requestClose ->
@@ -237,7 +248,11 @@ internal fun ExamReadingHost(owner: String, onClose: () -> Unit,
             )
         }
     }
-    article?.let { current -> reader(current) { article = null; openId = null } }
+    article?.let { current ->
+        androidx.compose.runtime.CompositionLocalProvider(LocalReaderOrigin provides articleOrigin) {
+            reader(current) { article = null; openId = null; articleOrigin = null }
+        }
+    }
     // 个人导入试卷：独立窗口叠在考试列表之上，返回露出上一页（考试列表）。
     paperDocId?.let { doc -> PaperReaderScreen(owner, doc, onClose = { paperDocId = null }) }
     // 本机导入/管理（复用「我的文章与书籍」的 PDF/EPUB/文本导入与 OCR 校对），

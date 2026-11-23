@@ -42,6 +42,9 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 
+internal fun navigationTabSpring(visibilityThreshold: Float = 0.001f) =
+    spring(dampingRatio = 0.9f, stiffness = 550f, visibilityThreshold = visibilityThreshold)
+
 /** 按下滑向触点，拖动跟手，松手吸附。 */
 class DampedDragAnimation(
     private val animationScope: CoroutineScope,
@@ -185,7 +188,7 @@ class DampedDragAnimation(
         positionJob?.cancel()
         // A tap needs travel from the selected tab to the finger; drag events take over immediately.
         positionJob = animationScope.launch {
-            valueAnimation.animateTo(target, spring(0.9f, 550f, visibilityThreshold))
+            valueAnimation.animateTo(target, navigationTabSpring(visibilityThreshold))
         }
     }
 

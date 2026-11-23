@@ -2,6 +2,8 @@ package cn.tonglu.app.ui
 
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.hideFromAccessibility
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -20,8 +22,7 @@ import androidx.compose.material.icons.outlined.AttachFile
 import androidx.compose.material.icons.outlined.Edit
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
@@ -64,7 +65,6 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.layout.onSizeChanged
@@ -208,7 +208,7 @@ private class ClassNoteStore(context: Context, course: CourseDto, relatedCourses
     }
 }
 
-@OptIn(ExperimentalSharedTransitionApi::class, ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto> = listOf(course), onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -248,7 +248,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         mutableStateOf(resumedId ?: notes.firstOrNull { draft.isNotBlank() && it.text.trim() == draft.trim() }?.id)
     }
     var editorOpen by remember(store) { mutableStateOf(draft.isNotBlank() || resumedId != null) }
-    var morphNoteId by remember(store) { mutableStateOf(editingNoteId) }
+    var editorOrigin by remember(store) { mutableStateOf<ContainerOrigin?>(null) }
     var editorSession by remember(store) { mutableStateOf(NoteEditorSession(
         notes.firstOrNull { it.id == editingNoteId && it.text == draft }?.document ?: NoteDocument(draft))) }
     var writing by remember(store) { mutableStateOf(true) }
@@ -289,7 +289,6 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
             } else append(ClassNote(targetId, System.currentTimeMillis(), content, null, null, html = document.html, markdown = document.markdown, title = document.title))
             if (saved) {
                 editingNoteId = targetId
-                morphNoteId = targetId
                 runCatching { store.saveDraft("") }.onFailure { error = "清理草稿失败：${it.localizedMessage}" }
             }
             return saved
@@ -310,10 +309,8 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     fun saveMedia(file: File, image: Boolean, target: String?): Boolean {
         if (target == null || notes.none { it.id == target }) {
             val id = target ?: UUID.randomUUID().toString()
-            val saved = append(ClassNote(id, System.currentTimeMillis(), "",
+            return append(ClassNote(id, System.currentTimeMillis(), "",
                 if (image) file.name else null, if (image) null else file.name))
-            if (saved && editorOpen && editingNoteId == id) morphNoteId = id
-            return saved
         }
         return runCatching { store.attach(target, file.name, image); notes = store.readAll(); error = null }
             .onFailure { error = "附件保存失败：${it.localizedMessage}" }.isSuccess
@@ -382,12 +379,12 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         if (granted) startRecording() else error = "需要麦克风权限才能录音"
     }
     fun stopRecording(): Boolean = recorder.finish { file, id -> saveMedia(file, false, id) }
-    fun beginNote(note: ClassNote?) {
+    fun beginNote(note: ClassNote?, origin: ContainerOrigin? = null) {
         if (!stopRecording() || !saveDraft()) return
         runCatching { NoteEditorSession(note?.document ?: NoteDocument("")) }
             .onSuccess { session ->
                 editorSession = session; draft = note?.text.orEmpty(); editingNoteId = note?.id
-                morphNoteId = note?.id; writing = true; savedNotice = null; keyboardForTitle = note == null; keyboardRequest = 0; editorOpen = true
+                editorOrigin = origin; writing = true; savedNotice = null; keyboardForTitle = note == null; keyboardRequest = 0; editorOpen = true
             }.onFailure { error = "无法打开笔记格式：${it.localizedMessage}" }
     }
     LaunchedEffect(editorSession) {
@@ -433,14 +430,18 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
     val outerBackEnabled = !editorOpen && !recorder.active && !recorder.pending && !importing && draft.isBlank() && enlargedPhoto == null
     val outerMotion = rememberOverlayMotion(
         onClose = { OverlayDismissGuard.arm(); onDismiss() },
-        // 笔记自身的卡片/翻转退场已处理返回，不再叠加整页预测性跟手。
-        predictive = false, selfDrag = true, backEnabled = outerBackEnabled,
+        predictive = OverlayMotion.enabledState, selfDrag = true,
+        backEnabled = outerBackEnabled, container = true,
     )
+    val editorMotion = if (editorOpen) rememberOverlayMotionImpl(
+        onClose = { editorOpen = false; editingNoteId = null; draft = ""; editorOrigin = null },
+        predictive = OverlayMotion.enabledState, selfDrag = true,
+        origin = editorOrigin, takePending = false,
+        beforeClose = { !importing && stopRecording() && saveDraft() },
+    ) else null
     fun requestBack() {
-        if (!stopRecording()) return
-        if (!saveDraft()) return
-        if (editorOpen) { editorOpen = false; editingNoteId = null; draft = "" }
-        else outerMotion.requestClose()
+        if (editorMotion != null) editorMotion.requestClose()
+        else if (stopRecording() && saveDraft()) outerMotion.requestClose()
     }
     val saveExport = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val path = pendingExportPath
@@ -512,7 +513,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
         val focusManager = LocalFocusManager.current
         val keyboard = LocalSoftwareKeyboardController.current
         LaunchedEffect(editorOpen, writing, keyboardRequest) {
-            if (editorOpen && writing && (morphNoteId == null || keyboardRequest > 0)) {
+            if (editorOpen && writing && (editingNoteId == null || keyboardRequest > 0)) {
                 withFrameNanos { }; (if (keyboardForTitle) titleFocus else editorFocus).requestFocus(); keyboard?.show()
             } else if (!editorOpen || !writing) {
                 focusManager.clearFocus()
@@ -533,31 +534,74 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
             }
         }
         Surface(Modifier.fillMaxSize().overlayMotion(outerMotion, fade = false,
-            onBack = {
-                if (imeShowing) { focusManager.clearFocus(); keyboard?.hide() }
-                else requestBack()
+            onBack = if (outerBackEnabled && !imeShowing) null else {
+                {
+                    if (imeShowing) { focusManager.clearFocus(); keyboard?.hide() }
+                    else requestBack()
+                }
             }, backEnabled = !importing && enlargedPhoto == null,
-            enter = OverlayEnter.Right, gestureWithoutPreview = true), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
+            gestureWithoutPreview = true, containerColor = AppColors.CanvasOpaque,
+            handleGestures = editorMotion == null), color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
             BoxWithConstraints(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).imePadding()) {
                 val editorSidePadding = maxOf(24.dp, (maxWidth - 800.dp) / 2)
                 val noteColumns = if (maxWidth >= 1100.dp) 4 else if (maxWidth >= 700.dp) 3 else 2
-                SharedTransitionLayout(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
-                AnimatedContent(targetState = editorOpen,
-                    // Shared bounds carry the card and its content together, with no blank handoff.
-                    transitionSpec = {
-                        if (morphNoteId == null) {
-                            if (targetState) slideInHorizontally(tween(320)) { it } togetherWith ExitTransition.None
-                            else EnterTransition.None togetherWith slideOutHorizontally(tween(280)) { it }
-                        } else EnterTransition.None togetherWith ExitTransition.None
-                    },
-                    modifier = Modifier.fillMaxSize(), label = "class-note-editor") { editing ->
-                    if (editing) {
-                        Column(Modifier.fillMaxSize().sharedBounds(
-                            rememberSharedContentState(key = "note-${morphNoteId ?: "new"}"),
-                            animatedVisibilityScope = this@AnimatedContent,
-                            enter = fadeIn(tween(220, delayMillis = 60)), exit = fadeOut(tween(120)),
-                            renderInOverlayDuringTransition = false,
-                            boundsTransform = { _, _ -> tween(380) })
+                Box(Modifier.fillMaxSize().layerBackdrop(backdrop)) {
+                    LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(noteColumns), state = gridState,
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp)
+                            .then(if (editorOpen) Modifier.clearAndSetSemantics { hideFromAccessibility() } else Modifier),
+                        contentPadding = PaddingValues(top = listHeaderInset + 12.dp, bottom = footerInset + 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalItemSpacing = 12.dp) {
+                        if (visibleNotes.isEmpty()) item(key = "notes-empty", span = StaggeredGridItemSpan.FullLine) {
+                            Column(Modifier.fillMaxWidth().animateItem().padding(horizontal = 20.dp, vertical = 40.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                Text(if (notes.isEmpty()) "还没有笔记" else "没有匹配的笔记",
+                                    style = MaterialTheme.typography.titleMedium, color = AppColors.TextPrimary)
+                                Text(if (notes.isEmpty()) "记录课堂上的文字、图片或录音。" else "换个关键词，或清除筛选查看全部笔记。",
+                                    color = AppColors.TextSecondary)
+                                if (notes.isEmpty()) TextButton(enabled = !importing && error?.startsWith("读取笔记失败") != true,
+                                    onClick = { beginNote(null) }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("开始记录") }
+                                else TextButton(onClick = { query = ""; mediaFilter = 0 },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("清除筛选") }
+                            }
+                        }
+                        items(visibleNotes, key = { it.id }) { note ->
+                            val origin = rememberLaunchSource(note.id, 20.dp)
+                            Surface(shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque,
+                                modifier = Modifier.animateItem().launchOrigin(origin)
+                                    .clickable(enabled = !editorOpen) { beginNote(note, origin.capture()) },
+                                contentColor = AppColors.TextPrimary) {
+                                Column(Modifier.fillMaxWidth().padding(16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                                    Text(SimpleDateFormat("MM月dd日 HH:mm", Locale.getDefault()).format(Date(note.time)),
+                                        fontSize = 11.sp, color = AppColors.TextSecondary)
+                                    if (note.title.isNotBlank()) Text(note.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                    if (note.text.isNotEmpty()) Text(note.text, fontSize = 16.sp, lineHeight = 24.sp,
+                                        maxLines = if (note.images.isNotEmpty()) 3 else 6, overflow = TextOverflow.Ellipsis)
+                                    note.images.take(1).forEach { name ->
+                                        val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 700) }
+                                        if (bitmap != null) Image(bitmap.asImageBitmap(), "课堂照片",
+                                            Modifier.fillMaxWidth().height(112.dp),
+                                            contentScale = ContentScale.Crop)
+                                    }
+                                    if (note.recordings.isNotEmpty()) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        Icon(Icons.Outlined.Mic, null, Modifier.size(16.dp), tint = AppColors.TextSecondary)
+                                        Text("${note.recordings.size} 段录音", fontSize = 12.sp, color = AppColors.TextSecondary,
+                                            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    if (editorMotion != null) {
+                        Column(Modifier.fillMaxSize()
+                            .overlayMotion(editorMotion, fade = false, containerColor = AppColors.CanvasOpaque,
+                                backEnabled = !importing && enlargedPhoto == null, gestureWithoutPreview = true,
+                                onBack = if (imeShowing) {
+                                    { focusManager.clearFocus(); keyboard?.hide() }
+                                } else null)
                             .background(AppColors.CanvasOpaque)
                             // Keep document pixels out of the chrome, including while the IME resizes it.
                             .padding(top = headerInset, bottom = footerInset + 24.dp)
@@ -566,93 +610,38 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             verticalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(Modifier.fillMaxWidth(),
                                 verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            val current = notes.firstOrNull { it.id == (if (editorOpen) editingNoteId else morphNoteId) }
-                            current?.let { Text(SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.getDefault()).format(Date(it.time)),
-                                color = AppColors.TextSecondary, fontSize = 12.sp) }
-                            Box(Modifier.fillMaxWidth()) {
-                                NoteTitleEditor(editorSession, Modifier.fillMaxWidth().padding(vertical = 8.dp)
-                                    .focusRequester(titleFocus), readOnly = !writing || !editorOpen)
-                                if (editorOpen && !writing) Box(Modifier.matchParentSize().semantics { contentDescription = "编辑标题" }.clickable {
-                                    keyboardForTitle = true; writing = true; keyboardRequest++
-                                })
-                            }
-                            Box(Modifier.fillMaxWidth()) {
-                                NoteTextEditor(editorSession, Modifier.fillMaxWidth().heightIn(min = 160.dp)
-                                    .focusRequester(editorFocus), readOnly = !writing || !editorOpen)
-                                if (editorOpen && !writing) Box(Modifier.matchParentSize().semantics { contentDescription = "编辑正文" }.clickable {
-                                    keyboardForTitle = false; writing = true; keyboardRequest++
-                                })
-                            }
-                            current?.images?.forEach { name ->
-                                val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 1000) }
-                                  if (bitmap != null) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                                      Image(bitmap.asImageBitmap(), "笔记图片",
-                                          Modifier.heightIn(max = 360.dp).widthIn(max = 800.dp)
-                                              .aspectRatio(bitmap.width.toFloat() / bitmap.height, matchHeightConstraintsFirst = true)
-                                              .clickable { enlargedPhoto = name }, contentScale = ContentScale.Fit)
-                                  }
-                            }
-                            current?.recordings?.forEachIndexed { index, name ->
-                                NoteAudioCard(store.mediaFile(name), "录音 ${index + 1}", audioPlayer)
-                            }
+                                val current = notes.firstOrNull { it.id == editingNoteId }
+                                current?.let { Text(SimpleDateFormat("yyyy年MM月dd日 HH:mm", Locale.getDefault()).format(Date(it.time)),
+                                    color = AppColors.TextSecondary, fontSize = 12.sp) }
+                                Box(Modifier.fillMaxWidth()) {
+                                    NoteTitleEditor(editorSession, Modifier.fillMaxWidth().padding(vertical = 8.dp)
+                                        .focusRequester(titleFocus), readOnly = !writing || !editorOpen)
+                                    if (editorOpen && !writing) Box(Modifier.matchParentSize().semantics { contentDescription = "编辑标题" }.clickable {
+                                        keyboardForTitle = true; writing = true; keyboardRequest++
+                                    })
+                                }
+                                Box(Modifier.fillMaxWidth()) {
+                                    NoteTextEditor(editorSession, Modifier.fillMaxWidth().heightIn(min = 160.dp)
+                                        .focusRequester(editorFocus), readOnly = !writing || !editorOpen)
+                                    if (editorOpen && !writing) Box(Modifier.matchParentSize().semantics { contentDescription = "编辑正文" }.clickable {
+                                        keyboardForTitle = false; writing = true; keyboardRequest++
+                                    })
+                                }
+                                current?.images?.forEach { name ->
+                                    val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 1000) }
+                                      if (bitmap != null) Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                                          Image(bitmap.asImageBitmap(), "笔记图片",
+                                              Modifier.heightIn(max = 360.dp).widthIn(max = 800.dp)
+                                                  .aspectRatio(bitmap.width.toFloat() / bitmap.height, matchHeightConstraintsFirst = true)
+                                                  .clickable { enlargedPhoto = name }, contentScale = ContentScale.Fit)
+                                      }
+                                }
+                                current?.recordings?.forEachIndexed { index, name ->
+                                    NoteAudioCard(store.mediaFile(name), "录音 ${index + 1}", audioPlayer)
+                                }
                             }
                         }
-                    } else {
-                LazyVerticalStaggeredGrid(columns = StaggeredGridCells.Fixed(noteColumns), state = gridState,
-                    modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
-                    contentPadding = PaddingValues(top = listHeaderInset + 12.dp, bottom = footerInset + 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalItemSpacing = 12.dp) {
-                    if (visibleNotes.isEmpty()) item(key = "notes-empty", span = StaggeredGridItemSpan.FullLine) {
-                        Column(Modifier.fillMaxWidth().animateItem().padding(horizontal = 20.dp, vertical = 40.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Text(if (notes.isEmpty()) "还没有笔记" else "没有匹配的笔记",
-                                style = MaterialTheme.typography.titleMedium, color = AppColors.TextPrimary)
-                            Text(if (notes.isEmpty()) "记录课堂上的文字、图片或录音。" else "换个关键词，或清除筛选查看全部笔记。",
-                                color = AppColors.TextSecondary)
-                            if (notes.isEmpty()) TextButton(enabled = !importing && error?.startsWith("读取笔记失败") != true,
-                                onClick = { beginNote(null) }, colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("开始记录") }
-                            else TextButton(onClick = { query = ""; mediaFilter = 0 },
-                                colors = ButtonDefaults.textButtonColors(contentColor = AppColors.TextPrimary)) { Text("清除筛选") }
-                        }
                     }
-                    items(visibleNotes, key = { it.id }) { note ->
-                        Surface(shape = RoundedCornerShape(20.dp), color = AppColors.SurfaceOpaque,
-                            modifier = (if (note.id == morphNoteId) Modifier else Modifier.animateItem()).sharedBounds(
-                                rememberSharedContentState(key = "note-${note.id}"),
-                                animatedVisibilityScope = this@AnimatedContent,
-                                enter = fadeIn(tween(220, delayMillis = 60)), exit = fadeOut(tween(120)),
-                                renderInOverlayDuringTransition = false,
-                                boundsTransform = { _, _ -> tween(380) })
-                                .graphicsLayer { alpha = if (editorOpen && note.id != morphNoteId) 0f else 1f }.clickable(enabled = !editorOpen) {
-                                beginNote(note)
-                            },
-                            contentColor = AppColors.TextPrimary) {
-                            Column(Modifier.fillMaxWidth().padding(16.dp),
-                                verticalArrangement = Arrangement.spacedBy(9.dp)) {
-                            Text(SimpleDateFormat("MM月dd日 HH:mm", Locale.getDefault()).format(Date(note.time)),
-                                fontSize = 11.sp, color = AppColors.TextSecondary)
-                            if (note.title.isNotBlank()) Text(note.title, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
-                                maxLines = 2, overflow = TextOverflow.Ellipsis)
-                            if (note.text.isNotEmpty()) Text(note.text, fontSize = 16.sp, lineHeight = 24.sp,
-                                maxLines = if (note.images.isNotEmpty()) 3 else 6, overflow = TextOverflow.Ellipsis)
-                            note.images.take(1).forEach { name ->
-                                val bitmap = remember(name) { scaledPhoto(store.mediaFile(name), 700) }
-                                if (bitmap != null) Image(bitmap.asImageBitmap(), "课堂照片",
-                                    Modifier.fillMaxWidth().height(112.dp),
-                                    contentScale = ContentScale.Crop)
-                            }
-                            if (note.recordings.isNotEmpty()) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Icon(Icons.Outlined.Mic, null, Modifier.size(16.dp), tint = AppColors.TextSecondary)
-                                Text("${note.recordings.size} 段录音", fontSize = 12.sp, color = AppColors.TextSecondary,
-                                    maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                            }
-                        } }
-                    }
-                }
-                    }
-                }
                 }
                 GlassActionPanel(backdrop, modifier = Modifier.align(Alignment.TopCenter).fillMaxWidth().onSizeChanged { headerHeight = it.height; if (!editorOpen) listHeaderHeight = it.height },
                     shape = RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp),
@@ -750,7 +739,7 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
                             else FilledTonalButton(enabled = !importing && !exporting, onClick = {
                                 if (stopRecording() && saveDraft()) {
                                     focusManager.clearFocus(); keyboard?.hide()
-                                    if (notes.none { it.id == editingNoteId }) { editorOpen = false; draft = ""; editingNoteId = null }
+                                    if (notes.none { it.id == editingNoteId }) editorMotion?.requestClose()
                                     else { writing = false; savedNotice = "已保存" }
                                 }
                             }, colors = ButtonDefaults.filledTonalButtonColors(containerColor = GlassTokens.AccentOnGlass.copy(alpha = .14f), contentColor = GlassTokens.AccentOnGlass)) {

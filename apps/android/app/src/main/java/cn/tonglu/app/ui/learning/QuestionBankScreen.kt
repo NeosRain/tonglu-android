@@ -1,6 +1,10 @@
 package cn.tonglu.app.ui.learning
 
 import androidx.activity.compose.BackHandler
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
+import cn.tonglu.app.ui.rememberOverlayMotionImpl
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -234,6 +238,14 @@ internal fun QuestionBankScreen(
 
     // route: "list"；否则是正在做的题库 id。
     var openBankId by rememberSaveable(owner) { mutableStateOf<String?>(null) }
+    var openMine by rememberSaveable(owner) { mutableStateOf(false) }
+    var bankOrigin by remember(owner) { mutableStateOf<ContainerOrigin?>(null) }
+    fun openBank(id: String, origin: ContainerOrigin?, personal: Boolean = false) {
+        if (openBankId != null) return
+        bankOrigin = origin
+        openMine = personal
+        openBankId = id
+    }
     var diagnosisOpen by rememberSaveable(owner) { mutableStateOf(false) }
     var realPaperSite by remember(owner) { mutableStateOf<RealPaperSite?>(null) }
 
@@ -359,7 +371,7 @@ internal fun QuestionBankScreen(
                                     downloading = downloading != null,
                                     progressPercent = downloading,
                                     badge = "私有",
-                                    onClick = {
+                                    onClick = { origin ->
                                         if (bank.remotePending && !QuestionBankStore.isDownloaded(context, bank.id)) {
                                             progress = progress + (bank.id to 0)
                                             scope.launch {
@@ -373,11 +385,11 @@ internal fun QuestionBankScreen(
                                                     mine = mine.orEmpty().map { if (it.id == downloaded.id) downloaded else it }
                                                 }.onFailure { error = it.message }
                                                 progress = progress - bank.id
-                                                if (QuestionBankStore.isDownloaded(context, bank.id)) openBankId = bank.id
+                                                if (QuestionBankStore.isDownloaded(context, bank.id)) openBank(bank.id, origin, personal = true)
                                                 else error = error ?: "题库下载失败，请稍后再试"
                                             }
                                         } else {
-                                            openBankId = bank.id
+                                            openBank(bank.id, origin, personal = true)
                                         }
                                     },
                                 )
@@ -455,7 +467,7 @@ internal fun QuestionBankScreen(
                                 wrongCount = reviewQuestions(bank, wrongKeys).size,
                                 downloading = downloading != null,
                                 progressPercent = downloading,
-                                onClick = {
+                                onClick = { origin ->
                                     if (bank.remotePending && !QuestionBankStore.isDownloaded(context, bank.id)) {
                                         error = null
                                         progress = progress + (bank.id to 0)
@@ -471,11 +483,11 @@ internal fun QuestionBankScreen(
                                             }.onFailure { error = it.message }
                                             progress = progress - bank.id
                                             // 下载完直接进去做题
-                                            if (QuestionBankStore.isDownloaded(context, bank.id)) openBankId = bank.id
+                                            if (QuestionBankStore.isDownloaded(context, bank.id)) openBank(bank.id, origin)
                                             else error = error ?: "题库下载失败，请稍后再试"
                                         }
                                     } else {
-                                        openBankId = bank.id
+                                        openBank(bank.id, origin)
                                     }
                                 },
                             )
@@ -564,13 +576,16 @@ internal fun QuestionBankScreen(
         openBankId = initialBankId
     }
 
-    val openBank = openBankId?.let { id -> banks.firstOrNull { it.id == id } }
+    val openBank = openBankId?.let { id ->
+        (if (openMine) mine.orEmpty() else banks).firstOrNull { it.id == id }
+    }
     if (openBank != null) {
         BankQuizPane(
             bank = openBank,
             owner = owner,
             store = store,
-            onExit = { openBankId = null; wrongReviewBankId = null },
+            onExit = { openBankId = null; openMine = false; wrongReviewBankId = null; bankOrigin = null },
+            launchOrigin = bankOrigin,
             onAnswered = { revision++; onPracticeChanged() },
             initialOnlyWrong = wrongReview && openBank.id == wrongReviewBankId,
         )
@@ -622,12 +637,13 @@ private fun BankCard(
     displayTitle: String = bank.title,
     compact: Boolean = false,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    onClick: (ContainerOrigin?) -> Unit,
 ) {
+    val origin = rememberLaunchSource(bank.id, 20.dp)
     OutlinedCard(
-        onClick = onClick,
+        onClick = { onClick(origin.capture()) },
         enabled = !downloading,
-        modifier = modifier.fillMaxWidth().padding(start = if (compact) 16.dp else 0.dp),
+        modifier = modifier.fillMaxWidth().padding(start = if (compact) 16.dp else 0.dp).launchOrigin(origin),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.outlinedCardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
@@ -725,6 +741,7 @@ internal fun BankQuizPane(
      * 以前只能自己进组、再点右上角「只练错题」——入口藏在三级里，等于没有。
      */
     initialOnlyWrong: Boolean = false,
+    launchOrigin: ContainerOrigin? = null,
 ) {
     val questionStates = key(owner, bank.id) { rememberSaveableStateHolder() }
     var revision by remember { mutableIntStateOf(0) }
@@ -758,10 +775,10 @@ internal fun BankQuizPane(
     val safeIndex = index.coerceIn(0, (list.size - 1).coerceAtLeast(0))
 
     // 弹层自识别左边缘拖动（Dialog 收不到系统进度，见 EnglishHubScreen 里的说明）。
-    val motion = rememberOverlayMotion(
+    val motion = rememberOverlayMotionImpl(
         onClose = { OverlayDismissGuard.arm(); onExit() },
         predictive = OverlayMotion.enabledState,
-        selfDrag = true,
+        selfDrag = true, origin = launchOrigin, takePending = false,
     )
     Dialog(
         onDismissRequest = { motion.requestClose() },

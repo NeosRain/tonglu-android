@@ -12,7 +12,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.data.ScheduleText
@@ -28,7 +27,7 @@ internal fun WeeklyTimetablePager(
     modifier: Modifier = Modifier, onImport: (() -> Unit)? = null,
     dateEpochDay: Long = ScheduleText.todayEpochDay(),
     onLongPressCourse: (CourseDto) -> Unit,
-    onTapCourse: (CourseDto, Rect) -> Unit = { _, _ -> },
+    onTapCourse: (CourseDto, ContainerOrigin?) -> Unit = { _, _ -> },
     onRescheduleCourse: ((CourseDto, CourseDto, (Boolean, String) -> Unit) -> Unit)? = null,
 ) {
     val today = remember(dateEpochDay) { ScheduleText.todayWeekday() }

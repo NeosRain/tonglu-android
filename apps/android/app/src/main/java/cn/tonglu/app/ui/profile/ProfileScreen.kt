@@ -19,9 +19,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import cn.tonglu.app.ui.OverlayMotion
+import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.LaunchOrigin
+import cn.tonglu.app.ui.launchClickable
 import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import cn.tonglu.app.ui.overlayMotion
-import cn.tonglu.app.ui.rememberOverlayMotion
+import cn.tonglu.app.ui.rememberOverlayMotionImpl
 
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 
@@ -99,7 +103,7 @@ private fun ProfileFeatureGrid(features: List<ProfileFeature>) {
                 Row(Modifier.fillMaxWidth()) {
                     row.forEach { feature ->
                         Column(
-                            Modifier.weight(1f).launchOrigin().clickable(onClick = feature.onClick)
+                            Modifier.weight(1f).launchClickable(feature.title, onClick = feature.onClick)
                                 .padding(vertical = 12.dp, horizontal = 2.dp),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -133,9 +137,10 @@ private fun ProfileCategoryRow(
     summary: String,
     icon: ImageVector,
     color: Color,
-    onClick: () -> Unit,
+    onOpen: (String, ContainerOrigin?) -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth().launchOrigin().clickable(onClick = onClick).padding(16.dp),
+    val origin = rememberLaunchSource(title, surfaceColor = AppColors.SurfaceOpaque)
+    Row(Modifier.fillMaxWidth().launchOrigin(origin).clickable { onOpen(title, origin.capture()) }.padding(16.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         ProfileIcon(icon, color)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -149,14 +154,16 @@ private fun ProfileCategoryRow(
 }
 
 @Composable
-private fun ProfileCategoryPage(title: String, onClose: () -> Unit, content: LazyListScope.() -> Unit) {
-    val motion = rememberOverlayMotion(
+private fun ProfileCategoryPage(
+    title: String, origin: ContainerOrigin?, onClose: () -> Unit, content: LazyListScope.() -> Unit,
+) {
+    val motion = rememberOverlayMotionImpl(
         onClose = { OverlayDismissGuard.arm(); onClose() },
-        predictive = OverlayMotion.enabledState, selfDrag = true,
+        predictive = OverlayMotion.enabledState, selfDrag = true, origin = origin, takePending = false,
     )
     Dialog(onDismissRequest = { motion.requestClose() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
-        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false),
+        Surface(Modifier.fillMaxSize().overlayMotion(motion, fade = false, containerColor = AppColors.CanvasOpaque),
             color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
             val dark = GlassTokens.DarkGlass
             val safeTop = WindowInsets.safeDrawing.only(WindowInsetsSides.Top)
@@ -219,6 +226,7 @@ internal fun ProfileScreen(
     onOpenAccountSettings: () -> Unit,
     /** 「我的等级」全屏层（`docs/plan/66`）。**登录后才显示** —— 等级是账号的，没有账号就没有等级。 */
     onOpenMyLevel: () -> Unit,
+    onOpenTrustLevel: () -> Unit,
     /** 「我的消息」全屏层：信任等级变动、被处理内容、规则更新都走这里。 */
     onOpenNotices: () -> Unit,
     onOpenLaboratory: () -> Unit,
@@ -252,6 +260,12 @@ internal fun ProfileScreen(
 ) {
     var showFeedback by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
+    var settingsOrigin by remember { mutableStateOf<ContainerOrigin?>(null) }
+    fun openSettings(title: String, origin: ContainerOrigin?) {
+        if (settingsPage != null) return
+        settingsOrigin = origin
+        settingsPage = title
+    }
     val session = state.session
     // 这个 Composable 是独立函数（不在外层那个 scope 的作用域里），导出/导入要用自己的。
     val scope = rememberCoroutineScope()
@@ -365,7 +379,7 @@ internal fun ProfileScreen(
                     // 未登录仍然直接拉起登录/注册（2026-10-10 用户反馈的原路径，保留）。
                     UserAvatar(
                         session?.displayName, session?.avatarUrl,
-                        Modifier.size(54.dp).clickable(enabled = !state.busy) {
+                        Modifier.size(54.dp).launchClickable(session?.userId, 27.dp, enabled = !state.busy) {
                             if (session == null) onLogin() else onOpenAccountSettings()
                         },
                     )
@@ -397,7 +411,9 @@ internal fun ProfileScreen(
                     // 文案不说「可选」——等级/成就/云同步都依赖账号，说成可选会让人一直不用。
                     TextButton(onClick = onLogin, enabled = !state.busy) { Text("注册或登录") }
                 } else {
-                    TextButton(onClick = onOpenAccountSettings, enabled = !state.busy) { Text("个人资料") }
+                    val origin = rememberLaunchSource("profile", 20.dp)
+                    TextButton(onClick = { origin.launch(onOpenAccountSettings) }, enabled = !state.busy,
+                        modifier = Modifier.launchOrigin(origin)) { Text("个人资料") }
                 }
             }
             }
@@ -418,23 +434,31 @@ internal fun ProfileScreen(
                 ProfileFeatureGrid(features)
             }
         }
+        item(key = "community-trust-level") {
+            ProfileCard(insideMargin = PaddingValues(0.dp)) {
+                ProfileCategoryRow("我的信任等级", "社区准则与晋升条件", Icons.Rounded.VerifiedUser, ProfileGreen) { _, origin ->
+                    origin?.let(LaunchOrigin::arm)
+                    onOpenTrustLevel()
+                }
+            }
+        }
         item { Text("设置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        item {
+        item(key = "settings-categories") {
             ProfileCard(insideMargin = PaddingValues(0.dp)) {
                 ProfileCategoryRow("课表与提醒",
                     if (remindEnabled) "课前提醒已开启 · 提前 $remindLead 分钟" else "课前提醒已关闭",
-                    Icons.Rounded.EventNote, ProfileGreen) { settingsPage = "课表与提醒" }
+                    Icons.Rounded.EventNote, ProfileGreen, ::openSettings)
                 HorizontalDivider(color = AppColors.Divider, modifier = Modifier.padding(start = 76.dp, end = 16.dp))
                 ProfileCategoryRow("外观与动画",
                     if (glassNav) "液态玻璃已开启" else "液态玻璃已关闭",
-                    Icons.Rounded.Palette, ProfilePurple) { settingsPage = "外观与动画" }
+                    Icons.Rounded.Palette, ProfilePurple, ::openSettings)
                 HorizontalDivider(color = AppColors.Divider, modifier = Modifier.padding(start = 76.dp, end = 16.dp))
                 ProfileCategoryRow("账号与数据",
                     session?.let { "已登录 @${it.username}" } ?: "未登录",
-                    Icons.Rounded.ManageAccounts, ProfileBlue) { settingsPage = "账号与数据" }
+                    Icons.Rounded.ManageAccounts, ProfileBlue, ::openSettings)
                 HorizontalDivider(color = AppColors.Divider, modifier = Modifier.padding(start = 76.dp, end = 16.dp))
                 ProfileCategoryRow("应用更新", "当前版本 ${cn.tonglu.app.BuildConfig.VERSION_NAME}",
-                    Icons.Rounded.SystemUpdate, ProfileGray) { settingsPage = "应用更新" }
+                    Icons.Rounded.SystemUpdate, ProfileGray, ::openSettings)
             }
         }
         item {
@@ -443,7 +467,7 @@ internal fun ProfileScreen(
     }
 
     settingsPage?.let { page ->
-        ProfileCategoryPage(page, onClose = { settingsPage = null }) {
+        ProfileCategoryPage(page, settingsOrigin, onClose = { settingsPage = null; settingsOrigin = null }) {
             when (page) {
                 "课表与提醒" -> {
                     item {
@@ -653,7 +677,7 @@ internal fun ProfileScreen(
                     if (session != null) item {
                         ProfileCard(insideMargin = PaddingValues(16.dp)) {
                             Row(
-                                Modifier.fillMaxWidth().clickable(onClick = onOpenAccountSettings),
+                                Modifier.fillMaxWidth().launchClickable("account-settings", onClick = onOpenAccountSettings),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
                                 Column(Modifier.weight(1f)) {

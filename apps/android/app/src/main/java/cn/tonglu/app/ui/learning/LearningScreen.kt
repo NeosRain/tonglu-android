@@ -5,6 +5,8 @@ import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 import cn.tonglu.app.ui.*
 import androidx.activity.compose.BackHandler
 
+import cn.tonglu.app.ui.LaunchOrigin
+import cn.tonglu.app.ui.launchClickable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -282,7 +284,7 @@ internal fun LearningScreen(
     LaunchedEffect(focusPath, tab, catalogQuery) { libraryListState.scrollToItem(0) }
     val open: (LearningArticle) -> Unit = { article ->
         store.recordOpen(article); libraryRevision++
-        dialog = LearningDialog.Reader(article.id)
+        dialog = LearningDialog.Reader(article.id, origin = LaunchOrigin.takeContainer())
         lastArticle = article.id; store.lastArticle = article.id
     }
     // 个人书架观察元数据，续读只取最后一章，避免学习主页加载全部书籍的正文。
@@ -317,19 +319,22 @@ internal fun LearningScreen(
     LearningDialogs(
         dialog = dialog,
         // 记录页只需要标题元数据；个人正文仍由阅读器按当前账号和章节单独读取。
-        catalog = if (dialog == LearningDialog.Reading || dialog is LearningDialog.NoteEditor || dialog is LearningDialog.DeleteReading)
+        catalog = if (dialog == LearningDialog.Reading || dialog is LearningDialog.NoteEditor ||
+            dialog is LearningDialog.DeleteReading || (dialog as? LearningDialog.Reader)?.parent == LearningDialog.Reading ||
+            (dialog as? LearningDialog.Ai)?.reader?.parent == LearningDialog.Reading)
             data.copy(articles = data.articles + myShelf.map(personalRepository::toLearningArticle)) else data,
         store = store, favorites = favorites,
         lastArticle = lastArticleObj, search = search, owner = owner, signedIn = signedIn,
         onAsk = onAsk, onTranslate = onTranslate, onPublishNote = onPublishNote,
         onShow = { dialog = it }, onClose = closeDialog,
         onOpen = { target ->
+            val origin = LaunchOrigin.takeContainer()
             personalScope.launch {
                 try {
                     val article = data.articles.firstOrNull { it.id == target.articleId }
                         ?: personalRepository.myArticle(target.articleId, owner)?.let(personalRepository::toLearningArticle)
                         ?: error("文章不存在或不属于当前账号")
-                    closeDialog(target)
+                    closeDialog(target.copy(origin = origin))
                     store.recordOpen(article); libraryRevision++
                     lastArticle = article.id; store.lastArticle = article.id
                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
@@ -529,7 +534,7 @@ private fun ArticleRow(article: LearningArticle, library: ReadingLibrary, modifi
     val score = record?.score ?: 0f
     val finished = library.finishedCount(article.id) > 0
     Surface(modifier, color = learningCardColor(AppColors.SurfaceOpaque), shape = RoundedCornerShape(22.dp)) {
-        Row(Modifier.fillMaxWidth().clickable(onClick = onOpen).padding(16.dp),
+        Row(Modifier.fillMaxWidth().launchClickable(article.id, 22.dp, onClick = onOpen).padding(16.dp),
             verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             LibraryCover(article.title, if (article.kind == "LINK") "导航" else "文章")
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {

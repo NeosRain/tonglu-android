@@ -3,6 +3,8 @@ package cn.tonglu.app.ui.square
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 
 import android.content.Intent
+import cn.tonglu.app.ui.launchOrigin
+import cn.tonglu.app.ui.rememberLaunchSource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -336,9 +338,11 @@ internal fun SquarePostCard(
     var truncated by rememberSaveable(post.id) { mutableStateOf(false) }
     val toggle = expandToggleLabel(truncated = truncated, expanded = expanded)
 
-    MiuixCard(insideMargin = CardInside, cornerRadius = CardCorner) {
+    val origin = rememberLaunchSource(post.id, CardCorner)
+    val open = { origin.launch(onOpen) }
+    MiuixCard(modifier = Modifier.launchOrigin(origin), insideMargin = CardInside, cornerRadius = CardCorner) {
         // 整块卡片可点进详情（楼层）；卡内的快捷评论框、查看更多、举报都是内层 clickable，不会冒泡上来。
-        Column(Modifier.fillMaxWidth().pressable(scale = 0.99f, onClick = onOpen)) {
+        Column(Modifier.fillMaxWidth().pressable(scale = 0.99f, onClick = open)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 UserAvatar(post.author?.displayName, post.author?.avatarUrl, Modifier.size(34.dp))
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
@@ -402,7 +406,7 @@ internal fun SquarePostCard(
             Surface(
                 color = AppColors.Canvas,
                 shape = RoundedCornerShape(12.dp),
-                modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clickable(onClick = onOpen),
+                modifier = Modifier.fillMaxWidth().padding(top = 10.dp).clickable(onClick = open),
             ) {
                 Text("说点儿什么吧", color = Muted, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp))
             }
@@ -412,7 +416,7 @@ internal fun SquarePostCard(
                     icon = { Icon(Icons.Outlined.ChatBubbleOutline, null, tint = Accent, modifier = Modifier.size(16.dp)) },
                     label = commentCountLabel(post._count?.comments),
                     tint = Accent,
-                    onClick = onOpen,
+                    onClick = open,
                 )
                 if (showShare) {
                     Spacer(Modifier.width(16.dp))
