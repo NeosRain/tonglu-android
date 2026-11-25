@@ -9,8 +9,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -19,6 +21,8 @@ import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.data.PeriodTable
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.ContainerOrigin
+import cn.tonglu.app.ui.CourseOverlapDialog
+import cn.tonglu.app.ui.CourseOverlapSelection
 import cn.tonglu.app.ui.launchOrigin
 import cn.tonglu.app.ui.rememberLaunchSource
 import cn.tonglu.app.ui.shortPlace
@@ -33,8 +37,14 @@ internal fun courseTiming(course: CourseDto, now: Int): TodayCourseTiming = toda
 @Composable
 internal fun TodayGlassCourses(courses: List<CourseDto>, onTap: (CourseDto, ContainerOrigin?) -> Unit,
     onLongPress: (CourseDto) -> Unit, forceFinished: Boolean = false) {
-    if (!forceFinished) NextGlassCourse(courses, onTap, onLongPress)
-    val grouped = courses.sortedBy { it.startPeriod }.groupBy { courseTiming(it, 0).group }
+    val segments = remember(courses) { timetableSegments(courses) }
+    var overlapping by remember(courses) { mutableStateOf<CourseOverlapSelection?>(null) }
+    val onChoose: (CourseOverlapSelection) -> Unit = { overlapping = it }
+    if (!forceFinished) NextGlassCourse(courses, segments, onTap, onLongPress, onChoose)
+    val grouped = segments.groupBy { segment ->
+        val start = PeriodTable.slot(segment.startPeriod)?.let { PeriodTable.parseMinutes(it.start) }
+        todayCourseTiming(start, null, 0).group
+    }
     TodayCourseGroup.entries.forEach { group ->
         val items = grouped[group].orEmpty()
         if (items.isNotEmpty()) {
@@ -42,21 +52,43 @@ internal fun TodayGlassCourses(courses: List<CourseDto>, onTap: (CourseDto, Cont
             Text(group.label, style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary,
                 modifier = Modifier.background(AppColors.Accent.copy(alpha = .09f), RoundedCornerShape(50))
                     .padding(horizontal = 10.dp, vertical = 4.dp))
-            items.forEach { course -> key(course.id) {
-                TodayGlassCourseRow(course, onTap, onLongPress, forceFinished)
+            items.forEach { segment -> key(segment.startPeriod) {
+                val course = segment.courses.singleOrNull()
+                if (course != null && course.startPeriod == segment.startPeriod && course.endPeriod == segment.endPeriod) {
+                    TodayGlassCourseRow(course, onTap, onLongPress, forceFinished)
+                } else {
+                    TodayCourseSegment(segment, onTap, onLongPress, onChoose, forceFinished)
+                }
             } }
         }
+    }
+    overlapping?.let { selection ->
+        CourseOverlapDialog(selection, onSelect = onTap, onDismiss = { overlapping = null })
     }
 }
 
 @Composable
-private fun NextGlassCourse(courses: List<CourseDto>, onTap: (CourseDto, ContainerOrigin?) -> Unit, onLongPress: (CourseDto) -> Unit) {
+private fun NextGlassCourse(courses: List<CourseDto>, segments: List<TimetableSegment>,
+    onTap: (CourseDto, ContainerOrigin?) -> Unit, onLongPress: (CourseDto) -> Unit,
+    onChoose: (CourseOverlapSelection) -> Unit) {
     val now by rememberTimetableMinute()
     val course = courses.sortedBy { it.startPeriod }.firstOrNull {
         courseTiming(it, now).state == TodayCourseState.Ongoing
     } ?: courses.sortedBy { it.startPeriod }.firstOrNull { courseTiming(it, now).state == TodayCourseState.Upcoming }
     if (course == null) return
     val timing = courseTiming(course, now)
+    val label = if (timing.state == TodayCourseState.Ongoing) "正在上课" else "下节课"
+    val currentSegment = segments.lastOrNull {
+        course in it.courses && PeriodTable.slot(it.startPeriod)?.let { slot -> PeriodTable.parseMinutes(slot.start) <= now } == true
+    } ?: segments.firstOrNull { course in it.courses }
+    if (currentSegment != null && currentSegment.courses.size > 1) {
+        Row(Modifier.fillMaxWidth().padding(top = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(label, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+            Text(timing.countdown, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+        }
+        TodayCourseSegment(currentSegment, onTap, onLongPress, onChoose, forceFinished = false)
+        return
+    }
     val origin = rememberLaunchSource(course.id, 18.dp)
     Row(Modifier.fillMaxWidth().padding(top = 10.dp)
         .background(AppColors.Accent.copy(alpha = .08f), RoundedCornerShape(18.dp))
@@ -64,8 +96,7 @@ private fun NextGlassCourse(courses: List<CourseDto>, onTap: (CourseDto, Contain
         .pointerInput(course) { detectTapGestures(onTap = { onTap(course, origin.capture()) }, onLongPress = { onLongPress(course) }) }
         .padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Column(Modifier.weight(1f)) {
-            Text(if (timing.state == TodayCourseState.Ongoing) "正在上课" else "下节课",
-                color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+            Text(label, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
             Text(course.name, color = AppColors.TextPrimary, style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
             Text(coursePeople(course), color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall,
@@ -73,6 +104,43 @@ private fun NextGlassCourse(courses: List<CourseDto>, onTap: (CourseDto, Contain
         }
         Text(timing.countdown, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall,
             textAlign = TextAlign.End, modifier = Modifier.widthIn(max = 116.dp))
+    }
+}
+
+@Composable
+private fun TodayCourseSegment(segment: TimetableSegment, onTap: (CourseDto, ContainerOrigin?) -> Unit,
+    onLongPress: (CourseDto) -> Unit, onChoose: (CourseOverlapSelection) -> Unit, forceFinished: Boolean) {
+    val periods = if (segment.startPeriod == segment.endPeriod) "第 ${segment.startPeriod} 节"
+        else "第 ${segment.startPeriod}–${segment.endPeriod} 节"
+    Row(Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 3.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(periods, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+        val time = PeriodTable.timeText(segment.startPeriod, segment.endPeriod)
+        if (time.isNotBlank()) Text(time, color = AppColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+    }
+    val height = (20f + 64f * LocalDensity.current.fontScale).dp
+    TimetableSegmentRow(segment, Modifier.fillMaxWidth().height(height)) { course, cell, hiddenCount ->
+        ReadOnlyCourseTile(course, hiddenCount, cell.fillMaxHeight(),
+            onTap = { origin ->
+                if (hiddenCount > 0) onChoose(CourseOverlapSelection(segment.courses, origin))
+                else onTap(course, origin)
+            },
+            onLongPress = if (hiddenCount == 0) ({ onLongPress(course) }) else null,
+        ) { ink ->
+            Column(
+                Modifier.fillMaxWidth().padding(
+                    start = 8.dp, end = 8.dp, top = if (hiddenCount > 0) 18.dp else 8.dp, bottom = 8.dp,
+                ),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(course.name, color = ink, fontWeight = FontWeight.SemiBold,
+                    style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                shortPlace(course.location)?.let {
+                    Text(it, color = ink, style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                TodayGlassStatus(course, forceFinished, color = ink)
+            }
+        }
     }
 }
 
@@ -110,8 +178,8 @@ private fun Modifier.graphicsFinished(course: CourseDto, now: State<Int>, forceF
     })
 
 @Composable
-private fun TodayGlassStatus(course: CourseDto, forceFinished: Boolean) {
+private fun TodayGlassStatus(course: CourseDto, forceFinished: Boolean, color: Color = AppColors.TextSecondary) {
     val now by rememberTimetableMinute()
     Text(if (forceFinished) TodayCourseState.Finished.label else courseTiming(course, now).state.label,
-        style = MaterialTheme.typography.labelSmall, color = AppColors.TextSecondary)
+        style = MaterialTheme.typography.labelSmall, color = color)
 }

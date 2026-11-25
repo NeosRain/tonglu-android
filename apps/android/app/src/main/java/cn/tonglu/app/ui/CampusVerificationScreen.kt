@@ -40,14 +40,15 @@ import cn.tonglu.app.data.ProofPhoto
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
 
 @Composable
-fun CampusVerificationScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> Unit, onLogin: () -> Unit) {
+fun CampusVerificationScreen(state: AppUiState, viewModel: AppViewModel, onBack: () -> Unit, onLogin: () -> Unit,
+    openEmail: Boolean = false) {
     // 返回由外层统一处理，本页表单没有独立的返回层级。
     val context = LocalContext.current
     val identity = state.campusIdentity
     val busy = state.identityBusy
     val lifecycleOwner = LocalLifecycleOwner.current
     val blue = AppColors.Accent
-    var method by rememberSaveable(state.session?.sessionId) { mutableStateOf("CHSI") }
+    var method by rememberSaveable(state.session?.sessionId, openEmail) { mutableStateOf(if (openEmail) "EMAIL" else "CHSI") }
     var email by remember { mutableStateOf("") }
     var code by remember { mutableStateOf("") }
     // 证明材料不写 SavedState、SharedPreferences 或 Room。

@@ -17,6 +17,9 @@ data class SetDisplayNameRequest(val displayName: String)
 
 data class CaptchaDto(val id: String, val image: String)
 data class RegisterCodeRequest(val email: String, val captchaId: String, val captchaAnswer: String)
+data class ResetCodeResponse(val expiresInSeconds: Int, val cooldownSeconds: Int)
+data class ResetPasswordRequest(val email: String, val code: String, val newPassword: String)
+data class ChangePasswordRequest(val oldPassword: String, val newPassword: String)
 
 /**
  * 邮箱注册。

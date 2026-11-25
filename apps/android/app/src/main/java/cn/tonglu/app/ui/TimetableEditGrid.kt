@@ -1,7 +1,6 @@
 package cn.tonglu.app.ui
 
 import cn.tonglu.app.ui.timetable.*
-import androidx.compose.foundation.border
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
@@ -17,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -25,6 +25,7 @@ import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -59,7 +60,8 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
     val latestDragging by rememberUpdatedState(onDragging)
     val latestTap by rememberUpdatedState(onTapCourse)
     val rows = maxOf(PeriodTable.maxPeriod(), allCourses.maxOfOrNull { it.endPeriod } ?: 8, 8).coerceAtMost(30)
-    val lanes = remember(courses) { ScheduleMoveRules.groupedLanes(courses) }
+    val segmentsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> timetableSegments(items) } }
+    var overlapping by remember(courses) { mutableStateOf<CourseOverlapSelection?>(null) }
     val slots = PeriodTable.slots()
     val breaks = timetableBreaks(slots).filter { it.afterPeriod < rows }
     val rowHeight = 76.dp
@@ -73,9 +75,7 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
     DisposableEffect(Unit) { onDispose { latestDragging(false) } }
     BoxWithConstraints(modifier.fillMaxWidth()) {
         val timeWidth = 48.dp
-        // Do not squeeze overlapping classes into unreadable strips. The header and grid scroll together.
-        val laneCount = lanes.values.maxOfOrNull { it.second } ?: 1
-        val readableWidth = 30.dp * laneCount * density.fontScale.coerceIn(1f, 1.6f)
+        val readableWidth = 30.dp * density.fontScale.coerceIn(1f, 1.6f)
         val dayWidth = ((maxWidth - timeWidth) / 7).coerceAtLeast(readableWidth)
         // 可编辑时翻周滑动让给拖拽；只有七天放不下、网格能横向滚动时才提示左右滑。
         val overflows = dayWidth > (maxWidth - timeWidth) / 7
@@ -147,71 +147,102 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
                             }
                     }
                     breaks.forEach { rest ->
-                        val covered = courses.mapNotNull { course ->
-                            val shown = if (active?.id == course.id) proposed ?: course else course
-                            if (shown.startPeriod <= rest.afterPeriod && shown.endPeriod > rest.afterPeriod) {
-                                val (lane, count) = lanes[course.id] ?: (0 to 1)
-                                val left = (shown.weekday - 1 + lane.toFloat() / count) / 7f
-                                left to left + 1f / (7 * count)
-                            } else null
-                        }
+                        val covered = (1..7).filter { day ->
+                            segmentsByDay[day].orEmpty().any {
+                                it.startPeriod <= rest.afterPeriod && it.endPeriod > rest.afterPeriod
+                            } || proposed?.let {
+                                it.weekday == day && it.startPeriod <= rest.afterPeriod && it.endPeriod > rest.afterPeriod
+                            } == true
+                        }.map { day -> (day - 1) / 7f to day / 7f }
                         TimetableBreakPill(rest.label, Modifier.offset(x = timeWidth,
                             y = (periodTop(rest.afterPeriod, rowHeight.value, breaks, 22f) + rowHeight.value).dp)
                             .width(dayWidth * 7).maskTimetableBreak(covered))
                     }
-                    courses.forEach { course -> key(course.id) {
-                        val origin = rememberLaunchSource(course.id, 14.dp)
-                        var rootY by remember { mutableFloatStateOf(0f) }
-                        val glass = glassColors(courseColor(course.name))
-                        val shown = if (active?.id == course.id) proposed ?: course else course
-                        val placement = lanes[course.id] ?: (0 to 1)
-                        val lane = placement.first
-                        val count = placement.second
-                        val width = dayWidth / count
-                        Box(Modifier.offset(x = timeWidth + dayWidth * (shown.weekday - 1) + width * lane,
-                            y = periodTop(shown.startPeriod, rowHeight.value, breaks, 22f).dp).width(width)
-                            .height(courseGridHeight(shown.startPeriod, shown.endPeriod, rowHeight.value, breaks, 22f).dp).padding(2.dp)
-                            .zIndex(if (active?.id == course.id) 2f else 0f)
-                            .onGloballyPositioned {
-                                rootY = it.positionInRoot().y
-                            }.launchOrigin(origin).shadow(if (active?.id == course.id) 8.dp else 0.dp, RoundedCornerShape(14.dp))
-                            .clip(RoundedCornerShape(14.dp)).courseGlass(glass)
-                            .border(1.dp, glass.border, RoundedCornerShape(14.dp))
-                            .semantics { contentDescription = "${course.name}，${ScheduleText.weekdayLabel(shown.weekday)}，${shown.startPeriod}–${shown.endPeriod}节；长按中间移动，上下边缘调整时长" }
-                            .pointerInput(course, busy) { detectTapGestures(onTap = { if (!busy) latestTap(course, origin.capture()) }) }
-                            .pointerInput(course, dayPx, rowPx, breaks, busy) {
-                                if (!busy && course.startPeriod in 1..course.endPeriod && course.endPeriod <= rows)
-                                    detectDragGesturesAfterLongPress(
-                                        onDragStart = { point ->
-                                            dx = 0f; dy = 0f; scrollAtStart = scroll.value
-                                            pointerStartY = periodTop(course.startPeriod, rowPx, breaks, breakPx) + insetPx + point.y
-                                            mode = ScheduleMoveRules.gripMode(point.y, size.height.toFloat(), edgePx)
-                                            fingerY = rootY + point.y; dragOrigin = origin.capture()
-                                            active = course; proposed = course; latestDragging(true)
-                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                        },
-                                        onDragCancel = { active = null; proposed = null; dragOrigin = null; latestDragging(false) },
-                                        onDragEnd = {
-                                            val next = proposed
-                                            active = null; proposed = null; latestDragging(false)
-                                            if (next != null && next != course) { pending = Triple(course, next, dragOrigin); error = null }
-                                            dragOrigin = null
-                                        },
-                                        onDrag = { change, amount ->
-                                            change.consume(); dx += amount.x; dy += amount.y; fingerY += amount.y; updateProposal()
-                                        })
-                            }) {
-                            CourseCardContent(course, shown, foreground = glass.ink)
-                            Box(Modifier.align(Alignment.TopCenter).padding(top = 3.dp).width(16.dp).height(2.dp)
-                                .background(glass.ink.copy(alpha = .65f), RoundedCornerShape(2.dp)))
-                            Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp).width(16.dp).height(2.dp)
-                                .background(glass.ink.copy(alpha = .65f), RoundedCornerShape(2.dp)))
+                    for ((day, segments) in segmentsByDay) {
+                        for (segment in segments) key(day, segment.startPeriod) {
+                            val height = courseGridHeight(segment.startPeriod, segment.endPeriod, rowHeight.value, breaks, 22f).dp
+                            TimetableSegmentRow(segment, Modifier.offset(x = timeWidth + dayWidth * (day - 1),
+                                y = periodTop(segment.startPeriod, rowHeight.value, breaks, 22f).dp).width(dayWidth)
+                                .padding(horizontal = courseColumnInsetDp.dp)) { course, cell, hiddenCount ->
+                                val origin = rememberLaunchSource(course.id, courseTileCorner)
+                                val glass = glassColors(courseColor(course.name))
+                                val showStart = segment.startPeriod == course.startPeriod
+                                val showEnd = segment.endPeriod == course.endPeriod
+                                var rootY by remember { mutableFloatStateOf(0f) }
+                                fun tap() {
+                                    if (hiddenCount > 0) overlapping = CourseOverlapSelection(segment.courses, origin.capture())
+                                    else latestTap(course, origin.capture())
+                                }
+                                val latestTapTile by rememberUpdatedState(::tap)
+                                Box(cell.height(height).padding(vertical = 2.dp)
+                                    .onGloballyPositioned { rootY = it.positionInRoot().y }
+                                    .launchOrigin(origin).alpha(if (active?.id == course.id && proposed != course) .35f else 1f)
+                                    .courseTile(glass)
+                                    .semantics {
+                                        contentDescription = "${course.name}，${ScheduleText.weekdayLabel(day)}，${segment.startPeriod}–${segment.endPeriod}节"
+                                        if (!busy) onClick(if (hiddenCount > 0) "查看全部 ${hiddenCount + 1} 门重叠课程" else "查看课程") {
+                                            latestTapTile()
+                                            true
+                                        }
+                                    }
+                                    .pointerInput(course, busy) {
+                                        detectTapGestures(onTap = { if (!busy) latestTapTile() })
+                                    }
+                                    .pointerInput(course, segment.startPeriod, segment.endPeriod, dayPx, rowPx, breaks, busy) {
+                                        if (!busy && course.startPeriod in 1..course.endPeriod && course.endPeriod <= rows)
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = { point ->
+                                                    dx = 0f; dy = 0f; scrollAtStart = scroll.value
+                                                    pointerStartY = periodTop(segment.startPeriod, rowPx, breaks, breakPx) + insetPx + point.y
+                                                    mode = when (val grip = ScheduleMoveRules.gripMode(point.y, size.height.toFloat(), edgePx)) {
+                                                        CourseDragMode.Start -> if (showStart) grip else CourseDragMode.Move
+                                                        CourseDragMode.End -> if (showEnd) grip else CourseDragMode.Move
+                                                        CourseDragMode.Move -> grip
+                                                    }
+                                                    fingerY = rootY + point.y; dragOrigin = origin.capture()
+                                                    active = course; proposed = course; latestDragging(true)
+                                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                },
+                                                onDragCancel = { active = null; proposed = null; dragOrigin = null; latestDragging(false) },
+                                                onDragEnd = {
+                                                    val next = proposed
+                                                    active = null; proposed = null; latestDragging(false)
+                                                    if (next != null && next != course) { pending = Triple(course, next, dragOrigin); error = null }
+                                                    dragOrigin = null
+                                                },
+                                                onDrag = { change, amount ->
+                                                    change.consume(); dx += amount.x; dy += amount.y; fingerY += amount.y; updateProposal()
+                                                })
+                                    }) {
+                                    if (segment.courses.size > 1) OverlapCardContent(course, glass.ink, hiddenCount > 0)
+                                    else CourseCardContent(course, foreground = glass.ink, singlePeriod = segment.startPeriod == segment.endPeriod)
+                                    if (hiddenCount > 0) CourseOverlapBadge(hiddenCount,
+                                        Modifier.align(Alignment.TopEnd).padding(top = 3.dp, end = 3.dp))
+                                    if (showStart && hiddenCount == 0) CourseGrip(glass.ink,
+                                        Modifier.align(Alignment.TopCenter).padding(top = 3.dp))
+                                    if (showEnd) CourseGrip(glass.ink, Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp))
+                                }
+                            }
                         }
-                    } }
+                    }
+                    proposed?.takeIf { it != active }?.let { course ->
+                        val glass = glassColors(courseColor(course.name))
+                        Box(Modifier.offset(x = timeWidth + dayWidth * (course.weekday - 1),
+                            y = periodTop(course.startPeriod, rowHeight.value, breaks, 22f).dp).width(dayWidth)
+                            .height(courseGridHeight(course.startPeriod, course.endPeriod, rowHeight.value, breaks, 22f).dp)
+                            .padding(2.dp).zIndex(2f).shadow(8.dp, courseTileShape).courseTile(glass)) {
+                            CourseCardContent(course, glass.ink)
+                            CourseGrip(glass.ink, Modifier.align(Alignment.TopCenter).padding(top = 3.dp))
+                            CourseGrip(glass.ink, Modifier.align(Alignment.BottomCenter).padding(bottom = 3.dp))
+                        }
+                    }
                     TimetableNowLine(slots, rowHeight, today, timeWidth, dayWidth)
                 }
             }
         }
+    }
+    overlapping?.let { selection ->
+        CourseOverlapDialog(selection, onSelect = latestTap, onDismiss = { overlapping = null })
     }
     pending?.let { (before, after, origin) ->
         CoursePopup(origin, onDismiss = { pending = null; busy = false; error = null }, dismissEnabled = !busy) { close ->
@@ -240,4 +271,9 @@ internal fun TimetableEditGrid(courses: List<CourseDto>, allCourses: List<Course
             }
         }
     }
+}
+
+@Composable
+private fun CourseGrip(ink: Color, modifier: Modifier) {
+    Box(modifier.width(16.dp).height(2.dp).background(ink.copy(alpha = .65f), RoundedCornerShape(2.dp)))
 }

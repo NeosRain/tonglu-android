@@ -5,6 +5,14 @@ import cn.tonglu.app.ui.profile.MyLevelScreen
 import cn.tonglu.app.ui.profile.NoticesScreen
 import cn.tonglu.app.ui.profile.ProfileScreen
 import cn.tonglu.app.ui.home.HomeScreen
+import cn.tonglu.app.data.SessionStore
+import cn.tonglu.app.data.diary.DiaryOpenRequest
+import cn.tonglu.app.data.diary.DiaryReminderKind
+import cn.tonglu.app.data.diary.DiaryReminders
+import cn.tonglu.app.data.diary.DiaryStore
+import cn.tonglu.app.ui.diary.DiaryNavigation
+import cn.tonglu.app.ui.diary.DiaryPage
+import cn.tonglu.app.ui.diary.rememberDiaryState
 import cn.tonglu.app.ui.learning.LearningScreen
 import cn.tonglu.app.ui.map.CampusMapScreen
 import androidx.compose.foundation.pager.HorizontalPager
@@ -237,7 +245,11 @@ private val NavInkSoft: Color get() = AppColors.TextSecondary
 private val Muted: Color get() = AppColors.TextMuted
 
 @Composable
-fun TongluApp(viewModel: AppViewModel = viewModel()) {
+internal fun TongluApp(
+    viewModel: AppViewModel = viewModel(),
+    diaryRequest: DiaryOpenRequest? = null,
+    onDiaryRequestHandled: () -> Unit = {},
+) {
     ThemeSystemBars()
     val context = androidx.compose.ui.platform.LocalContext.current
     val settingsPrefs = remember { context.getSharedPreferences("tonglu_settings", android.content.Context.MODE_PRIVATE) }
@@ -250,12 +262,18 @@ fun TongluApp(viewModel: AppViewModel = viewModel()) {
         startupState.session?.userId?.takeIf { it.isNotBlank() }
             ?: startupState.session?.username?.takeIf { it.isNotBlank() }
             ?: cn.tonglu.app.data.SessionStore.LOCAL_OWNER
+    LaunchedEffect(startupOwner) {
+        if (startupOwner != null) DiaryReminders.scheduleAsync(context)
+    }
     cn.tonglu.app.ui.startup.LaunchAnimationHost(ready = startupState.ready, owner = startupOwner) {
         CompositionLocalProvider(LocalGlassNavigationEnabled provides useGlassNav) {
-            TongluAppContent(viewModel, glassNavSetting, onGlassNavChange = { enabled ->
-                glassNavSetting = enabled
-                settingsPrefs.edit().putBoolean("glass_nav", enabled).apply()
-            })
+            TongluAppContent(
+                viewModel, glassNavSetting, diaryRequest, onDiaryRequestHandled,
+                onGlassNavChange = { enabled ->
+                    glassNavSetting = enabled
+                    settingsPrefs.edit().putBoolean("glass_nav", enabled).apply()
+                },
+            )
         }
     }
     cn.tonglu.app.ui.focus.PomodoroHost(startupOwner)
@@ -265,6 +283,8 @@ fun TongluApp(viewModel: AppViewModel = viewModel()) {
 private fun TongluAppContent(
     viewModel: AppViewModel,
     glassNavSetting: Boolean,
+    diaryRequest: DiaryOpenRequest?,
+    onDiaryRequestHandled: () -> Unit,
     onGlassNavChange: (Boolean) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -297,6 +317,8 @@ private fun TongluAppContent(
             onPreview = viewModel::enterPreview,
             onCaptcha = viewModel::registrationCaptcha,
             onSendCode = viewModel::sendRegistrationCode,
+            onSendResetCode = viewModel::sendPasswordResetCode,
+            onResetPassword = viewModel::resetPassword,
             // 返回键退回主界面 —— 少了这一步，BACK 会直接把 App 退到桌面（S57）
             onBack = viewModel::backFromLogin,
         )
@@ -355,6 +377,30 @@ private fun TongluAppContent(
     } }
     val outlinedIcons = filledIcons
     val context = androidx.compose.ui.platform.LocalContext.current
+    val diaryOwner = state.session?.userId?.takeIf { it.isNotBlank() }
+        ?: state.session?.username?.takeIf { it.isNotBlank() } ?: SessionStore.LOCAL_OWNER
+    val diaryStore = remember(diaryOwner) { DiaryStore.forOwner(context, diaryOwner) }
+    val diary = rememberDiaryState(diaryStore, onSaved = { DiaryReminders.scheduleAsync(context) })
+    val diaryData = diary.data
+    var diaryRoutes by androidx.compose.runtime.key(diaryOwner) {
+        rememberSaveable { mutableStateOf(arrayListOf<String>()) }
+    }
+    val openDiary: (String) -> Unit = { route ->
+        if (route != diaryRoutes.lastOrNull()) diaryRoutes = ArrayList(diaryRoutes + route)
+    }
+    LaunchedEffect(diaryRequest, diaryOwner, diaryData, diary.error) {
+        if (diaryRequest == null) return@LaunchedEffect
+        if (diaryRequest.owner == diaryOwner && diaryData == null && diary.error == null) return@LaunchedEffect
+        if (diaryRequest.owner == diaryOwner) {
+            val route = when (diaryRequest.kind) {
+                DiaryReminderKind.SUMMARY -> DiaryPage.SUMMARY.name
+                DiaryReminderKind.SURVEY -> diaryData?.let { DiaryReminders.pendingSurveyWeek(it, diary.now) }
+                    ?.let { DiaryPage.SURVEY.route(it) } ?: DiaryPage.HABITS.name
+            }
+            openDiary(route)
+        }
+        onDiaryRequestHandled()
+    }
     val settingsPrefs = remember { context.getSharedPreferences("tonglu_settings", android.content.Context.MODE_PRIVATE) }
     // 导入提示卡改成**设备级**状态（DataStore）。以前按 owner 存在 tonglu_settings 里，
     // 游客关掉之后登录，key 从 local 变成 userId，提示又冒出来了（plan/56 §2.2）。
@@ -456,6 +502,8 @@ private fun TongluAppContent(
     val openService: (cn.tonglu.app.data.CampusService) -> Unit = openService@ { service ->
         if (service.id == "localsend") { showFileTransfer = true; return@openService }
         if (service.id == "netdisk") { showNetdisk = true; return@openService }
+        if (service.id == CampusServices.DIARY_PLANS) { openDiary(DiaryPage.PLANS.name); return@openService }
+        if (service.id == CampusServices.DIARY_HABITS) { openDiary(DiaryPage.HABITS.name); return@openService }
         val target = service.url ?: cn.tonglu.app.data.CampusServices.PORTAL_URL
         if (service.externalAppPackage == AgriculturalBankPayment.PACKAGE) {
             if (openingServiceId != null) return@openService
@@ -506,6 +554,7 @@ private fun TongluAppContent(
     var scheduleImportChildOpen by remember { mutableStateOf(false) }
     var showScores by rememberSaveable { mutableStateOf(false) }
     var showVerification by rememberSaveable { mutableStateOf(false) }
+    var openVerificationEmail by rememberSaveable { mutableStateOf(false) }
     var showScoreImport by rememberSaveable { mutableStateOf(false) }
     // 考试日历页（从学习页进，M2 硬约束 3）
     var showExamCalendar by rememberSaveable { mutableStateOf(false) }
@@ -661,6 +710,9 @@ private fun TongluAppContent(
                         examStore = examStore,
                         onOpenExamCalendar = { showExamCalendar = true },
                         onOpenExam = { examDetailId = it.id },
+                        diaryData = diaryData,
+                        diaryNow = diary.now,
+                        onOpenDiary = openDiary,
                         onOpenCampusMap = { showCampusMap = true },
                     ) }
                     "学习" -> LearningScreen(
@@ -717,6 +769,7 @@ private fun TongluAppContent(
                     else -> ProfileScreen(
                         state = state,
                         onLogin = viewModel::openLogin,
+                        onChangePassword = viewModel::changePassword,
                         onAvatar = viewModel::uploadAvatar,
                         onAcademicSync = viewModel::syncAcademicNow,
                         syncEnabled = profileSyncOn,
@@ -736,6 +789,7 @@ private fun TongluAppContent(
                         onOpenScores = { showScores = true },
                         onOpenAccountSettings = { showAccountSettings = true },
                         onOpenMyLevel = { showMyLevel = true },
+                        onLoadMyLevel = { viewModel.loadMyLevel() },
                         onOpenTrustLevel = { showTrustLevel = true },
                         onOpenNotices = { showNotices = true },
                         onOpenLaboratory = { showLaboratory = true },
@@ -920,13 +974,14 @@ private fun TongluAppContent(
     if (showVerification) {
         // 认证是一个表单页，没有独立返回层级；返回统一交给宿主跟手关闭。
         OverlayLayerHost(
-            onClose = { closeLayer { showVerification = false } },
+            onClose = { closeLayer { showVerification = false; openVerificationEmail = false } },
             backEnabled = true,
             dialog = showAccountSettings,
         ) { requestClose ->
             CampusVerificationScreen(state, viewModel,
                 onBack = requestClose,
-                onLogin = { closeLayer { showVerification = false; viewModel.openLogin() } })
+                onLogin = { closeLayer { showVerification = false; openVerificationEmail = false; viewModel.openLogin() } },
+                openEmail = openVerificationEmail)
         }
     }
     if (showScheduleImport) {
@@ -1079,6 +1134,8 @@ private fun TongluAppContent(
             onSetDisplayName = viewModel::setDisplayName,
             onOpenMyLevel = { showMyLevel = true },
             onCampusVerification = { showVerification = true },
+            onOpenCampusEmail = { openVerificationEmail = true; showVerification = true },
+            onChangePassword = viewModel::changePassword,
             onLogin = viewModel::openLogin,
             onClose = { closeLayer { showAccountSettings = false } },
         )
@@ -1125,6 +1182,9 @@ private fun TongluAppContent(
         }
     }
 
+    DiaryNavigation(diary, diaryRoutes, openDiary) { route ->
+        if (diaryRoutes.lastOrNull() == route) closeLayer { diaryRoutes = ArrayList(diaryRoutes.dropLast(1)) }
+    }
 
 }
 

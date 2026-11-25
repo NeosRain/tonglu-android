@@ -430,6 +430,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     suspend fun sendRegistrationCode(email: String, captchaId: String, answer: String): EmailCodeResponse =
         api.registerCode(RegisterCodeRequest(email, captchaId, answer))
 
+    suspend fun sendPasswordResetCode(email: String, captchaId: String, answer: String): ResetCodeResponse =
+        api.requestResetCode(RegisterCodeRequest(email, captchaId, answer))
+
+    suspend fun resetPassword(email: String, code: String, newPassword: String) =
+        api.resetPassword(ResetPasswordRequest(email, code, newPassword))
+
+    suspend fun changePassword(sessionId: String, oldPassword: String, newPassword: String) {
+        try {
+            sessions.authorized(sessionId) { api.changePassword(it, ChangePasswordRequest(oldPassword, newPassword)) }
+        } catch (error: SessionExpiredException) {
+            expireSession(error.sessionId)
+            throw error
+        }
+    }
+
     /**
      * 注册表单里的用户名可用性查询（匿名）。
      *

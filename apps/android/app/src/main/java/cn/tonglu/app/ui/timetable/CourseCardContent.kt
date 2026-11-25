@@ -24,12 +24,11 @@ internal fun courseCellTextLayout(heightDp: Float, fontScale: Float): CourseCell
 
 /** 内容居中；单节优先保留教室，大字模式先让老师信息退让。 */
 @Composable
-internal fun CourseCardContent(course: CourseDto, shown: CourseDto = course,
-    foreground: Color = AppColors.OnAccent, compact: Boolean = false) {
+internal fun CourseCardContent(course: CourseDto, foreground: Color = AppColors.OnAccent, compact: Boolean = false,
+    singlePeriod: Boolean = course.startPeriod == course.endPeriod) {
     val scale = LocalDensity.current.fontScale
     BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 4.dp, vertical = 5.dp)) {
         val layout = courseCellTextLayout(maxHeight.value, scale)
-        val singlePeriod = shown.startPeriod == shown.endPeriod
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally) {
             Text(course.name, color = foreground, fontSize = if (compact) 10.sp else 11.sp,
@@ -43,6 +42,28 @@ internal fun CourseCardContent(course: CourseDto, shown: CourseDto = course,
             }
             if (!singlePeriod && layout.showPeriod) course.teacher?.takeIf { it.isNotBlank() }?.let {
                 Text(it, color = foreground.copy(alpha = .8f), fontSize = 9.sp, lineHeight = 12.sp,
+                    textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+internal fun OverlapCardContent(course: CourseDto, foreground: Color, hasBadge: Boolean) {
+    val scale = LocalDensity.current.fontScale
+    val location = shortPlace(course.location)
+    BoxWithConstraints(Modifier.fillMaxSize().padding(
+        start = 3.dp, end = 3.dp, top = if (hasBadge) 16.dp else 5.dp, bottom = 4.dp,
+    )) {
+        val twoLineHeight = if (location == null) 24f else 36f
+        val titleLines = if (maxHeight.value / scale >= twoLineHeight) 2 else 1
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(course.name, color = foreground, fontSize = 10.sp, lineHeight = 12.sp,
+                fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center,
+                maxLines = titleLines, overflow = TextOverflow.Ellipsis)
+            location?.let {
+                Text("@$it", color = foreground, fontSize = 9.sp, lineHeight = 11.sp,
                     textAlign = TextAlign.Center, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }

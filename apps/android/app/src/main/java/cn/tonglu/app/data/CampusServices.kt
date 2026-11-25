@@ -30,6 +30,8 @@ object CampusServices {
     const val PORTAL_URL = "https://bsdt.ldxy.cn/bsdt/home"
     const val JW_URL = "https://jw.liaodongu.edu.cn/jwapp/sys/homeapp/home/index.html?contextPath=/jwapp#/"
     const val SC_URL = "https://10.2.41.124/ucenter/auth/caslogin"
+    const val DIARY_PLANS = "diary-plans"
+    const val DIARY_HABITS = "diary-habits"
     // 高校公开的跨校课平台名单：辽东学院超星单位码 16044。
     const val CHAOXING_URL = "https://lnldxy.fanya.chaoxing.com/"
     const val ELECTRICITY_PAYMENT_URL = "https://enjoy.abchina.com/jf-openweb/wechat/shareEpayItem?code=JF-EPAY2023031041857"
@@ -38,6 +40,8 @@ object CampusServices {
         // 网盘走「用户自建 OpenList」这条路：我们不经手文件，所以描述里必须把这点说出来，
         // 否则用户会以为这是我们提供的公共网盘（蓝奏云那条路已被 WAF 堵死，见 docs/plan/30）。
         CampusService("netdisk", "网盘", "连你自己的 OpenList · 文件不经我们服务器", null, "工具", group = ServiceGroup.TOOL),
+        CampusService(DIARY_PLANS, "灵感与计划", "随手记下灵感、安排今天与回顾", null, "工具", group = ServiceGroup.TOOL),
+        CampusService(DIARY_HABITS, "不做清单", "记录不想做的事，回顾每周执行情况", null, "工具", group = ServiceGroup.TOOL),
         CampusService("jw", "教务系统", "导入课表和成绩、选课", JW_URL, "常用", true),
         CampusService("chaoxing", "学习通", "辽东学院超星教学平台 · 自行登录", CHAOXING_URL, "学习"),
         CampusService(

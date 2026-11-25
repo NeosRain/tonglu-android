@@ -7,12 +7,10 @@ import androidx.compose.animation.core.tween
 import cn.tonglu.app.ui.timetable.*
 import cn.tonglu.app.ui.home.TodayGlassCourses
 import cn.tonglu.app.ui.home.courseTiming
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
@@ -75,6 +73,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -100,7 +99,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -112,7 +110,6 @@ import cn.tonglu.app.data.PeriodSlot
 import cn.tonglu.app.data.PeriodTable
 import cn.tonglu.app.data.ScheduleBoard
 import cn.tonglu.app.data.ScheduleText
-import cn.tonglu.app.data.scheduleOverlapGroups
 import cn.tonglu.app.data.WeekSpec
 import kotlin.math.abs
 import top.yukonga.miuix.kmp.basic.Card as MiuixCard
@@ -858,7 +855,7 @@ internal fun TimetableGrid(
     onTapCourse: (CourseDto, ContainerOrigin?) -> Unit = { _, _ -> },
 ) {
     val maxPeriod = maxOf(PeriodTable.maxPeriod(), courses.maxOfOrNull { it.endPeriod } ?: 8).coerceIn(8, 30)
-    val groupsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> scheduleOverlapGroups(items) } }
+    val segmentsByDay = remember(courses) { courses.groupBy { it.weekday }.mapValues { (_, items) -> timetableSegments(items) } }
     var overlapping by remember(courses) { mutableStateOf<CourseOverlapSelection?>(null) }
     val rowHeight = if (expanded) 76.dp else 56.dp
     val slots = PeriodTable.slots()
@@ -914,7 +911,7 @@ internal fun TimetableGrid(
             if (today != null) Box(Modifier.offset(x = timeColumnWidth + dayWidth * (today - 1))
                 .width(dayWidth).height(gridHeight).background(SvAccent.copy(alpha = .06f)))
             breaks.forEach { rest ->
-                val covered = (1..7).filter { day -> groupsByDay[day].orEmpty().any {
+                val covered = (1..7).filter { day -> segmentsByDay[day].orEmpty().any {
                     it.startPeriod <= rest.afterPeriod && it.endPeriod > rest.afterPeriod
                 } }.map { day -> (day - 1) / 7f to day / 7f }
                 TimetableBreakPill(rest.label, Modifier.offset(x = timeColumnWidth,
@@ -940,18 +937,25 @@ internal fun TimetableGrid(
                 }
             }
             (1..7).forEach { day ->
-                groupsByDay[day].orEmpty().forEach { group ->
-                    val course = group.courses.singleOrNull()
-                    val end = group.endPeriod.coerceAtMost(maxPeriod)
-                    val height = courseGridHeight(group.startPeriod, end, rowHeight.value, breaks, 22f).dp
-                    Box(Modifier.offset(x = timeColumnWidth + dayWidth * (day - 1),
-                        y = periodTop(group.startPeriod, rowHeight.value, breaks, 22f).dp).width(dayWidth)) {
-                        if (course == null) OverlappingCourseBlock(group.courses, height,
-                            onOpen = { overlapping = CourseOverlapSelection(group.courses, it) })
-                        else CourseBlock(course, height, expanded,
-                            onLongPress = { onLongPressCourse(course) }, onTap = { onTapCourse(course, it) })
+                segmentsByDay[day].orEmpty().forEach { segment -> key(day, segment.startPeriod) {
+                    val height = courseGridHeight(segment.startPeriod, segment.endPeriod.coerceAtMost(maxPeriod),
+                        rowHeight.value, breaks, 22f).dp
+                    TimetableSegmentRow(segment, Modifier.offset(x = timeColumnWidth + dayWidth * (day - 1),
+                        y = periodTop(segment.startPeriod, rowHeight.value, breaks, 22f).dp).width(dayWidth)
+                        .padding(horizontal = courseColumnInsetDp.dp)) { course, cell, hiddenCount ->
+                        ReadOnlyCourseTile(course, hiddenCount, cell.height(height).padding(vertical = 2.dp),
+                            onTap = { origin ->
+                                if (hiddenCount > 0) overlapping = CourseOverlapSelection(segment.courses, origin)
+                                else onTapCourse(course, origin)
+                            },
+                            onLongPress = if (hiddenCount == 0) ({ onLongPressCourse(course) }) else null,
+                        ) { ink ->
+                            if (segment.courses.size > 1) OverlapCardContent(course, ink, hiddenCount > 0)
+                            else CourseCardContent(course, foreground = ink, compact = !expanded,
+                                singlePeriod = segment.startPeriod == segment.endPeriod)
+                        }
                     }
-                }
+                } }
             }
             TimetableNowLine(slots, rowHeight, today, timeColumnWidth, dayWidth)
         }
@@ -959,57 +963,6 @@ internal fun TimetableGrid(
 
     overlapping?.let { selection ->
         CourseOverlapDialog(selection, onSelect = onTapCourse, onDismiss = { overlapping = null })
-    }
-}
-
-/** 一个时段只占一个可点区域，避免窄列里把两门课压成无法点中的细条。 */
-@Composable
-private fun OverlappingCourseBlock(courses: List<CourseDto>, height: Dp, onOpen: (ContainerOrigin?) -> Unit) {
-    val origin = rememberLaunchSource(courses.map { it.id }, 14.dp)
-    Column(Modifier.fillMaxWidth().height(height).padding(2.dp)
-        .launchOrigin(origin).clip(RoundedCornerShape(14.dp)).clickable { onOpen(origin.capture()) },
-        verticalArrangement = Arrangement.spacedBy(1.dp)) {
-        courses.take(2).forEach { course ->
-            val glass = glassColors(courseColor(course.name))
-            Box(Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(14.dp))
-                .courseGlass(glass).border(1.dp, glass.border, RoundedCornerShape(14.dp)).padding(3.dp),
-                contentAlignment = Alignment.Center) {
-                Text(course.name, color = glass.ink, fontWeight = FontWeight.SemiBold,
-                    fontSize = 10.sp, lineHeight = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-            }
-        }
-        if (height >= 100.dp || courses.size > 2) {
-            Box(Modifier.fillMaxWidth().background(AppColors.ChipIdle).padding(vertical = 2.dp), contentAlignment = Alignment.Center) {
-                Text("${courses.size}门 · 查看", color = AppColors.TextPrimary, fontSize = 8.sp, maxLines = 1)
-            }
-        }
-    }
-}
-
-/** 课表里的竖长条方块：课名 / 教室 / 老师 / 时间，按高度自动取舍 */
-@Composable
-private fun CourseBlock(
-    course: CourseDto,
-    height: Dp,
-    expanded: Boolean,
-    onLongPress: () -> Unit,
-    onTap: (ContainerOrigin?) -> Unit = {},
-) {
-    val origin = rememberLaunchSource(course.id, 14.dp)
-    val glass = glassColors(courseColor(course.name))
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .height(height)
-            .padding(2.dp)
-            .clip(RoundedCornerShape(14.dp))
-            // 点击看详情（2026-10-10 用户要求）；长按删除保留不变。
-            .launchOrigin(origin)
-            .pointerInput(course) { detectTapGestures(onTap = { onTap(origin.capture()) }, onLongPress = { onLongPress() }) }
-            .courseGlass(glass)
-            .border(1.dp, glass.border, RoundedCornerShape(14.dp)),
-    ) {
-        CourseCardContent(course, foreground = glass.ink, compact = !expanded)
     }
 }
 

@@ -131,10 +131,12 @@ internal fun CampusServicesSections(
 /** 入口行：彩色圆角图标 + 名称/说明 + 右侧动作词。色彩与间距沿用原来的紧凑方案。 */
 @Composable
 private fun ServiceEntryRow(service: CampusService, opening: Boolean, onClick: () -> Unit) {
+    val diary = service.id == CampusServices.DIARY_PLANS || service.id == CampusServices.DIARY_HABITS
+    val origin = if (diary) rememberLaunchSource(service.id, 12.dp) else null
     TextButton(
-        onClick = onClick,
+        onClick = { if (origin != null) origin.launch(onClick) else onClick() },
         enabled = !opening,
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier.fillMaxWidth().then(if (origin != null) Modifier.launchOrigin(origin) else Modifier),
     ) {
         val tint = campusServiceTint(service.id)
         Surface(
@@ -170,6 +172,8 @@ private fun ServiceEntryRow(service: CampusService, opening: Boolean, onClick: (
 private fun campusServiceIcon(id: String): ImageVector = when (id) {
     "localsend" -> Icons.Outlined.SwapHoriz
     "netdisk" -> Icons.Outlined.Cloud
+    CampusServices.DIARY_PLANS -> Icons.Outlined.EditNote
+    CampusServices.DIARY_HABITS -> Icons.Outlined.Checklist
     "portal" -> Icons.Outlined.Apps
     "jw", "teaching", "chaoxing" -> Icons.Outlined.School
     "lib" -> Icons.Outlined.Book
@@ -188,6 +192,7 @@ private fun campusServiceIcon(id: String): ImageVector = when (id) {
 private fun campusServiceTint(id: String): Color = when (id) {
     "localsend" -> Color(0xFF0C8599)
     "netdisk" -> Color(0xFF1971C2)
+    CampusServices.DIARY_PLANS, CampusServices.DIARY_HABITS -> AppColors.Accent
     "portal" -> Color(0xFF2563EB)
     "jw" -> Color(0xFF2563EB)
     "lib" -> Color(0xFF6741D9)

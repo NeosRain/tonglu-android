@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.R
 import cn.tonglu.app.data.*
+import cn.tonglu.app.ui.profile.PasswordResetDialog
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -70,6 +71,8 @@ internal fun EmailLoginScreen(
     onPreview: () -> Unit,
     onCaptcha: suspend () -> CaptchaDto,
     onSendCode: suspend (String, String, String) -> EmailCodeResponse,
+    onSendResetCode: suspend (String, String, String) -> ResetCodeResponse,
+    onResetPassword: suspend (String, String, String) -> Unit,
     /**
      * 按返回键：退回主界面。**刻意没有默认值** ——
      * 注册了 `BackHandler` 却回调成空实现会把返回键变成「点了没反应」，比退桌面更糟（人会被困住）。
@@ -94,6 +97,9 @@ internal fun EmailLoginScreen(
     var passwordVisible by remember { mutableStateOf(false) }
     var showNickname by rememberSaveable { mutableStateOf(false) }
     var errorDismissed by remember(state.error) { mutableStateOf(false) }
+    var showReset by rememberSaveable { mutableStateOf(false) }
+    var resetOrigin by remember { mutableStateOf<ContainerOrigin?>(null) }
+    val forgotSource = rememberLaunchSource("forgot-password", 16.dp, AppColors.SurfaceOpaque)
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
     val keyboard = LocalSoftwareKeyboardController.current
@@ -287,6 +293,16 @@ internal fun EmailLoginScreen(
                             ),
                             modifier = Modifier.fillMaxWidth(),
                         )
+                        if (!register) TextButton(
+                            enabled = !state.busy,
+                            onClick = {
+                                focus.clearFocus()
+                                keyboard?.hide()
+                                resetOrigin = forgotSource.capture()
+                                showReset = true
+                            },
+                            modifier = Modifier.align(Alignment.End).launchOrigin(forgotSource),
+                        ) { Text("忘记密码？") }
                         if (register) {
                             TextButton(onClick = {
                                 if (showNickname) name = ""
@@ -402,6 +418,21 @@ internal fun EmailLoginScreen(
             )
         }
     }
+    if (showReset) PasswordResetDialog(
+        initialEmail = email.takeIf { '@' in it }.orEmpty(),
+        origin = resetOrigin,
+        onCaptcha = onCaptcha,
+        onSendCode = onSendResetCode,
+        onReset = onResetPassword,
+        onSuccess = { account ->
+            email = account
+            password = ""
+            passwordVisible = false
+            edited()
+            message = "密码已重置，请使用新密码登录"
+        },
+        onClose = { showReset = false; resetOrigin = null },
+    )
 }
 
 /**

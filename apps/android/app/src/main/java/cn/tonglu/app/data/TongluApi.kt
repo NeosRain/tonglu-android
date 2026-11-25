@@ -110,6 +110,10 @@ interface TongluApi {
     @POST("captcha/challenge") suspend fun captcha(): CaptchaDto
     @POST("auth/email/register-code") suspend fun registerCode(@Body request: RegisterCodeRequest): EmailCodeResponse
     @POST("auth/email/register") suspend fun registerEmail(@Body request: RegisterEmailRequest): AuthResponse
+    @POST("auth/password/reset-code") suspend fun requestResetCode(@Body request: RegisterCodeRequest): ResetCodeResponse
+    @POST("auth/password/reset") suspend fun resetPassword(@Body request: ResetPasswordRequest)
+    @POST("auth/password/change")
+    suspend fun changePassword(@Header("Authorization") bearer: String, @Body request: ChangePasswordRequest)
     @POST("learning/ask")
     suspend fun askLearning(@Header("Authorization") bearer: String, @Body request: LearningQuestion): LearningAnswer
     @POST("learning/translate")

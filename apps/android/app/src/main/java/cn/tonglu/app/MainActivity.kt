@@ -1,6 +1,7 @@
 package cn.tonglu.app
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -15,12 +16,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cn.tonglu.app.data.AppViewModel
+import cn.tonglu.app.data.diary.DiaryOpenRequest
+import cn.tonglu.app.data.diary.DiaryReminderKind
+import cn.tonglu.app.data.diary.DiaryReminders
 import cn.tonglu.app.notify.ClassReminder
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.appMaterialColors
@@ -34,6 +41,20 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
 class MainActivity : ComponentActivity() {
+
+    private var diaryRequest by mutableStateOf<DiaryOpenRequest?>(null)
+
+    private fun readDiaryRequest(intent: Intent) {
+        if (intent.action != DiaryReminders.ACTION_OPEN) return
+        val owner = intent.getStringExtra(DiaryReminders.EXTRA_OWNER) ?: return
+        val kind = DiaryReminderKind.entries.firstOrNull { it.name == intent.getStringExtra(DiaryReminders.EXTRA_KIND) } ?: return
+        diaryRequest = DiaryOpenRequest(owner, kind)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        readDiaryRequest(intent)
+    }
 
     private val notificationPermission = registerForActivityResult(
         ActivityResultContracts.RequestPermission(),
@@ -120,6 +141,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) readDiaryRequest(intent)
         // Keep the phone's portrait preference; large screens now have a window-adaptive layout.
         // FULL_USER also respects the owner's system rotation lock.
         requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= 600 || isInMultiWindowMode)
@@ -199,7 +221,7 @@ class MainActivity : ComponentActivity() {
                         // 根层壁纸宿主：不透明底色 + 可选壁纸（已模糊）+ 压暗/薄雾。
                         // 页面自己的 Scaffold 在 TongluApp 里会对壁纸让出透明，见那里的注释。
                         ThemeWallpaperHost(Modifier.fillMaxSize()) {
-                            TongluApp(viewModel)
+                            TongluApp(viewModel, diaryRequest, onDiaryRequestHandled = { diaryRequest = null })
                         }
                     }
                 }

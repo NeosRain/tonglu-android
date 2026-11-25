@@ -20,6 +20,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.*
+import cn.tonglu.app.data.diary.DiaryData
 import cn.tonglu.app.ui.*
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -48,6 +49,9 @@ internal fun HomeScreen(
     examStore: cn.tonglu.app.data.exam.ExamStore,
     onOpenExamCalendar: () -> Unit,
     onOpenExam: (cn.tonglu.app.data.exam.ExamEvent) -> Unit,
+    diaryData: DiaryData?,
+    diaryNow: Long,
+    onOpenDiary: (String) -> Unit,
     // 成绩入口从学习页搬到首页（用户要求：成绩属于首页）；plan/56 §2.4 再降为周课表标题旁的「成绩 ›」。
     scoreDemo: Boolean = false,
     onOpenScores: () -> Unit = {},
@@ -212,6 +216,9 @@ internal fun HomeScreen(
             }
             if (showImportPrompt) item(key = "academic_import_prompt") {
                 ImportPromptCard(onImportBoth, onDismissImportPrompt)
+            }
+            if (diaryData?.settings?.showHomeCard == true) item(key = "goal_diary") {
+                DiaryHomeCard(diaryData, diaryNow, onOpenDiary)
             }
             item {
                 TimetableCard(

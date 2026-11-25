@@ -113,6 +113,13 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".data.diary.DiaryReminderReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
         <!-- 开机重排 -->
         <receiver
             android:name=".notify.BootReceiver"

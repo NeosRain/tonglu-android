@@ -52,7 +52,6 @@ import cn.tonglu.app.data.PersonalBackup
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.AvatarCropDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
-import cn.tonglu.app.ui.UserAvatar
 import cn.tonglu.app.ui.noticeForeground
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -213,6 +212,7 @@ private fun ProfileCategoryPage(
 internal fun ProfileScreen(
     state: AppUiState,
     onLogin: () -> Unit,
+    onChangePassword: suspend (String, String, String) -> Unit,
     onAvatar: (android.net.Uri) -> Unit,
     onAcademicSync: () -> Unit,
     /** 课表/成绩是否跟随账号同步。0.6.47 起缺省 true（用户要求默认开启）。 */
@@ -226,6 +226,7 @@ internal fun ProfileScreen(
     onOpenAccountSettings: () -> Unit,
     /** 「我的等级」全屏层（`docs/plan/66`）。**登录后才显示** —— 等级是账号的，没有账号就没有等级。 */
     onOpenMyLevel: () -> Unit,
+    onLoadMyLevel: suspend () -> Unit,
     onOpenTrustLevel: () -> Unit,
     /** 「我的消息」全屏层：信任等级变动、被处理内容、规则更新都走这里。 */
     onOpenNotices: () -> Unit,
@@ -267,6 +268,12 @@ internal fun ProfileScreen(
         settingsPage = title
     }
     val session = state.session
+    LaunchedEffect(session?.sessionId) {
+        if (session != null && state.myLevel == null) onLoadMyLevel()
+    }
+    var showPasswordChange by remember(session?.sessionId) { mutableStateOf(false) }
+    var passwordOrigin by remember { mutableStateOf<ContainerOrigin?>(null) }
+    var passwordChanged by remember(session?.sessionId) { mutableStateOf(false) }
     // 这个 Composable 是独立函数（不在外层那个 scope 的作用域里），导出/导入要用自己的。
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -368,54 +375,7 @@ internal fun ProfileScreen(
                     Text("扫一扫登录电脑", color = Accent)
                 }
             }
-            ProfileCard(modifier = Modifier.fillMaxWidth(), insideMargin = PaddingValues(18.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // 🔴 未登录时头像**也可点**，直接拉起登录/注册。
-                    // 之前这里是 `enabled = session != null`，于是未登录用户点头像毫无反应，
-                    // 而「登录应用账号（可选）」又藏在页面最底部 —— 用户看不出这里能注册。
-                    //（2026-10-10 用户反馈「未注册软件点头像不能注册账号」）
-                    // 🔴 点头像 = 进**账号设置页**（改昵称/换头像/看等级与校园身份），
-                    // 不再是直接弹换头像 —— 头像相关的一切收进设置页，一个入口管一个页面。
-                    // 未登录仍然直接拉起登录/注册（2026-10-10 用户反馈的原路径，保留）。
-                    UserAvatar(
-                        session?.displayName, session?.avatarUrl,
-                        Modifier.size(54.dp).launchClickable(session?.userId, 27.dp, enabled = !state.busy) {
-                            if (session == null) onLogin() else onOpenAccountSettings()
-                        },
-                    )
-                    Column(Modifier.padding(start = 14.dp).weight(1f)) {
-                        Text(session?.displayName ?: "同学", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            if (session == null) "本机使用 · 未登录应用账号" else "@${session.username} · ${state.campusIdentity?.summary() ?: "校园身份待查询"}",
-                            color = Muted,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        // 等级摘要：**只给 Lv，不给 TL**。TL 只在等级页本人视角可见（红线 8），
-                        // 头部这种地方人人能看见，放 TL 等于公开风控面。
-                        state.myLevel?.let { lv ->
-                            Row(Modifier.padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                LevelBadge(lv.level, lv.levelName, compact = true)
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    if (lv.nextLevel != null) "距 Lv${lv.nextLevel} 还差 ${lv.expToNext} 点"
-                                    else "已达最高等级",
-                                    color = Muted,
-                                    style = MaterialTheme.typography.labelSmall,
-                                )
-                            }
-                        }
-                    }
-                }
-                if (session == null) {
-                    // 未登录时给一个**明确**的注册入口，不再让用户猜。
-                    // 文案不说「可选」——等级/成就/云同步都依赖账号，说成可选会让人一直不用。
-                    TextButton(onClick = onLogin, enabled = !state.busy) { Text("注册或登录") }
-                } else {
-                    val origin = rememberLaunchSource("profile", 20.dp)
-                    TextButton(onClick = { origin.launch(onOpenAccountSettings) }, enabled = !state.busy,
-                        modifier = Modifier.launchOrigin(origin)) { Text("个人资料") }
-                }
-            }
+            ProfileHeader(state, onLogin, onOpenAccountSettings)
             }
         }
         item { Text("常用功能", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
@@ -690,6 +650,25 @@ internal fun ProfileScreen(
                         }
                     }
                     if (session != null) item {
+                        val source = rememberLaunchSource("change-password", 16.dp, AppColors.SurfaceOpaque)
+                        ProfileCard(insideMargin = PaddingValues(16.dp)) {
+                            Column(
+                                Modifier.fillMaxWidth().launchOrigin(source).clickable {
+                                    passwordOrigin = source.capture()
+                                    passwordChanged = false
+                                    showPasswordChange = true
+                                },
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text("修改密码", fontWeight = FontWeight.SemiBold)
+                                if (passwordChanged) Text(
+                                    "密码已修改，其他设备已退出登录",
+                                    color = AppColors.TextSecondary, style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                    }
+                    if (session != null) item {
                         ProfileCard(insideMargin = PaddingValues(16.dp)) {
                             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                                 Column(Modifier.weight(1f)) {
@@ -768,6 +747,12 @@ internal fun ProfileScreen(
     }
 
     // 确认框及反馈/裁剪层在分类窗口之后创建，保持在全屏子页上方。
+    if (session != null && showPasswordChange) ChangePasswordDialog(
+        origin = passwordOrigin,
+        onChangePassword = { old, new -> onChangePassword(session.sessionId, old, new) },
+        onSuccess = { passwordChanged = true },
+        onClose = { showPasswordChange = false; passwordOrigin = null },
+    )
     if (showFeedback) FeedbackDialog(onClose = { showFeedback = false })
     avatarCropUri?.let { uri -> AvatarCropDialog(uri, onClose = { OverlayDismissGuard.arm(); avatarCropUri = null },
         onConfirm = { cropped -> OverlayDismissGuard.arm(); avatarCropUri = null; onAvatar(cropped) }) }

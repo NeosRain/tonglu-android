@@ -155,7 +155,9 @@ object ClassReminder {
         // 更新安装/打开应用时清掉此前已经发出的假期课程通知，仅清本频道。
         if (Holidays.isHoliday(System.currentTimeMillis()) && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.getSystemService(NotificationManager::class.java)?.let { manager ->
-                manager.activeNotifications.filter { it.notification.channelId == CHANNEL_ID }
+                manager.activeNotifications.filter {
+                    it.notification.channelId == CHANNEL_ID && it.tag != cn.tonglu.app.data.diary.DiaryReminders.NOTIFICATION_TAG
+                }
                     .forEach { manager.cancel(it.tag, it.id) }
             }
         }
@@ -318,10 +320,10 @@ class BootReceiver : BroadcastReceiver() {
             //       at cn.tonglu.app.notify.BootReceiver.onReceive(ClassReminder.kt:307)
             //   ActivityTaskManager: Force finishing activity cn.tonglu.app/.MainActivity
             //   —— 用户在桌面看到的就是「开屏动画没播完就被弹回去」。
-            // 现在只取一次 PendingResult，两条排期共享同一个收尾；等**全部**完成才 finish
+            // 只取一次 PendingResult，各排期共享同一个收尾；等**全部**完成才 finish
             // （早于最后一条完成就 finish，进程可能被回收，剩下那条排期会丢）。
             val pending = goAsync()
-            val remaining = AtomicInteger(2)
+            val remaining = AtomicInteger(3)
             val done = { if (remaining.decrementAndGet() == 0) pending.finish() }
             ClassReminder.scheduleFromReceiver(context, done)
             // 🔴 闹钟**不跨重启存活** —— 小部件的刷新闹钟同样没了，
@@ -330,6 +332,7 @@ class BootReceiver : BroadcastReceiver() {
             runCatching { cn.tonglu.app.widget.TodayWidgetUpdater.refreshAndReschedule(context.applicationContext) }
             // 竞赛截止提醒同样不跨重启存活 —— 从快照（files/competition/deadline-reminders.json）重排。
             DeadlineReminder.scheduleFromReceiver(context, done)
+            cn.tonglu.app.data.diary.DiaryReminders.scheduleAsync(context, done)
         }
     }
 }
