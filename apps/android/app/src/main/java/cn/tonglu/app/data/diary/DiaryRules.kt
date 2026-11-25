@@ -25,13 +25,14 @@ internal object DiaryRules {
     }
 
     fun carryablePlans(data: DiaryData, today: Long): List<DiaryPlan> {
-        val carriedIds = data.plans.mapNotNull { it.carriedFrom }.toHashSet()
+        val carriedIds = (data.plans.mapNotNull { it.carriedFrom } +
+            data.ideas.mapNotNull { it.formerPlan?.carriedFrom }).toHashSet()
         return data.plans.filter { it.day == today - 1 && !it.done && it.id !in carriedIds }
     }
 
-    fun carryPlans(data: DiaryData, today: Long, planIds: Set<String>): DiaryData {
+    fun carryPlans(data: DiaryData, today: Long, planIds: Set<String>, now: Long): DiaryData {
         val additions = carryablePlans(data, today).filter { it.id in planIds }.map {
-            it.copy(id = diaryId(), day = today, carriedFrom = it.id)
+            it.copy(id = diaryId(), day = today, carriedFrom = it.id, recordedAt = now)
         }
         return data.copy(plans = data.plans + additions)
     }
@@ -81,7 +82,9 @@ internal object DiaryRules {
         )
         return data.copy(
             ideas = data.ideas.map { if (it.id in reviewed) it.copy(review = reviewed.getValue(it.id)) else it },
-            plans = data.plans + ideas.filter { reviewed[it.id] == IdeaReview.PLAN }.map { DiaryPlan(text = it.text, day = today) },
+            plans = data.plans + ideas.filter { reviewed[it.id] == IdeaReview.PLAN }.map {
+                DiaryPlan(text = it.text, day = today, goalId = it.goalId, recordedAt = now, tags = it.tags)
+            },
             summaries = data.summaries + summary,
         )
     }

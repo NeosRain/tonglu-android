@@ -10,6 +10,7 @@
 <resources>
     <string name="app_name">苔米林</string>
     <string name="shortcut_add_widgets">添加小组件</string>
+    <string name="shortcut_write_diary">记一下</string>
     <!-- 桌面「添加小部件」列表里显示的名字 -->
     <string name="widget_today_label">今日课表</string>
     <string name="widget_today_desc">显示今天的课程：节次、时间、科目、教室。点一下打开苔米林首页课表。</string>

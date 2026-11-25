@@ -61,6 +61,8 @@ data class NoticeDto(
     val body: String,
     @SerializedName("readAt") val readAt: String? = null,
     @SerializedName("createdAt") val createdAt: String? = null,
+    val refType: String? = null,
+    val refId: String? = null,
 )
 
 data class NoticesDto(

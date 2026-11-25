@@ -28,6 +28,8 @@ import cn.tonglu.app.data.community.*
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 import cn.tonglu.app.ui.SquarePullRefresh
+import cn.tonglu.app.ui.books.BooksEntry
+import cn.tonglu.app.ui.books.LocalBooksAccess
 import cn.tonglu.app.ui.square.SquarePostCard
 import kotlinx.coroutines.launch
 
@@ -127,7 +129,18 @@ private fun CommunityHomeLinks(actions: CommunityActions) {
     Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         TextButton(onClick = { actions.navigate(CommunityDestination.Directory) }, modifier = Modifier.heightIn(min = 48.dp)) { Text("圈子目录") }
         CommunityRulesLink { actions.navigate(CommunityDestination.Rules) }
+        CommunityBooksLink()
     }
+}
+
+@Composable
+internal fun CommunityBooksLink() {
+    val access = LocalBooksAccess.current ?: return
+    val origin = rememberLaunchSource("community-books", 20.dp)
+    TextButton(
+        onClick = { origin.launch { access.open(BooksEntry()) } },
+        modifier = Modifier.heightIn(min = 48.dp).launchOrigin(origin),
+    ) { Text("二手书") }
 }
 
 @Composable

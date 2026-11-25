@@ -15,6 +15,43 @@ data class UserDto(
 /** 修改昵称（账号设置页）。长度口径与后端 SetDisplayNameDto 一致（2~24）。 */
 data class SetDisplayNameRequest(val displayName: String)
 
+data class PublicProfileDto(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val avatarUrl: String?,
+    val avatarColor: String?,
+    val coverUrl: String?,
+    val bio: String?,
+    val profileTags: List<String>,
+    val own: Boolean,
+    val verifiedStudent: Boolean,
+    val level: Int?,
+    val stats: ProfileStatsDto,
+    val followedBoardsVisible: Boolean,
+    val viewerFollowing: Boolean?,
+    val privacy: ProfilePrivacyDto?,
+    val canSetCover: Boolean?,
+    val ownGrowthLevel: Int?,
+    val ownStats: ProfileStatsDto? = null,
+)
+
+data class ProfileStatsDto(val posts: Int, val likes: Int?, val following: Int?, val followers: Int?)
+data class ProfilePrivacyDto(
+    val profileVisibility: String, val showLevel: Boolean, val showLikes: Boolean,
+    val showFollows: Boolean, val showBoards: Boolean,
+)
+data class UpdatePublicProfileRequest(
+    val displayName: String, val bio: String, val profileTags: List<String>,
+    val profileVisibility: String, val showLevel: Boolean, val showLikes: Boolean,
+    val showFollows: Boolean, val showBoards: Boolean,
+)
+data class ProfilePersonDto(val id: String, val username: String, val displayName: String, val avatarUrl: String?)
+data class ProfilePostDto(val id: String, val title: String?, val body: String, val likes: Int?)
+data class ProfileBoardDto(val id: String, val name: String, val description: String)
+data class ProfilePageDto<T>(val items: List<T>, val hasMore: Boolean)
+data class ProfileCoverDto(val coverUrl: String)
+
 data class CaptchaDto(val id: String, val image: String)
 data class RegisterCodeRequest(val email: String, val captchaId: String, val captchaAnswer: String)
 data class ResetCodeResponse(val expiresInSeconds: Int, val cooldownSeconds: Int)

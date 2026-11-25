@@ -124,6 +124,7 @@ internal fun DiaryHistoryPage(state: DiaryState, data: DiaryData, close: () -> U
                 }
             }
         }
+        item("new-summary") { DiaryLink("写小结", { open(DiaryPage.SUMMARY.name) }) }
         if (timeline.isEmpty()) item("empty") { DiaryNotice("记下灵感或写完小结后，就能在这里回顾。") }
         items(timeline, key = { it.id }) { entry ->
             when (entry) {

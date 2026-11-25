@@ -70,8 +70,8 @@ android {
         //              今日/整周小组件裁切与清晰度；网盘容量口径与分享链。
         // M0 内测候选：Android 收口首页/学习/我的，社区入口隐藏，数据与后端保留。
         // 每日预览进preview、每周正式进stable；0.16起预览序号1–98、正式槽99。
-        versionCode = 340001
-        versionName = "0.34.0-beta.1"
+        versionCode = 340002
+        versionName = "0.34.0-beta.2"
         if (updateQa) {
             applicationId = "cn.tonglu.app.updateqa"
             versionCode = providers.gradleProperty("updateQaCode").get().toInt().also { require(it in 1..2_100_000_000) }
@@ -277,6 +277,7 @@ dependencies {
     implementation(libs.androidx.camera.camera2)
     implementation(libs.androidx.camera.lifecycle)
     implementation(libs.androidx.camera.view)
+    implementation("com.google.mlkit:barcode-scanning:17.3.0")
     // EF09 拍照识词：ML Kit 文本识别（on-device，拉丁文模型；不联网、照片不出本机）
     implementation("com.google.mlkit:text-recognition:16.0.1")
     implementation("com.google.mlkit:translate:17.0.3")

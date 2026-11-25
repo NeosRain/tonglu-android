@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.square
 
+import cn.tonglu.app.ui.profile.publicProfileLink
+
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 
 import android.content.Intent
@@ -344,9 +346,10 @@ internal fun SquarePostCard(
         // 整块卡片可点进详情（楼层）；卡内的快捷评论框、查看更多、举报都是内层 clickable，不会冒泡上来。
         Column(Modifier.fillMaxWidth().pressable(scale = 0.99f, onClick = open)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                UserAvatar(post.author?.displayName, post.author?.avatarUrl, Modifier.size(34.dp))
+                UserAvatar(post.author?.displayName, post.author?.avatarUrl, Modifier.size(34.dp).publicProfileLink(post.author?.id, 17.dp))
                 Column(Modifier.weight(1f).padding(start = 10.dp)) {
-                    Text(post.author?.displayName ?: "同学", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(post.author?.displayName ?: "同学", fontWeight = FontWeight.SemiBold, fontSize = 14.sp, maxLines = 1,
+                        overflow = TextOverflow.Ellipsis, modifier = Modifier.publicProfileLink(post.author?.id))
                     // 来源行（酷安是「来自头条推荐 · 设备」）：这里如实写分类 + 发布时间。
                     // 社团帖（sourceOverride）如实写「社团名 · 频道名」——「校园动态」是分类名，
                     // 对社团帖是误导。

@@ -4,120 +4,18 @@ import android.app.DatePickerDialog
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.diary.*
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.AppTheme
 import cn.tonglu.app.ui.launchOrigin
 import java.util.Calendar
-
-@Composable
-internal fun DiaryPlansPage(state: DiaryState, data: DiaryData, close: () -> Unit, open: (String) -> Unit) {
-    val today = state.today
-    val plans = data.plans.filter { it.day == today }
-    val carryable = DiaryRules.carryablePlans(data, today)
-    val completed = plans.count { it.done }
-    DiaryLayout(DiaryPage.PLANS.title, close, state) {
-        item("quick") { DiaryAction("记一下", { open(DiaryPage.QUICK.name) }, navigates = true) }
-        item("today") {
-            DiaryGroup {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.weight(1f)) { DiaryHeading("今天做什么") }
-                    TextButton(onClick = { open(DiaryPage.PLAN_EDITOR.name) }, modifier = Modifier.launchOrigin()) { Text("添加计划") }
-                }
-                if (plans.isEmpty()) DiaryCaption("今天还没有计划。") else {
-                    Text("已完成 $completed / ${plans.size}")
-                    LinearProgressIndicator(
-                        progress = { completed.toFloat() / plans.size },
-                        modifier = Modifier.fillMaxWidth(),
-                        color = AppColors.Accent,
-                        trackColor = AppColors.ChipIdle,
-                    )
-                    if (plans.size > 3) DiaryCaption("挑最重要的 3 件")
-                }
-            }
-        }
-        items(plans, key = { it.id }) { plan ->
-            DiaryGroup {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = plan.done,
-                        onCheckedChange = { done ->
-                            state.save({ latest ->
-                                latest.copy(plans = latest.plans.map { if (it.id == plan.id) it.copy(done = done) else it })
-                            })
-                        },
-                        enabled = !state.saving,
-                    )
-                    Column(Modifier.weight(1f)) {
-                        Text(plan.text)
-                        data.goals.firstOrNull { it.id == plan.goalId }?.let { DiaryCaption(it.title) }
-                    }
-                    TextButton(onClick = { open(DiaryPage.PLAN_EDITOR.route(plan.id)) }, modifier = Modifier.launchOrigin()) {
-                        Text("编辑")
-                    }
-                }
-            }
-        }
-        if (carryable.isNotEmpty()) item("carry") {
-            DiaryGroup {
-                DiaryHeading("昨天未完成")
-                carryable.forEach { Text(it.text) }
-                TextButton(
-                    onClick = { state.save({ DiaryRules.carryPlans(it, today, carryable.map(DiaryPlan::id).toSet()) }) },
-                    enabled = !state.saving,
-                ) { Text(state.saveLabel("全部带到今天")) }
-            }
-        }
-        item("summary") {
-            DiaryLink(
-                "小结", { open(DiaryPage.SUMMARY.name) },
-                if (DiaryReminders.summaryDue(data, state.now)) "待写小结" else "回顾最近的计划和灵感",
-            )
-        }
-        item("history") { DiaryLink("回顾与导出", { open(DiaryPage.HISTORY.name) }) }
-        item("goals") { DiaryLink("长期目标", { open(DiaryPage.GOALS.name) }) }
-        item("settings") { DiaryLink(DiaryPage.SETTINGS.title, { open(DiaryPage.SETTINGS.name) }) }
-    }
-}
-
-@Composable
-internal fun DiaryQuickPage(state: DiaryState, close: () -> Unit) {
-    var text by rememberSaveable { mutableStateOf("") }
-    var tags by rememberSaveable { mutableStateOf("") }
-    var tagging by rememberSaveable { mutableStateOf(false) }
-    val focus = remember { FocusRequester() }
-    fun save() {
-        val body = text.trim()
-        if (body.isEmpty()) return
-        val time = System.currentTimeMillis()
-        val labels = tags.split('、', '，', ',').map(String::trim).filter(String::isNotEmpty).distinct()
-        val entry = Idea(text = body, recordedAt = time, day = DiaryDates.dayAt(time), tags = labels)
-        state.save({ it.copy(ideas = it.ideas + entry) }, close)
-    }
-    DiaryLayout(DiaryPage.QUICK.title, close, state, footer = {
-        DiaryAction(state.saveLabel("保存"), ::save, text.isNotBlank() && !state.saving)
-    }) {
-        item("text") {
-            DiaryField(text, { text = it }, "记下一句话", Modifier.focusRequester(focus),
-                options = KeyboardOptions(imeAction = ImeAction.Done), actions = KeyboardActions(onDone = { save() }))
-        }
-        if (tagging) item("tags") { DiaryField(tags, { tags = it }, "标签（用逗号分隔）") }
-        else item("tags") { TextButton(onClick = { tagging = true }) { Text("添加标签") } }
-    }
-    LaunchedEffect(Unit) { focus.requestFocus() }
-}
 
 @Composable
 internal fun DiaryPlanEditor(state: DiaryState, data: DiaryData, id: String, close: () -> Unit) {
@@ -215,6 +113,7 @@ internal fun diaryPickerTheme(dark: Boolean): Int =
 @Composable
 internal fun DiaryGoalDetail(state: DiaryState, data: DiaryData, goal: DiaryGoal, close: () -> Unit, open: (String) -> Unit) {
     val plans = data.plans.filter { it.goalId == goal.id }.sortedByDescending { it.day }
+    val ideas = data.ideas.filter { it.goalId == goal.id && it.review != IdeaReview.DISCARD }.sortedByDescending { it.recordedAt }
     DiaryLayout(DiaryPage.GOAL_DETAIL.title, close, state) {
         item("goal") {
             DiaryGroup {
@@ -224,8 +123,15 @@ internal fun DiaryGoalDetail(state: DiaryState, data: DiaryData, goal: DiaryGoal
                 TextButton(onClick = { open(DiaryPage.GOAL_EDITOR.route(goal.id)) }, modifier = Modifier.launchOrigin()) { Text("编辑目标") }
             }
         }
-        if (plans.isEmpty()) item("empty") { DiaryNotice("这项目标还没有关联计划。") }
+        if (plans.isEmpty() && ideas.isEmpty()) item("empty") { DiaryNotice("这项目标还没有关联记录。") }
         items(plans, key = { it.id }) { plan -> DiaryPlanSnapshot(plan) }
+        if (ideas.isNotEmpty()) item("ideas") { DiaryHeading("关联灵感 · ${ideas.size}") }
+        items(ideas, key = { "idea:${it.id}" }) { idea ->
+            DiaryGroup {
+                Text(idea.text)
+                DiaryCaption(DiaryDates.timestamp(idea.recordedAt))
+            }
+        }
     }
 }
 

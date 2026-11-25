@@ -33,18 +33,28 @@ class DiaryRulesTest {
             carry, carry.copy(id = "finished", done = true), carry.copy(id = "older", day = 98),
             carry.copy(id = "unselected"),
         ))
-        val after = DiaryRules.carryPlans(data, 100, setOf("pending", "finished", "older"))
+        val now = DiaryDates.atTime(100, 9, 0)
+        val after = DiaryRules.carryPlans(data, 100, setOf("pending", "finished", "older"), now)
         assertEquals(data.plans, after.plans.dropLast(1))
         val moved = after.plans.last()
-        assertEquals(carry.copy(id = moved.id, day = 100, carriedFrom = carry.id), moved)
+        assertEquals(carry.copy(id = moved.id, day = 100, carriedFrom = carry.id, recordedAt = now), moved)
         assertNotEquals(carry.id, moved.id)
     }
 
     @Test
     fun carryCanBeRetriedWithoutDuplicatingPlans() {
         val carry = DiaryPlan("pending", "未完成", day = 99)
-        val after = DiaryRules.carryPlans(DiaryData(plans = listOf(carry)), 100, setOf(carry.id))
-        assertEquals(after, DiaryRules.carryPlans(after, 100, setOf(carry.id)))
+        val after = DiaryRules.carryPlans(DiaryData(plans = listOf(carry)), 100, setOf(carry.id), 1000)
+        assertEquals(after, DiaryRules.carryPlans(after, 100, setOf(carry.id), 2000))
+    }
+
+    @Test
+    fun changingACarriedPlanIntoAnIdeaDoesNotOfferTheOriginalForCarryAgain() {
+        val carry = DiaryPlan("pending", "未完成", day = 99)
+        val after = DiaryRules.carryPlans(DiaryData(plans = listOf(carry)), 100, setOf(carry.id), 1000)
+        val converted = DiaryEntries.convert(after, DiaryEntry.Plan(after.plans.last()), 2000)
+
+        assertTrue(DiaryRules.carryablePlans(converted, 100).isEmpty())
     }
 
     @Test

@@ -76,18 +76,24 @@ internal fun TrackCommunityRead(
 internal fun CommunityReportDialog(
     post: PostDto, onDismiss: () -> Unit,
     onSubmit: (PostReportCategory, String?, (String?) -> Unit) -> Unit,
+) = CommunityReportDialog(post.id, "举报内容", post.title ?: post.body, onDismiss, onSubmit)
+
+@Composable
+internal fun CommunityReportDialog(
+    targetId: String, title: String, subject: String, onDismiss: () -> Unit,
+    onSubmit: (PostReportCategory, String?, (String?) -> Unit) -> Unit,
 ) {
-    var category by remember(post.id) { mutableStateOf<PostReportCategory?>(null) }
-    var details by remember(post.id) { mutableStateOf("") }
+    var category by remember(targetId) { mutableStateOf<PostReportCategory?>(null) }
+    var details by remember(targetId) { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(
         onDismissRequest = { if (!busy) onDismiss() },
         containerColor = AppColors.SurfaceOpaque,
-        title = { Text("举报内容") },
+        title = { Text(title) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(post.title ?: post.body, maxLines = 2, overflow = TextOverflow.Ellipsis,
+                Text(subject, maxLines = 2, overflow = TextOverflow.Ellipsis,
                     color = AppColors.TextSecondary, fontSize = 14.sp)
                 PostReportCategory.entries.forEach { option ->
                     Row(

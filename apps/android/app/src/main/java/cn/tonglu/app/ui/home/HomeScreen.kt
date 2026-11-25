@@ -192,6 +192,9 @@ internal fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             holidayToday?.let { span -> item { HolidayBanner(span) } }
+            if (diaryData?.settings?.showHomeCard == true) item(key = "goal_diary") {
+                DiaryHomeCard(diaryData, diaryNow, onOpenDiary)
+            }
             item {
                 TodayClassesCard(
                     courses = state.courses,
@@ -216,9 +219,6 @@ internal fun HomeScreen(
             }
             if (showImportPrompt) item(key = "academic_import_prompt") {
                 ImportPromptCard(onImportBoth, onDismissImportPrompt)
-            }
-            if (diaryData?.settings?.showHomeCard == true) item(key = "goal_diary") {
-                DiaryHomeCard(diaryData, diaryNow, onOpenDiary)
             }
             item {
                 TimetableCard(

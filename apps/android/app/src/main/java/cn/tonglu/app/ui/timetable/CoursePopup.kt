@@ -25,6 +25,7 @@ import cn.tonglu.app.ui.launchOrigin
 import cn.tonglu.app.ui.overlayMotion
 import cn.tonglu.app.ui.rememberLaunchSource
 import cn.tonglu.app.ui.rememberOverlayMotionImpl
+import cn.tonglu.app.ui.books.CourseBooksLink
 
 internal data class CourseSelection(val course: CourseDto, val origin: ContainerOrigin? = null)
 
@@ -85,6 +86,7 @@ internal fun CourseDetailDialog(selection: CourseSelection, relatedCourses: List
             CourseDetailField("任课老师", course.teacher?.takeIf(String::isNotBlank) ?: "未填写老师")
             CourseDetailField("上课周次", if (course.weeks.isNotEmpty()) WeekSpec.describe(course.weeks)
                 else "${course.startWeek}–${course.endWeek} 周")
+            CourseBooksLink(course.name)
         }
         Row(Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
             verticalAlignment = Alignment.CenterVertically) {

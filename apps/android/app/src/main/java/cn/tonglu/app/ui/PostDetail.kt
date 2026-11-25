@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui
 
+import cn.tonglu.app.ui.profile.publicProfileLink
+
 import android.content.Intent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -419,7 +421,7 @@ private fun MainPostCard(
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                UserAvatar(post.author?.displayName, post.author?.avatarUrl, Modifier.size(42.dp))
+                UserAvatar(post.author?.displayName, post.author?.avatarUrl, Modifier.size(42.dp).publicProfileLink(post.author?.id, 21.dp))
                 Column(Modifier.weight(1f).padding(start = 12.dp)) {
                     Text(
                         post.author?.displayName ?: "同学",
@@ -427,6 +429,7 @@ private fun MainPostCard(
                         fontSize = 15.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.publicProfileLink(post.author?.id),
                     )
                     if (identityLine.isNotBlank()) {
                         Text(
@@ -530,7 +533,7 @@ private fun FloorRow(comment: PostCommentDto, accent: Color, onReply: () -> Unit
     val liked = comment.id in state.likedComments
     Column(Modifier.fillMaxWidth()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            UserAvatar(comment.author?.displayName, comment.author?.avatarUrl, Modifier.size(30.dp))
+            UserAvatar(comment.author?.displayName, comment.author?.avatarUrl, Modifier.size(30.dp).publicProfileLink(comment.author?.id, 15.dp))
             Column(Modifier.weight(1f).padding(start = 9.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
@@ -540,7 +543,7 @@ private fun FloorRow(comment: PostCommentDto, accent: Color, onReply: () -> Unit
                         color = AppColors.TextPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false),
+                        modifier = Modifier.weight(1f, fill = false).publicProfileLink(comment.author?.id),
                     )
                     if (isPostAuthor(comment.author?.id, postAuthorId)) {
                         Spacer(Modifier.width(5.dp))
@@ -619,6 +622,7 @@ private fun NestedReply(reply: PostCommentDto, accent: Color, state: AppUiState,
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 reply.author?.displayName ?: "同学",
+                modifier = Modifier.publicProfileLink(reply.author?.id),
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
                 color = accent,

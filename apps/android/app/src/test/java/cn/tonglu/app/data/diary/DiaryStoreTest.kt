@@ -8,6 +8,8 @@ import java.io.File
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.security.MessageDigest
+import com.google.gson.JsonObject
 
 class DiaryStoreTest {
     @get:Rule val temporary = TemporaryFolder()
@@ -23,9 +25,34 @@ class DiaryStoreTest {
         val file = File(temporary.root, "diary.json")
         val idea = Idea("idea", "一句灵感", 1000, 20, listOf("随手记"))
         val survey = DiarySurvey(3, listOf("habit"), listOf("habit"), answers = mapOf("habit" to WeeklyAnswer.MEDIUM), submitted = true)
-        val expected = DiaryData(ideas = listOf(idea), surveys = listOf(survey), settings = DiarySettings(summaryCycle = SummaryCycle.TWO))
+        val expected = DiaryData(
+            ideas = listOf(idea.copy(goalId = "goal")),
+            plans = listOf(DiaryPlan("plan", "今天要做", 20, recordedAt = 1000, tags = listOf("随手记"))),
+            surveys = listOf(survey),
+            settings = DiarySettings(summaryCycle = SummaryCycle.TWO, writeKind = DiaryEntryKind.PLAN),
+        )
         store(file).update { expected }
         assertEquals(DiaryStore.Snapshot(expected), store(file).load())
+    }
+
+    @Test
+    fun readsVersionOneFileWrittenBeforeQuickWriteFieldsExisted() {
+        val payload = """{"ideas":[{"id":"idea","text":"旧灵感","recordedAt":1000,"day":20,"tags":["保留"]}],"plans":[{"id":"plan","text":"旧计划","day":20,"done":true}],"goals":[],"summaries":[],"prohibitions":[],"surveys":[],"settings":{"summaryCycle":"THREE","surveyWeekday":7,"surveyHour":20,"surveyMinute":0,"surveyCount":12,"showHomeCard":true},"example":false}"""
+        val hash = MessageDigest.getInstance("SHA-256").digest(payload.toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val file = temporary.newFile("diary.json").apply {
+            writeText(JsonObject().apply {
+                addProperty("version", 1)
+                addProperty("payload", payload)
+                addProperty("sha256", hash)
+            }.toString())
+        }
+
+        val data = store(file).load().data
+        assertEquals(Idea("idea", "旧灵感", 1000, 20, listOf("保留")), data.ideas.single())
+        assertEquals(DiaryPlan("plan", "旧计划", 20, done = true), data.plans.single())
+        assertNull(data.settings.writeKind)
+        assertEquals(2, DiaryEntries.groups(data, 20, "").single().entries.size)
     }
 
     @Test

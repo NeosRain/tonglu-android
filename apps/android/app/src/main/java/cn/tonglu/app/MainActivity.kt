@@ -1,7 +1,9 @@
 package cn.tonglu.app
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -40,20 +42,53 @@ import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
 
+class DiaryWriteShortcutActivity : Activity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        startActivity(
+            Intent(this, MainActivity::class.java).setAction(ACTION_WRITE)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP),
+        )
+        finish()
+    }
+
+    companion object {
+        const val ACTION_WRITE = "cn.tonglu.app.action.WRITE_DIARY"
+    }
+}
+
 class MainActivity : ComponentActivity() {
 
     private var diaryRequest by mutableStateOf<DiaryOpenRequest?>(null)
+    private var diaryWriteVisible = false
 
     private fun readDiaryRequest(intent: Intent) {
+        if (intent.action == DiaryWriteShortcutActivity.ACTION_WRITE) {
+            diaryRequest = DiaryOpenRequest.Write
+            return
+        }
         if (intent.action != DiaryReminders.ACTION_OPEN) return
         val owner = intent.getStringExtra(DiaryReminders.EXTRA_OWNER) ?: return
         val kind = DiaryReminderKind.entries.firstOrNull { it.name == intent.getStringExtra(DiaryReminders.EXTRA_KIND) } ?: return
-        diaryRequest = DiaryOpenRequest(owner, kind)
+        diaryRequest = DiaryOpenRequest.Reminder(owner, kind)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         readDiaryRequest(intent)
+    }
+
+    private fun updateDiaryOrientation(writeVisible: Boolean) {
+        diaryWriteVisible = writeVisible
+        val orientation = if (writeVisible || resources.configuration.smallestScreenWidthDp >= 600 || isInMultiWindowMode)
+            ActivityInfo.SCREEN_ORIENTATION_FULL_USER else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (requestedOrientation != orientation) requestedOrientation = orientation
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean("diary_write_visible", diaryWriteVisible)
+        outState.putBoolean("diary_write_pending", diaryRequest == DiaryOpenRequest.Write)
     }
 
     private val notificationPermission = registerForActivityResult(
@@ -142,11 +177,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) readDiaryRequest(intent)
-        // Keep the phone's portrait preference; large screens now have a window-adaptive layout.
-        // FULL_USER also respects the owner's system rotation lock.
-        requestedOrientation = if (resources.configuration.smallestScreenWidthDp >= 600 || isInMultiWindowMode)
-            android.content.pm.ActivityInfo.SCREEN_ORIENTATION_FULL_USER
-        else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        if (savedInstanceState?.getBoolean("diary_write_pending") == true) diaryRequest = DiaryOpenRequest.Write
+        updateDiaryOrientation(savedInstanceState?.getBoolean("diary_write_visible") == true)
         // 旧版 Android 同样从屏幕边缘绘制；各控件自行避让状态栏与挖孔。
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.light(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
@@ -221,7 +253,11 @@ class MainActivity : ComponentActivity() {
                         // 根层壁纸宿主：不透明底色 + 可选壁纸（已模糊）+ 压暗/薄雾。
                         // 页面自己的 Scaffold 在 TongluApp 里会对壁纸让出透明，见那里的注释。
                         ThemeWallpaperHost(Modifier.fillMaxSize()) {
-                            TongluApp(viewModel, diaryRequest, onDiaryRequestHandled = { diaryRequest = null })
+                            TongluApp(
+                                viewModel, diaryRequest,
+                                onDiaryRequestHandled = { diaryRequest = null },
+                                onDiaryWriteVisible = ::updateDiaryOrientation,
+                            )
                         }
                     }
                 }

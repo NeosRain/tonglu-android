@@ -1,8 +1,10 @@
 package cn.tonglu.app.ui.diary
 
+import android.util.Log
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
@@ -16,6 +18,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.diary.DiaryData
 import cn.tonglu.app.data.diary.DiaryDates
@@ -38,6 +41,7 @@ import kotlinx.coroutines.withContext
 import java.io.IOException
 
 internal enum class DiaryPage(val title: String) {
+    WRITE("灵感与计划"),
     PLANS("灵感与计划"),
     HABITS("不做清单"),
     QUICK("记一下"),
@@ -54,6 +58,10 @@ internal enum class DiaryPage(val title: String) {
     SETTINGS("提醒与设置");
 
     fun route(argument: Any): String = "$name/$argument"
+
+    companion object {
+        fun isWriteRoute(route: String): Boolean = route == WRITE.name || route == PLANS.name || route == QUICK.name
+    }
 }
 
 internal class DiaryState(
@@ -82,6 +90,7 @@ internal class DiaryState(
             }
             accept(snapshot)
         } catch (failure: IOException) {
+            Log.w("DiaryState", "读取失败：${failure.javaClass.simpleName} ${failure.message}")
             error = failure.message ?: "无法读取本机日记"
         }
     }
@@ -103,6 +112,7 @@ internal class DiaryState(
                 onSaved()
                 done()
             } catch (failure: IOException) {
+                Log.w("DiaryState", "保存失败：${failure.javaClass.simpleName} ${failure.message}")
                 error = failure.message ?: "无法保存本机日记"
             } finally {
                 saving = false
@@ -133,6 +143,8 @@ internal fun DiaryNavigation(
     state: DiaryState,
     routes: List<String>,
     onOpen: (String) -> Unit,
+    autoFocusWrite: Boolean = true,
+    writeFocusRequest: Int = 0,
     onClose: (String) -> Unit,
 ) {
     if (routes.isEmpty()) return
@@ -148,9 +160,10 @@ internal fun DiaryNavigation(
                             if (state.error == null) item { CircularProgressIndicator(Modifier.size(28.dp), color = AppColors.Accent) }
                         }
                     } else when (page) {
-                        DiaryPage.PLANS -> DiaryPlansPage(state, data, close, onOpen)
+                        DiaryPage.WRITE, DiaryPage.PLANS, DiaryPage.QUICK -> DiaryWritePage(
+                            state, data, close, onOpen, index == routes.lastIndex, autoFocusWrite, writeFocusRequest,
+                        )
                         DiaryPage.HABITS -> DiaryHabitsPage(state, data, close, onOpen)
-                        DiaryPage.QUICK -> DiaryQuickPage(state, close)
                         DiaryPage.PLAN_EDITOR -> DiaryPlanEditor(state, data, argument, close)
                         DiaryPage.SUMMARY -> DiarySummaryPage(state, data, close)
                         DiaryPage.HISTORY -> DiaryHistoryPage(state, data, close, onOpen)
@@ -188,9 +201,11 @@ internal fun DiaryLayout(
     close: () -> Unit,
     state: DiaryState,
     footer: (@Composable () -> Unit)? = null,
+    aboveList: (@Composable () -> Unit)? = null,
+    headerActions: (@Composable RowScope.() -> Unit)? = null,
+    list: LazyListState = rememberLazyListState(),
     content: LazyListScope.() -> Unit,
 ) {
-    val list = rememberLazyListState()
     val backdrop = rememberLayerBackdrop()
     val glass = LocalGlassNavigationEnabled.current
     val top = WindowInsets.safeDrawing.asPaddingValues().calculateTopPadding() + GlassTokens.TopBarInsetDp.dp
@@ -201,10 +216,15 @@ internal fun DiaryLayout(
             contentAlignment = Alignment.TopCenter,
         ) {
             Column(Modifier.widthIn(max = 680.dp).fillMaxSize()) {
+                if (aboveList != null) {
+                    Box(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = top + 4.dp)) { aboveList() }
+                }
                 LazyColumn(
                     Modifier.weight(1f).fillMaxWidth(),
                     state = list,
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 12.dp, bottom = 20.dp),
+                    contentPadding = PaddingValues(
+                        start = 16.dp, end = 16.dp, top = if (aboveList == null) top + 12.dp else 8.dp, bottom = 20.dp,
+                    ),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     if (state.data?.example == true) item("example") { DiaryNotice("示例数据 · 仅供调试预览") }
@@ -227,7 +247,7 @@ internal fun DiaryLayout(
         }
         if (glass) {
             GlassTopBar(backdrop, Modifier.align(Alignment.TopCenter), scrollOffsetPx = { list.topBarScrollPx() }) {
-                DiaryHeader(title, close)
+                DiaryHeader(title, close, headerActions)
             }
         } else {
             Surface(color = AppColors.CanvasOpaque, contentColor = AppColors.TextPrimary) {
@@ -236,18 +256,23 @@ internal fun DiaryLayout(
                         .padding(top = GlassTokens.TopBarVerticalMarginDp.dp, start = 12.dp, end = 12.dp)
                         .height(GlassTokens.TopBarHeightDp.dp),
                     verticalAlignment = Alignment.CenterVertically,
-                ) { DiaryHeader(title, close) }
+                ) { DiaryHeader(title, close, headerActions) }
             }
         }
     }
 }
 
 @Composable
-private fun DiaryHeader(title: String, close: () -> Unit) {
+private fun RowScope.DiaryHeader(title: String, close: () -> Unit, actions: (@Composable RowScope.() -> Unit)?) {
     IconButton(onClick = close) {
         Icon(Icons.AutoMirrored.Outlined.ArrowBack, "返回", tint = AppColors.TextPrimary)
     }
-    Text(title, style = MaterialTheme.typography.titleLarge, color = AppColors.TextPrimary)
+    if (actions == null) Text(title, style = MaterialTheme.typography.titleLarge, color = AppColors.TextPrimary)
+    else Text(
+        title, Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, color = AppColors.TextPrimary,
+        maxLines = 1, overflow = TextOverflow.Ellipsis,
+    )
+    actions?.invoke(this)
 }
 
 @Composable
@@ -314,6 +339,7 @@ internal fun DiaryField(
     lines: Int = 1,
     options: KeyboardOptions = KeyboardOptions.Default,
     actions: KeyboardActions = KeyboardActions.Default,
+    maxLines: Int = Int.MAX_VALUE,
 ) {
     TextField(
         value = value,
@@ -322,6 +348,7 @@ internal fun DiaryField(
         label = { Text(label) },
         singleLine = lines == 1,
         minLines = lines,
+        maxLines = maxLines,
         shape = RoundedCornerShape(12.dp),
         keyboardOptions = options,
         keyboardActions = actions,

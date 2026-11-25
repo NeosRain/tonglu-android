@@ -11,7 +11,12 @@ internal data class Idea(
     val day: Long,
     val tags: List<String> = emptyList(),
     val review: IdeaReview? = null,
+    val goalId: String? = null,
+    val formerPlan: FormerDiaryPlan? = null,
 )
+
+@Keep
+internal data class FormerDiaryPlan(val done: Boolean, val carriedFrom: String?, val recordedAt: Long?)
 
 @Keep
 internal enum class IdeaReview(val label: String) {
@@ -29,7 +34,15 @@ internal data class DiaryPlan(
     val goalId: String? = null,
     val done: Boolean = false,
     val carriedFrom: String? = null,
+    val recordedAt: Long? = null,
+    val tags: List<String>? = null,
+    val ideaReview: IdeaReview? = null,
 )
+
+@Keep
+internal enum class DiaryEntryKind(val label: String) {
+    IDEA("💡 灵感"), PLAN("✅ 今天要做"),
+}
 
 @Keep
 internal data class SummaryIdea(val text: String, val review: IdeaReview)
@@ -91,6 +104,7 @@ internal data class DiarySettings(
     val surveyMinute: Int = 0,
     val surveyCount: Int = ProhibitionStats.DEFAULT_QUESTIONS,
     val showHomeCard: Boolean = true,
+    val writeKind: DiaryEntryKind? = null,
 )
 
 @Keep

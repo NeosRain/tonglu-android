@@ -281,6 +281,7 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
         if (legacy == true) Row(Modifier.padding(horizontal = 12.dp)) {
             TextButton(onClick = { openedClubId = null; showClubLayer = true }) { Text("社团") }
             CommunityRulesLink { navigate(CommunityDestination.Rules) }
+            cn.tonglu.app.ui.community.CommunityBooksLink()
         }
     }
     val overlayHeader = header.takeIf { glassUnderlap && legacy != null }

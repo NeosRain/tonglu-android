@@ -27,15 +27,18 @@ import cn.tonglu.app.ui.rememberLaunchSource
 @Composable
 internal fun ProfileHeader(state: AppUiState, onLogin: () -> Unit, onEdit: () -> Unit) {
     val session = state.session
+    val openProfile = LocalOpenPublicProfile.current
     ProfileGroup {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp),
                 verticalAlignment = Alignment.CenterVertically) {
                 ProfileAvatar(session?.displayName, session?.avatarUrl, 72.dp,
                     Modifier.semantics {
-                        contentDescription = if (session == null) "注册或登录" else "编辑资料"
+                        contentDescription = if (session == null) "注册或登录" else "查看个人主页"
                     }.launchClickable(session?.userId, 36.dp, enabled = !state.busy,
-                        onClick = if (session == null) onLogin else onEdit))
+                        onClick = if (session == null) onLogin else {
+                            { if (openProfile != null) openProfile(session.userId, false) else onEdit() }
+                        }))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(session?.displayName ?: "你好，同学", style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -51,7 +54,9 @@ internal fun ProfileHeader(state: AppUiState, onLogin: () -> Unit, onEdit: () ->
                         )) { Text("注册或登录") }
                 } else {
                     val origin = rememberLaunchSource("edit-profile", 20.dp)
-                    FilledTonalButton(onClick = { origin.launch(onEdit) }, enabled = !state.busy,
+                    FilledTonalButton(onClick = { origin.launch {
+                        if (openProfile != null) openProfile(session.userId, true) else onEdit()
+                    } }, enabled = !state.busy,
                         modifier = Modifier.launchOrigin(origin),
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
                         colors = ButtonDefaults.filledTonalButtonColors(

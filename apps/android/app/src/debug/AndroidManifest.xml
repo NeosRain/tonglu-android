@@ -12,8 +12,12 @@
             android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.ClassNotesPreviewActivity" android:exported="true" android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.diary.GoalDiaryPreviewActivity" android:exported="true"
+            android:screenOrientation="fullUser" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.profile.PublicProfilePreviewActivity" android:exported="true"
             android:screenOrientation="portrait" android:windowSoftInputMode="adjustResize" />
         <activity android:name=".ui.TimetableOverlapPreviewActivity" android:exported="true"
             android:process=":timetable_overlap_preview" />
+        <activity android:name=".ui.books.BooksPreviewActivity" android:exported="true"
+            android:process=":books_preview" android:windowSoftInputMode="adjustResize" />
     </application>
 </manifest>

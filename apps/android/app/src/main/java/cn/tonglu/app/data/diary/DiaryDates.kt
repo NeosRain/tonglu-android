@@ -27,6 +27,16 @@ internal object DiaryDates {
     }
 
     fun date(day: Long): String = format("yyyy-MM-dd", utc).format(Date(day * DAY_MS))
+    fun groupLabel(day: Long, today: Long): String = when (day) {
+        today -> "今天"
+        today - 1 -> "昨天"
+        else -> {
+            val date = Date(day * DAY_MS)
+            val year = format("yyyy", utc)
+            val pattern = if (year.format(date) == year.format(Date(today * DAY_MS))) "M月d日" else "yyyy年M月d日"
+            format(pattern, utc).format(date)
+        }
+    }
     fun time(millis: Long): String = format("HH:mm", TimeZone.getDefault()).format(Date(millis))
     fun timestamp(millis: Long): String = format("yyyy-MM-dd HH:mm", TimeZone.getDefault()).format(Date(millis))
 

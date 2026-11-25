@@ -35,7 +35,7 @@ internal fun DiarySettingsPage(state: DiaryState, settings: DiarySettings, close
     DiaryLayout(DiaryPage.SETTINGS.title, close, state, footer = {
         DiaryAction(state.saveLabel("保存设置"), {
             val updated = DiarySettings(cycle, weekday, hour, minute, count, showCard)
-            state.save({ it.copy(settings = updated) }, close)
+            state.save({ it.copy(settings = updated.copy(writeKind = it.settings.writeKind)) }, close)
         }, enabled = !state.saving)
     }) {
         item("summary") {

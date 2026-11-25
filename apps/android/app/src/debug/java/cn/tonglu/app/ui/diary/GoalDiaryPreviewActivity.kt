@@ -46,15 +46,16 @@ class GoalDiaryPreviewActivity : ComponentActivity() {
         val start = when (intent.getStringExtra("page")) {
             "home" -> null
             "habits" -> DiaryPage.HABITS.name
-            "quick" -> DiaryPage.QUICK.name
+            "write", "quick" -> DiaryPage.WRITE.name
             "summary" -> DiaryPage.SUMMARY.name
             "history" -> DiaryPage.HISTORY.name
             "goals" -> DiaryPage.GOALS.name
             "survey" -> DiaryPage.SURVEY.route(week)
             "ranking" -> DiaryPage.RANKING.name
             "settings" -> DiaryPage.SETTINGS.name
-            else -> DiaryPage.PLANS.name
+            else -> DiaryPage.WRITE.name
         }
+        val autoFocusWrite = intent.getBooleanExtra("keyboard", true)
         val store = DiaryStore.forAndroidFile(File(noBackupFilesDir, "goal-diary-preview/$today.json"))
         val fixture = previewDiary(today, week)
         setContent {
@@ -74,10 +75,10 @@ class GoalDiaryPreviewActivity : ComponentActivity() {
                         ) {
                             DiaryNotice("示例数据 · 仅供调试预览")
                             state.data?.let { DiaryHomeCard(it, state.now, open) }
-                            DiaryLink(DiaryPage.PLANS.title, { open(DiaryPage.PLANS.name) })
+                            DiaryLink(DiaryPage.WRITE.title, { open(DiaryPage.WRITE.name) })
                             DiaryLink(DiaryPage.HABITS.title, { open(DiaryPage.HABITS.name) })
                         }
-                        DiaryNavigation(state, routes, open) { route ->
+                        DiaryNavigation(state, routes, open, autoFocusWrite = autoFocusWrite) { route ->
                             if (routes.lastOrNull() == route) {
                                 OverlayDismissGuard.arm()
                                 routes = ArrayList(routes.dropLast(1))
@@ -99,9 +100,9 @@ class GoalDiaryPreviewActivity : ComponentActivity() {
 private fun previewDiary(today: Long, week: Long): DiaryData {
     val goal = DiaryGoal("preview-goal", "一个月内整理好作品集", today + 16)
     val plans = listOf(
-        DiaryPlan("preview-plan-1", "理出作品集的三个主题", today, goal.id, done = true),
-        DiaryPlan("preview-plan-2", "选出两份有代表性的作业", today, goal.id),
-        DiaryPlan("preview-plan-3", "问同学愿不愿意帮忙看初稿", today),
+        DiaryPlan("preview-plan-1", "理出作品集的三个主题", today, goal.id, done = true, recordedAt = DiaryDates.atTime(today, 9, 50)),
+        DiaryPlan("preview-plan-2", "选出两份有代表性的作业", today, goal.id, recordedAt = DiaryDates.atTime(today, 9, 12)),
+        DiaryPlan("preview-plan-3", "问同学愿不愿意帮忙看初稿", today, recordedAt = DiaryDates.atTime(today, 8, 40)),
         DiaryPlan("preview-plan-4", "给旧项目补一段过程说明", today - 1, goal.id),
         DiaryPlan("preview-plan-5", "收集三份版式参考", today - 2, goal.id, done = true),
     )

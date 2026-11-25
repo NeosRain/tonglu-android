@@ -54,6 +54,7 @@ internal fun NoticesScreen(
     markRead: suspend (String) -> Result<Unit>,
     onClose: () -> Unit,
     topInset: Dp = 0.dp,
+    onOpenBook: (String) -> Unit = {},
 ) {
     var items by remember { mutableStateOf<List<NoticeDto>?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -108,7 +109,17 @@ internal fun NoticesScreen(
             list.forEach { notice ->
                 item(key = notice.id) {
                     NoticeCard(notice) {
-                        if (notice.readAt == null) scope.launch { markRead(notice.id) }
+                        val bookId = notice.refId?.takeIf { notice.refType == "BOOK_LISTING" }
+                        if (notice.readAt == null) scope.launch {
+                            markRead(notice.id).onSuccess {
+                                if (bookId != null) items = items?.map {
+                                    if (it.id == notice.id) it.copy(readAt = java.time.Instant.now().toString()) else it
+                                }
+                            }.onFailure {
+                                android.util.Log.w("TongluNotices", "消息已读更新失败（${it.javaClass.simpleName}）")
+                            }
+                        }
+                        bookId?.let(onOpenBook)
                     }
                 }
             }

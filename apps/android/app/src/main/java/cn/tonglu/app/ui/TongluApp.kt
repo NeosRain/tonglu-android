@@ -4,6 +4,7 @@ import cn.tonglu.app.ui.profile.AccountSettingsScreen
 import cn.tonglu.app.ui.profile.MyLevelScreen
 import cn.tonglu.app.ui.profile.NoticesScreen
 import cn.tonglu.app.ui.profile.ProfileScreen
+import cn.tonglu.app.ui.profile.PublicProfileNavigation
 import cn.tonglu.app.ui.home.HomeScreen
 import cn.tonglu.app.data.SessionStore
 import cn.tonglu.app.data.diary.DiaryOpenRequest
@@ -162,6 +163,7 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.lifecycle.viewmodel.compose.viewModel
 import cn.tonglu.app.data.AppUiState
 import cn.tonglu.app.data.AppViewModel
+import cn.tonglu.app.data.books.BooksRepository
 import cn.tonglu.app.BuildConfig
 import cn.tonglu.app.data.CourseDto
 import cn.tonglu.app.data.CreateCourseRequest
@@ -180,6 +182,10 @@ import cn.tonglu.app.data.PeriodTable
 import cn.tonglu.app.data.WeekSpec
 import cn.tonglu.app.data.ScheduleText
 import cn.tonglu.app.ui.timetable.CourseRecognitionActions
+import cn.tonglu.app.ui.books.BooksAccess
+import cn.tonglu.app.ui.books.BooksEntry
+import cn.tonglu.app.ui.books.BooksHost
+import cn.tonglu.app.ui.books.LocalBooksAccess
 import cn.tonglu.app.ui.glass.GlassTopBar
 import cn.tonglu.app.ui.glass.GlassBottomTokens
 import cn.tonglu.app.ui.glass.LiquidBottomTabs
@@ -249,6 +255,7 @@ internal fun TongluApp(
     viewModel: AppViewModel = viewModel(),
     diaryRequest: DiaryOpenRequest? = null,
     onDiaryRequestHandled: () -> Unit = {},
+    onDiaryWriteVisible: (Boolean) -> Unit = {},
 ) {
     ThemeSystemBars()
     val context = androidx.compose.ui.platform.LocalContext.current
@@ -258,6 +265,13 @@ internal fun TongluApp(
         canUseNavigationGlass(glassNavSetting, Build.VERSION.SDK_INT) { isRuntimeShaderSupported() }
     }
     val startupState by viewModel.state.collectAsStateWithLifecycle()
+    val booksSession = startupState.session?.sessionId
+    val booksRepository = remember(viewModel, booksSession) { booksSession?.let { BooksRepository(viewModel, it) } }
+    var booksEntry by remember(booksSession) { mutableStateOf<BooksEntry?>(null) }
+    var booksRevision by remember(booksSession) { mutableIntStateOf(0) }
+    val booksAccess = remember(booksRepository, booksRevision) {
+        BooksAccess(booksRepository, booksRevision) { booksEntry = it }
+    }
     val startupOwner = if (!startupState.ready) null else
         startupState.session?.userId?.takeIf { it.isNotBlank() }
             ?: startupState.session?.username?.takeIf { it.isNotBlank() }
@@ -266,14 +280,22 @@ internal fun TongluApp(
         if (startupOwner != null) DiaryReminders.scheduleAsync(context)
     }
     cn.tonglu.app.ui.startup.LaunchAnimationHost(ready = startupState.ready, owner = startupOwner) {
-        CompositionLocalProvider(LocalGlassNavigationEnabled provides useGlassNav) {
-            TongluAppContent(
-                viewModel, glassNavSetting, diaryRequest, onDiaryRequestHandled,
-                onGlassNavChange = { enabled ->
-                    glassNavSetting = enabled
-                    settingsPrefs.edit().putBoolean("glass_nav", enabled).apply()
-                },
-            )
+        CompositionLocalProvider(
+            LocalGlassNavigationEnabled provides useGlassNav,
+            LocalBooksAccess provides booksAccess,
+        ) {
+            PublicProfileNavigation(viewModel, startupState.session?.sessionId) {
+                TongluAppContent(
+                    viewModel, glassNavSetting, diaryRequest, onDiaryRequestHandled, onDiaryWriteVisible,
+                    booksEntry = booksEntry,
+                    onCloseBooks = { booksEntry = null },
+                    onBooksChanged = { booksRevision++ },
+                    onGlassNavChange = { enabled ->
+                        glassNavSetting = enabled
+                        settingsPrefs.edit().putBoolean("glass_nav", enabled).apply()
+                    },
+                )
+            }
         }
     }
     cn.tonglu.app.ui.focus.PomodoroHost(startupOwner)
@@ -285,9 +307,14 @@ private fun TongluAppContent(
     glassNavSetting: Boolean,
     diaryRequest: DiaryOpenRequest?,
     onDiaryRequestHandled: () -> Unit,
+    onDiaryWriteVisible: (Boolean) -> Unit,
+    booksEntry: BooksEntry?,
+    onCloseBooks: () -> Unit,
+    onBooksChanged: () -> Unit,
     onGlassNavChange: (Boolean) -> Unit,
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val booksAccess = LocalBooksAccess.current
     cn.tonglu.app.ui.update.AppUpdateHost()
     var showTrustLevel by rememberSaveable { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
@@ -304,6 +331,7 @@ private fun TongluAppContent(
         return
     }
     if (state.session == null && !state.previewMode) {
+        LaunchedEffect(Unit) { onDiaryWriteVisible(false) }
         EmailLoginScreen(
             state,
             onSubmit = { form ->
@@ -385,19 +413,28 @@ private fun TongluAppContent(
     var diaryRoutes by androidx.compose.runtime.key(diaryOwner) {
         rememberSaveable { mutableStateOf(arrayListOf<String>()) }
     }
+    var diaryWriteFocusRequest by rememberSaveable { mutableIntStateOf(0) }
+    val diaryWriteVisible = diaryRoutes.any { DiaryPage.isWriteRoute(it) }
+    LaunchedEffect(diaryWriteVisible) { onDiaryWriteVisible(diaryWriteVisible) }
     val openDiary: (String) -> Unit = { route ->
         if (route != diaryRoutes.lastOrNull()) diaryRoutes = ArrayList(diaryRoutes + route)
     }
     LaunchedEffect(diaryRequest, diaryOwner, diaryData, diary.error) {
-        if (diaryRequest == null) return@LaunchedEffect
-        if (diaryRequest.owner == diaryOwner && diaryData == null && diary.error == null) return@LaunchedEffect
-        if (diaryRequest.owner == diaryOwner) {
-            val route = when (diaryRequest.kind) {
-                DiaryReminderKind.SUMMARY -> DiaryPage.SUMMARY.name
-                DiaryReminderKind.SURVEY -> diaryData?.let { DiaryReminders.pendingSurveyWeek(it, diary.now) }
-                    ?.let { DiaryPage.SURVEY.route(it) } ?: DiaryPage.HABITS.name
+        when (diaryRequest) {
+            null -> return@LaunchedEffect
+            DiaryOpenRequest.Write -> {
+                if (diaryRoutes.lastOrNull()?.let { DiaryPage.isWriteRoute(it) } != true) openDiary(DiaryPage.WRITE.name)
+                diaryWriteFocusRequest++
             }
-            openDiary(route)
+            is DiaryOpenRequest.Reminder -> if (diaryRequest.owner == diaryOwner) {
+                if (diaryData == null && diary.error == null) return@LaunchedEffect
+                val route = when (diaryRequest.kind) {
+                    DiaryReminderKind.SUMMARY -> DiaryPage.SUMMARY.name
+                    DiaryReminderKind.SURVEY -> diaryData?.let { DiaryReminders.pendingSurveyWeek(it, diary.now) }
+                        ?.let { DiaryPage.SURVEY.route(it) } ?: DiaryPage.HABITS.name
+                }
+                openDiary(route)
+            }
         }
         onDiaryRequestHandled()
     }
@@ -502,7 +539,7 @@ private fun TongluAppContent(
     val openService: (cn.tonglu.app.data.CampusService) -> Unit = openService@ { service ->
         if (service.id == "localsend") { showFileTransfer = true; return@openService }
         if (service.id == "netdisk") { showNetdisk = true; return@openService }
-        if (service.id == CampusServices.DIARY_PLANS) { openDiary(DiaryPage.PLANS.name); return@openService }
+        if (service.id == CampusServices.DIARY_PLANS) { openDiary(DiaryPage.WRITE.name); return@openService }
         if (service.id == CampusServices.DIARY_HABITS) { openDiary(DiaryPage.HABITS.name); return@openService }
         val target = service.url ?: cn.tonglu.app.data.CampusServices.PORTAL_URL
         if (service.externalAppPackage == AgriculturalBankPayment.PACKAGE) {
@@ -1170,6 +1207,7 @@ private fun TongluAppContent(
                 load = { viewModel.loadNotices().map { it.items } },
                 markRead = { viewModel.markNoticeRead(it) },
                 onClose = requestClose,
+                onOpenBook = { booksAccess?.open(BooksEntry(id = it)) },
             )
         }
     }
@@ -1182,7 +1220,20 @@ private fun TongluAppContent(
         }
     }
 
-    DiaryNavigation(diary, diaryRoutes, openDiary) { route ->
+    if (booksEntry != null && booksAccess != null) {
+        BooksHost(
+            entry = booksEntry,
+            access = booksAccess,
+            state = state,
+            onClose = { closeLayer(onCloseBooks) },
+            onLogin = { closeLayer { onCloseBooks(); viewModel.openLogin() } },
+            onChanged = onBooksChanged,
+        ) { requestClose ->
+            CampusVerificationScreen(state, viewModel, onBack = requestClose, onLogin = viewModel::openLogin)
+        }
+    }
+
+    DiaryNavigation(diary, diaryRoutes, openDiary, writeFocusRequest = diaryWriteFocusRequest) { route ->
         if (diaryRoutes.lastOrNull() == route) closeLayer { diaryRoutes = ArrayList(diaryRoutes.dropLast(1)) }
     }
 
@@ -1384,7 +1435,7 @@ internal fun GlassBottomBar(
  * @param backdrop 顶栏玻璃条的 backdrop；非空且 onGlass 时才画玻璃
  */
 @Composable
-private fun SearchField(
+internal fun SearchField(
     value: String,
     onValueChange: (String) -> Unit,
     modifier: Modifier = Modifier,
@@ -1397,8 +1448,8 @@ private fun SearchField(
      * 关掉的是**触摸**，不是显示 —— 搜索词和样式照常，只是这一小会儿点它没反应。
      */
     enabled: Boolean = true,
+    hint: String = "搜索当前页面",
 ) {
-    val hint = "搜索当前页面"
     // 聚焦时把占位文案收掉，否则光标会压在第一个字上
     var focused by remember { mutableStateOf(false) }
     // 搜索框跟随应用主题，外层顶栏负责磨砂。

@@ -1,5 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut android:shortcutId="write_diary" android:enabled="true"
+        android:icon="@android:drawable/ic_menu_edit"
+        android:shortcutShortLabel="@string/shortcut_write_diary">
+        <intent android:action="cn.tonglu.app.action.WRITE_DIARY"
+            android:targetPackage="cn.tonglu.app"
+            android:targetClass="cn.tonglu.app.DiaryWriteShortcutActivity" />
+    </shortcut>
     <shortcut android:shortcutId="add_widgets" android:enabled="true"
         android:icon="@drawable/ic_shortcut_widgets"
         android:shortcutShortLabel="@string/shortcut_add_widgets"

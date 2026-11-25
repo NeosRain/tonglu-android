@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import cn.tonglu.app.BuildConfig
+import cn.tonglu.app.data.books.BooksApi
 import cn.tonglu.app.data.community.*
 import cn.tonglu.app.data.competition.RemoteCompetitionCatalog
 import cn.tonglu.app.data.competition.RemoteSubscriptionList
@@ -29,7 +30,47 @@ import java.util.UUID
 data class FeedbackSubmission(val submissionId: String, val title: String, val detail: String, val appVersion: String)
 data class FeedbackReceipt(val receiptId: String, val acceptedAt: String)
 
-interface TongluApi {
+interface TongluApi : BooksApi {
+    @GET("users/{key}/profile")
+    suspend fun publicProfile(@Path("key") key: String, @Header("Authorization") bearer: String?): PublicProfileDto
+
+    @GET("users/{id}/{kind}")
+    suspend fun profilePosts(@Path("id") id: String, @Path("kind") kind: String, @Query("page") page: Int,
+        @Header("Authorization") bearer: String?): ProfilePageDto<ProfilePostDto>
+
+    @GET("users/{id}/{kind}")
+    suspend fun profilePeople(@Path("id") id: String, @Path("kind") kind: String, @Query("page") page: Int,
+        @Header("Authorization") bearer: String?): ProfilePageDto<ProfilePersonDto>
+
+    @GET("users/{id}/followed-boards")
+    suspend fun profileBoards(@Path("id") id: String, @Query("page") page: Int,
+        @Header("Authorization") bearer: String?): ProfilePageDto<ProfileBoardDto>
+
+    @GET("users/{id}/profile/cover/{name}")
+    suspend fun profileCover(@Path("id") id: String, @Path("name") name: String,
+        @Header("Authorization") bearer: String?): okhttp3.ResponseBody
+
+    @PATCH("me/profile")
+    suspend fun updatePublicProfile(@Header("Authorization") bearer: String, @Body input: UpdatePublicProfileRequest): PublicProfileDto
+
+    @retrofit2.http.Multipart @POST("me/profile/avatar")
+    suspend fun profileAvatar(@Header("Authorization") bearer: String, @retrofit2.http.Part image: okhttp3.MultipartBody.Part): UserDto
+
+    @retrofit2.http.Multipart @POST("me/profile/cover")
+    suspend fun uploadProfileCover(@Header("Authorization") bearer: String, @retrofit2.http.Part image: okhttp3.MultipartBody.Part): ProfileCoverDto
+
+    @DELETE("me/profile/cover")
+    suspend fun removeProfileCover(@Header("Authorization") bearer: String)
+
+    @PUT("users/{id}/profile/follow")
+    suspend fun followProfile(@Header("Authorization") bearer: String, @Path("id") id: String): CommunityFollowDto
+
+    @DELETE("users/{id}/profile/follow")
+    suspend fun unfollowProfile(@Header("Authorization") bearer: String, @Path("id") id: String): CommunityFollowDto
+
+    @POST("users/{id}/profile/reports")
+    suspend fun reportProfile(@Header("Authorization") bearer: String, @Path("id") id: String, @Body input: CreateReportRequest)
+
     @GET("posts/feed")
     suspend fun communityFeed(@Query("sort") sort: String, @Query("cursor") cursor: String?, @Query("page") page: Int?): List<PostDto>
 

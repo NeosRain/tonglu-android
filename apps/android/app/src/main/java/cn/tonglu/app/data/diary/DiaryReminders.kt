@@ -27,7 +27,10 @@ internal enum class DiaryReminderKind(val id: Int, val title: String, val messag
     SURVEY(6812, "本周不做清单问卷", "回顾这周的执行情况"),
 }
 
-internal data class DiaryOpenRequest(val owner: String, val kind: DiaryReminderKind)
+internal sealed interface DiaryOpenRequest {
+    data object Write : DiaryOpenRequest
+    data class Reminder(val owner: String, val kind: DiaryReminderKind) : DiaryOpenRequest
+}
 
 internal object DiaryReminders {
     const val NOTIFICATION_TAG = "goal-diary"

@@ -68,7 +68,8 @@
             android:name=".MainActivity"
             android:exported="true"
             android:screenOrientation="fullUser"
-            android:resizeableActivity="true">
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize">
             <!-- 向系统声明支持平板旋转和分屏；普通手机的竖屏偏好由MainActivity保留。
                  导航按实际窗口宽高选择侧栏或底栏，不按设备型号硬编码。 -->
             <meta-data android:name="android.app.shortcuts" android:resource="@xml/launcher_shortcuts" />
@@ -78,6 +79,9 @@
             </intent-filter>
         </activity>
 
+        <!-- 静态快捷方式的清栈标志只作用在这个无关联任务的分发 Activity。 -->
+        <activity android:name=".DiaryWriteShortcutActivity" android:exported="true"
+            android:taskAffinity="" android:excludeFromRecents="true" android:theme="@android:style/Theme.NoDisplay" />
         <activity android:name=".widget.WidgetPickerActivity"
             android:exported="true" android:excludeFromRecents="true"
             android:taskAffinity="${applicationId}.widgetpicker" />

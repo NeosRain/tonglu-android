@@ -224,6 +224,22 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             throw error
         }
 
+    internal suspend fun <T> readPublicProfile(sessionId: String?, request: suspend TongluApi.(String?) -> T): T =
+        if (sessionId == null) api.request(null) else communityAuthorized(sessionId) { request(it) }
+
+    internal suspend fun updatePublicProfile(sessionId: String, input: UpdatePublicProfileRequest): PublicProfileDto {
+        val profile = communityAuthorized(sessionId) { updatePublicProfile(it, input) }
+        sessions.updateProfile(sessionId, UserDto(profile.id, profile.username, profile.displayName, avatarUrl = profile.avatarUrl))
+        return profile
+    }
+
+    internal suspend fun uploadPublicProfileAvatar(sessionId: String, uri: android.net.Uri): UserDto {
+        val image = avatarPart(getApplication(), uri)
+        val user = communityAuthorized(sessionId) { profileAvatar(it, image) }
+        sessions.updateProfile(sessionId, user)
+        return user
+    }
+
     internal fun reportCommunityRead(sessionId: String, postId: String, read: CommunityRead, seconds: Int) {
         viewModelScope.launch {
             try {
