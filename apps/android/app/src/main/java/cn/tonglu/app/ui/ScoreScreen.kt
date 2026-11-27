@@ -32,7 +32,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.ExpandMore
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -109,7 +108,7 @@ internal fun ScoreScreen(
     if (showYearDialog) {
         var yearText by remember { mutableStateOf(firstYear?.toString().orEmpty()) }
         val year = yearText.toIntOrNull()?.takeIf { it in 1900..2100 }
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { showYearDialog = false },
             title = { Text("入学年份") },
             text = {
@@ -120,10 +119,14 @@ internal fun ScoreScreen(
                 }
             },
             confirmButton = { TextButton(enabled = year != null, onClick = {
-                onAdmissionYearChange(year); showYearDialog = false
+                closeWith {
+                    onAdmissionYearChange(year); showYearDialog = false
+                }
             }) { Text("保存") } },
             dismissButton = { TextButton(onClick = {
-                onAdmissionYearChange(null); showYearDialog = false
+                closeWith {
+                    onAdmissionYearChange(null); showYearDialog = false
+                }
             }) { Text("自动推算") } },
         )
     }
@@ -135,14 +138,14 @@ internal fun ScoreScreen(
     }
 
     if (confirmClear) {
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { confirmClear = false },
             title = { Text("清空成绩") },
             text = { Text("将删除本机保存的 ${records.size} 条成绩记录（不影响教务系统里的成绩）。") },
             confirmButton = {
-                TextButton(onClick = { confirmClear = false; onClear() }) { Text("清空", color = ScoreFail) }
+                TextButton(onClick = { closeWith { confirmClear = false; onClear() } }) { Text("清空", color = ScoreFail) }
             },
-            dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 

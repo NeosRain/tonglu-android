@@ -513,7 +513,6 @@ internal fun LaboratoryCommunityScreen(state: AppUiState, viewModel: AppViewMode
             val clubId = post.clubId?.takeIf { post.visibility == "MEMBERS" || post.visibility == "COHORT" }
             viewModel.reportPost(post.id, category.label, details, category.name, clubId) { error ->
                 done(error)
-                if (error == null) closeLayer { reportTarget = null }
             }
         }
         else ReportDialog(post, onDismiss = { reportTarget = null }, onSubmit = { reason, details ->

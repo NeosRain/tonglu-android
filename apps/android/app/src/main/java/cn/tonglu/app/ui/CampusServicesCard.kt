@@ -86,7 +86,7 @@ internal fun CampusServicesSections(
         }
     }
 
-    if (managing) AlertDialog(
+    if (managing) OriginAlertDialog(
         onDismissRequest = { managing = false },
         title = { Text("显示的入口") },
         text = {
@@ -124,7 +124,7 @@ internal fun CampusServicesSections(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { managing = false }) { Text("完成") } },
+        confirmButton = { TextButton(onClick = this::dismiss) { Text("完成") } },
     )
 }
 

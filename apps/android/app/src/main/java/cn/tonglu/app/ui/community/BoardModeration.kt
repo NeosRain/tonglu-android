@@ -13,6 +13,8 @@ import cn.tonglu.app.data.PostDto
 import cn.tonglu.app.data.TongluApi
 import cn.tonglu.app.data.community.*
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
+import cn.tonglu.app.ui.OriginDialogScope
 import cn.tonglu.app.ui.OverlayDismissGuard
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.coroutineScope
@@ -106,17 +108,22 @@ internal class BoardModeration(
         tool = next
     }
 
-    fun moderate(postId: String, request: ModerateBoardPostRequest, after: BoardTool? = null) =
-        perform(after) { moderateCommunityPost(it, board.id, postId, request) }
+    fun moderate(
+        postId: String, request: ModerateBoardPostRequest, after: BoardTool? = null,
+        closeAfterSuccess: ((() -> Unit) -> Unit)? = null,
+    ) = perform(after, closeAfterSuccess) { moderateCommunityPost(it, board.id, postId, request) }
 
-    fun mute(userId: String, days: Int, reason: String) =
-        perform(null) { muteCommunityMember(it, board.id, userId, BoardMuteRequest(days * 24 * 60, reason)) }
+    fun mute(userId: String, days: Int, reason: String, closeAfterSuccess: (() -> Unit) -> Unit) =
+        perform(null, closeAfterSuccess) { muteCommunityMember(it, board.id, userId, BoardMuteRequest(days * 24 * 60, reason)) }
 
-    fun decide(tool: BoardTool.Decide, reason: String) = perform(BoardTool.Reports) {
-        decideCommunityReport(it, board.id, tool.report.id, BoardReportDecision(if (tool.confirm) "confirm" else "dismiss", reason))
-    }
+    fun decide(tool: BoardTool.Decide, reason: String, closeAfterSuccess: (() -> Unit) -> Unit) =
+        perform(BoardTool.Reports, closeAfterSuccess) {
+            decideCommunityReport(it, board.id, tool.report.id, BoardReportDecision(if (tool.confirm) "confirm" else "dismiss", reason))
+        }
 
-    private fun perform(after: BoardTool?, request: suspend TongluApi.(String) -> Unit) {
+    private fun perform(
+        after: BoardTool?, closeAfterSuccess: ((() -> Unit) -> Unit)?, request: suspend TongluApi.(String) -> Unit,
+    ) {
         if (busy) return
         busy = true
         actionError = null
@@ -124,9 +131,12 @@ internal class BoardModeration(
             val result = communityResult { viewModel.communityAuthorized(sessionId, request) }
             busy = false
             result.onSuccess {
-                revision++
-                show(after)
-                onChanged()
+                val applyResult = {
+                    revision++
+                    show(after)
+                    onChanged()
+                }
+                if (closeAfterSuccess != null) closeAfterSuccess(applyResult) else applyResult()
             }.onFailure {
                 actionError = communityErrorMessage(it, "管理操作失败，请重试")
                 if (it is HttpException && it.code() == 403) retryAccess()
@@ -167,15 +177,15 @@ internal fun BoardModerationDialogs(state: BoardModeration) {
             is BoardTool.Post -> BoardPostActions(state, tool)
             is BoardTool.Move -> BoardMoveDialog(state, tool.postId)
             is BoardTool.Mute -> BoardReasonDialog(state, "圈内禁言", "禁言", showDays = true) { days, reason ->
-                state.mute(tool.userId, days, reason)
+                state.mute(tool.userId, days, reason, this::closeWith)
             }
             is BoardTool.Delete -> BoardActionDialog(state, "移入回收站", "移入回收站",
-                onConfirm = { state.moderate(tool.postId, ModerateBoardPostRequest("delete")) }) {
+                onConfirm = { state.moderate(tool.postId, ModerateBoardPostRequest("delete"), closeAfterSuccess = this::closeWith) }) {
                 Text("移入回收站后，圈子成员将无法查看此帖。管理者可以恢复。")
             }
             is BoardTool.Decide -> BoardReasonDialog(
                 state, if (tool.confirm) "维持隐藏" else "驳回举报", "确认处理", onCancel = { state.openReports() },
-            ) { _, reason -> state.decide(tool, reason) }
+            ) { _, reason -> state.decide(tool, reason, this::closeWith) }
             BoardTool.Trash -> BoardTrashDialog(state)
             BoardTool.Reports -> BoardReportsDialog(state)
         }
@@ -190,18 +200,18 @@ private fun BoardPostActions(state: BoardModeration, tool: BoardTool.Post) {
             val pinned = post.pinnedAt != null
             val featured = post.featuredAt != null
             TextButton(enabled = state.canManage && !state.busy, onClick = {
-                state.moderate(post.id, ModerateBoardPostRequest(if (pinned) "unpin" else "pin"))
+                state.moderate(post.id, ModerateBoardPostRequest(if (pinned) "unpin" else "pin"), closeAfterSuccess = ::closeWith)
             }) { Text(if (pinned) "取消置顶" else "置顶") }
             TextButton(enabled = state.canManage && !state.busy, onClick = {
-                state.moderate(post.id, ModerateBoardPostRequest(if (featured) "unfeature" else "feature"))
+                state.moderate(post.id, ModerateBoardPostRequest(if (featured) "unfeature" else "feature"), closeAfterSuccess = ::closeWith)
             }) { Text(if (featured) "取消精华" else "加精") }
             if (state.board.clubId == null && state.board.type != "CLUB") {
-                TextButton(enabled = state.canManage && !state.busy, onClick = { state.show(BoardTool.Move(post.id)) }) { Text("移帖") }
+                TextButton(enabled = state.canManage && !state.busy, onClick = { closeWith { state.show(BoardTool.Move(post.id)) } }) { Text("移帖") }
             }
             if (tool.canMuteAuthor) post.author?.id?.let { userId ->
-                TextButton(enabled = state.canManage && !state.busy, onClick = { state.show(BoardTool.Mute(userId)) }) { Text("圈内禁言作者") }
+                TextButton(enabled = state.canManage && !state.busy, onClick = { closeWith { state.show(BoardTool.Mute(userId)) } }) { Text("圈内禁言作者") }
             }
-            TextButton(enabled = state.canManage && !state.busy, onClick = { state.show(BoardTool.Delete(post.id)) }) {
+            TextButton(enabled = state.canManage && !state.busy, onClick = { closeWith { state.show(BoardTool.Delete(post.id)) } }) {
                 Text("移入回收站", color = AppColors.Danger)
             }
         }
@@ -226,7 +236,7 @@ private fun BoardMoveDialog(state: BoardModeration, postId: String) {
         }
     }
     BoardActionDialog(state, "选择目标圈子", "确认移帖", enabled = state.canManage && access?.value == true,
-        onConfirm = { state.moderate(postId, ModerateBoardPostRequest("move", checkNotNull(board).id)) }) {
+        onConfirm = { state.moderate(postId, ModerateBoardPostRequest("move", checkNotNull(board).id), closeAfterSuccess = this::closeWith) }) {
         Column {
             LazyColumn(Modifier.heightIn(max = 260.dp)) {
                 items(boards.items.filter { it.id != state.board.id && it.clubId == null && it.type != "CLUB" }, key = BoardDto::id) {
@@ -286,8 +296,8 @@ private fun BoardReportsDialog(state: BoardModeration) {
                     Text(listOfNotNull(label, report.details).joinToString(" · "), color = AppColors.TextSecondary, fontSize = 13.sp)
                 }
                 Row {
-                    TextButton(enabled = state.canReview, onClick = { state.show(BoardTool.Decide(item, true)) }) { Text("维持隐藏") }
-                    TextButton(enabled = state.canReview, onClick = { state.show(BoardTool.Decide(item, false)) }) { Text("驳回举报") }
+                    TextButton(enabled = state.canReview, onClick = { closeWith { state.show(BoardTool.Decide(item, true)) } }) { Text("维持隐藏") }
+                    TextButton(enabled = state.canReview, onClick = { closeWith { state.show(BoardTool.Decide(item, false)) } }) { Text("驳回举报") }
                 }
                 HorizontalDivider(color = AppColors.Divider)
             }
@@ -299,7 +309,7 @@ private fun BoardReportsDialog(state: BoardModeration) {
 @Composable
 private fun BoardReasonDialog(
     state: BoardModeration, title: String, action: String, showDays: Boolean = false,
-    onCancel: () -> Unit = { state.show(null) }, onConfirm: (Int, String) -> Unit,
+    onCancel: () -> Unit = { state.show(null) }, onConfirm: OriginDialogScope.(Int, String) -> Unit,
 ) {
     var reason by remember { mutableStateOf("") }
     var days by remember { mutableIntStateOf(1) }
@@ -324,11 +334,12 @@ private fun BoardReasonDialog(
 @Composable
 private fun BoardActionDialog(
     state: BoardModeration, title: String, confirm: String? = null, enabled: Boolean = true,
-    onCancel: () -> Unit = { state.show(null) }, onConfirm: () -> Unit = {}, content: @Composable () -> Unit,
+    onCancel: () -> Unit = { state.show(null) }, onConfirm: OriginDialogScope.() -> Unit = {},
+    content: @Composable OriginDialogScope.() -> Unit,
 ) {
-    AlertDialog(
+    OriginAlertDialog(
         containerColor = AppColors.SurfaceOpaque,
-        onDismissRequest = { if (!state.busy) onCancel() },
+        onDismissRequest = { onCancel() }, dismissEnabled = !state.busy,
         title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -338,8 +349,8 @@ private fun BoardActionDialog(
             }
         },
         confirmButton = {
-            if (confirm != null) TextButton(enabled = enabled && !state.busy, onClick = onConfirm) { Text(confirm) }
+            if (confirm != null) TextButton(enabled = enabled && !state.busy, onClick = { onConfirm() }) { Text(confirm) }
         },
-        dismissButton = { TextButton(enabled = !state.busy, onClick = onCancel) { Text(if (confirm == null) "关闭" else "取消") } },
+        dismissButton = { TextButton(enabled = !state.busy, onClick = this::dismiss) { Text(if (confirm == null) "关闭" else "取消") } },
     )
 }

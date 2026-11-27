@@ -91,7 +91,6 @@ import androidx.compose.material.icons.outlined.School
 import androidx.compose.material.icons.outlined.Storefront
 import androidx.compose.material.icons.outlined.Article
 import androidx.compose.material.icons.outlined.Send
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -527,14 +526,16 @@ private fun TongluAppContent(
     var browserTitle by remember { mutableStateOf("") }; var browserDesktop by remember { mutableStateOf(false) }
     var openingServiceId by remember { mutableStateOf<String?>(null) }
     var showBankInstall by remember { mutableStateOf(false) }
-    if (showBankInstall) AlertDialog(
+    if (showBankInstall) OriginAlertDialog(
         onDismissRequest = { OverlayDismissGuard.arm(); showBankInstall = false }, title = { Text("需要中国农业银行 App") },
         text = { Text("安装或启用农行 App 后，再点击生活缴费。缴费页面需要国内网络。") },
         confirmButton = { TextButton(onClick = {
-            OverlayDismissGuard.arm(); showBankInstall = false
-            runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(AgriculturalBankPayment.DOWNLOAD_URL))) }
+            closeWith {
+                OverlayDismissGuard.arm(); showBankInstall = false
+                runCatching { context.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(AgriculturalBankPayment.DOWNLOAD_URL))) }
+            }
         }) { Text("农行官网下载") } },
-        dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); showBankInstall = false }) { Text("关闭") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("关闭") } },
     )
     val openService: (cn.tonglu.app.data.CampusService) -> Unit = openService@ { service ->
         if (service.id == "localsend") { showFileTransfer = true; return@openService }
@@ -620,7 +621,7 @@ private fun TongluAppContent(
 
     // 「课表成绩已默认开启同步」的一次性告知（0.6.47）。**放在所有全屏层的提前返回之后**
     // 才开始组合 —— 否则用户正走导入流程，这个弹窗会中途跳出来。
-    if (showSyncNotice) AlertDialog(
+    if (showSyncNotice) OriginAlertDialog(
         onDismissRequest = {
             OverlayDismissGuard.arm()
             showSyncNotice = false
@@ -629,11 +630,7 @@ private fun TongluAppContent(
         title = { Text("课表与成绩已默认开启同步") },
         text = { Text("为了换机不丢数据，课表、成绩和学期设置会跟随苔米林账号保存在应用服务器，本机变更后自动上传。\n\n· 只同步这三样。校园登录信息（Cookie）只留在本机，从不上传；示例数据也不会上传。\n· 同一门课两边都改过时，保留本机记录。\n· 不想要的话，随时可以在「我的」里关掉。") },
         confirmButton = {
-            TextButton(onClick = {
-                OverlayDismissGuard.arm()
-                showSyncNotice = false
-                settingsPrefs.edit().putBoolean("profile_sync_notice_shown", true).apply()
-            }) { Text("知道了") }
+            TextButton(onClick = this::dismiss) { Text("知道了") }
         },
     )
 
@@ -960,16 +957,16 @@ private fun TongluAppContent(
     if (showCourseDialog) CourseDialog(
         initial=editingCourse,saving=courseSaving,saveError=courseSaveError,
         onDismiss = { if(!courseSaving)closeLayer { showCourseDialog = false } },
-        onSave = { course ->
+        onSave = { course, onSaved ->
             if(!courseSaving) {
                 courseSaving=true;courseSaveError=null
                 val before=editingCourse
                 if(before==null) viewModel.createCourse(course) { ok ->
                     courseSaving=false
-                    if(ok)closeLayer { showCourseDialog=false } else courseSaveError="保存失败，请重试"
+                    if(ok)onSaved() else courseSaveError="保存失败，请重试"
                 } else viewModel.updateCourse(before,course) { ok,message ->
                     courseSaving=false
-                    if(ok)closeLayer { showCourseDialog=false } else courseSaveError=message
+                    if(ok)onSaved() else courseSaveError=message
                 }
             }
         },
@@ -1534,7 +1531,7 @@ private fun fieldColor(onGlass: Boolean, flat: Color): Color =
 @Composable
 private fun CourseDialog(
     onDismiss: () -> Unit,
-    onSave: (CreateCourseRequest) -> Unit,
+    onSave: (CreateCourseRequest, onSaved: () -> Unit) -> Unit,
     onEditPeriods: () -> Unit,
     initial: CourseDto? = null,
     saving: Boolean = false,
@@ -1563,13 +1560,13 @@ private fun CourseDialog(
         else -> WeekSpec.describe(previewWeeks) + "，共 ${previewWeeks.size} 次课"
     }
 
-    AlertDialog(
+    OriginAlertDialog(
         modifier = Modifier.imePadding(),
         shape = RoundedCornerShape(24.dp),
         containerColor = AppColors.SurfaceOpaque,
         titleContentColor = AppColors.TextPrimary,
         textContentColor = AppColors.TextPrimary,
-        onDismissRequest = {if(!saving)onDismiss()},
+        onDismissRequest = { onDismiss() }, dismissEnabled = !saving,
         title = { Text(if(initial==null) "添加课程" else "编辑课程") },
         text = {
             Column(
@@ -1674,10 +1671,14 @@ private fun CourseDialog(
                     customWeeks = customWeeks,
                 )
                 val request = pair.first
-                if (request == null) error = pair.second ?: "信息还不完整" else {error=null;onSave(request)}
+                if (request == null) error = pair.second ?: "信息还不完整"
+                else {
+                    error = null
+                    onSave(request) { closeWith(onDismiss) }
+                }
             },enabled=!saving) { Text(if(saving) "保存中…" else "保存") }
         },
-        dismissButton = { TextButton(onClick = onDismiss,enabled=!saving) { Text("取消") } },
+        dismissButton = { TextButton(onClick = this::dismiss,enabled=!saving) { Text("取消") } },
     )
 }
 

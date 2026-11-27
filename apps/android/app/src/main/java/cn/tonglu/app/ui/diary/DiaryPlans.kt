@@ -14,6 +14,7 @@ import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.diary.*
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.AppTheme
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.launchOrigin
 import java.util.Calendar
 
@@ -47,18 +48,18 @@ internal fun DiaryGoalPicker(goals: List<DiaryGoal>, selected: String?, onSelect
             TextButton(onClick = { open = true }) { Text(label ?: "选择目标") }
         }
     }
-    if (open) AlertDialog(
+    if (open) OriginAlertDialog(
         onDismissRequest = { open = false },
         title = { Text("关联目标") },
         text = {
             androidx.compose.foundation.lazy.LazyColumn {
-                item { TextButton(onClick = { onSelect(null); open = false }) { Text("不关联") } }
+                item { TextButton(onClick = { closeWith { onSelect(null); open = false } }) { Text("不关联") } }
                 items(goals, key = { it.id }) { goal ->
-                    TextButton(onClick = { onSelect(goal.id); open = false }) { Text(goal.title) }
+                    TextButton(onClick = { closeWith { onSelect(goal.id); open = false } }) { Text(goal.title) }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = { open = false }) { Text("取消") } },
+        confirmButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         containerColor = AppColors.SurfaceOpaque,
         titleContentColor = AppColors.TextPrimary,
         textContentColor = AppColors.TextSecondary,

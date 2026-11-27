@@ -155,25 +155,25 @@ internal fun LocalSendScreen(onClose: () -> Unit) {
                 }
             }
         }
-        state.offer?.let { offer -> AlertDialog(onDismissRequest = { controller.decide(false) },
+        state.offer?.let { offer -> OriginAlertDialog(onDismissRequest = { controller.decide(false) },
             title = { Text("${offer.alias} 想发送文件") },
             text = { Column { Text("${offer.files.size} 个文件 · ${fileSize(offer.files.sumOf { it.second })}\n设备指纹 ${offer.fingerprint.takeLast(12)}")
                 offer.files.take(6).forEach { (name, size) -> Text("$name · ${fileSize(size)}", style = MaterialTheme.typography.bodySmall) }
                 Text("只接受你确认的设备。", modifier = Modifier.padding(top = 12.dp)) } },
             confirmButton = { TextButton(onClick = { controller.decide(true); tab = 1 }) { Text("接受") } },
-            dismissButton = { TextButton(onClick = { controller.decide(false) }) { Text("拒绝") } }) }
-        if (showManual) AlertDialog(onDismissRequest = { showManual = false }, title = { Text("连接局域网设备") },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("拒绝") } }) }
+        if (showManual) OriginAlertDialog(onDismissRequest = { showManual = false }, title = { Text("连接局域网设备") },
             text = { Column { OutlinedTextField(manualIp, { manualIp = it.filter { c -> c in '0'..'9' || c == '.' }.take(15) }, label = { Text("IPv4 地址") }, singleLine = true)
                 OutlinedTextField(manualPort, { if (it.all(Char::isDigit) && it.length <= 5) manualPort = it }, label = { Text("端口") }, singleLine = true) } },
-            confirmButton = { TextButton(onClick = { showManual = false; controller.probe(manualIp, manualPort.toIntOrNull() ?: 53317) }) { Text("连接") } },
-            dismissButton = { TextButton(onClick = { showManual = false }) { Text("取消") } })
-        if (exitConfirm) AlertDialog(onDismissRequest = { exitConfirm = false }, title = { Text("停止传输并返回？") },
+            confirmButton = { TextButton(onClick = { closeWith { showManual = false; controller.probe(manualIp, manualPort.toIntOrNull() ?: 53317) } }) { Text("连接") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
+        if (exitConfirm) OriginAlertDialog(onDismissRequest = { exitConfirm = false }, title = { Text("停止传输并返回？") },
             text = { Text("退出会中断当前传输，已完整接收的文件会保留。") },
-            confirmButton = { TextButton(onClick = { exitConfirm = false; motion.requestClose() }) { Text("停止并返回") } },
-            dismissButton = { TextButton(onClick = { exitConfirm = false }) { Text("继续传输") } })
-        if (showLicense) AlertDialog(onDismissRequest = { showLicense = false }, title = { Text("LocalSend · Apache 2.0") },
+            confirmButton = { TextButton(onClick = { closeWith { exitConfirm = false; motion.requestClose() } }) { Text("停止并返回") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("继续传输") } })
+        if (showLicense) OriginAlertDialog(onDismissRequest = { showLicense = false }, title = { Text("LocalSend · Apache 2.0") },
             text = { Text("LocalSend v1.18.2\nCopyright 2022–2026 Tien Do Nam and contributors\nhttps://github.com/localsend/localsend\n\n$license", modifier = Modifier.heightIn(max = 400.dp).verticalScroll(rememberScrollState()), style = MaterialTheme.typography.bodySmall) },
             confirmButton = { TextButton(onClick = { exportLicenses.launch("localsend-dependencies.zip") }) { Text("保存依赖许可证") } },
-            dismissButton = { TextButton(onClick = { showLicense = false }) { Text("关闭") } })
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("关闭") } })
     }
 }

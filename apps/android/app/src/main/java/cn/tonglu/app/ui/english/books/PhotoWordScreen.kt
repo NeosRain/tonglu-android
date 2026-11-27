@@ -33,6 +33,7 @@ import cn.tonglu.app.data.english.books.PersonalBookWord
 import cn.tonglu.app.data.english.books.PersonalWordBookStore
 import cn.tonglu.app.data.english.books.PhotoWordExtractor
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
@@ -296,7 +297,7 @@ private fun ProofBody(candidates: List<OcrCandidate>, books: List<Pair<String, S
 private fun ManualWordDialog(onDismiss: () -> Unit, onSubmit: (String, String) -> Unit) {
     var surface by remember { mutableStateOf("") }
     var meaning by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text("手动输入词") },
+    OriginAlertDialog(onDismissRequest = onDismiss, title = { Text("手动输入词") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = surface, onValueChange = { surface = it }, label = { Text("词") },
@@ -305,7 +306,7 @@ private fun ManualWordDialog(onDismiss: () -> Unit, onSubmit: (String, String) -
                     modifier = Modifier.fillMaxWidth())
             }
         },
-        confirmButton = { TextButton(onClick = { onSubmit(surface.trim(), meaning.trim()) },
+        confirmButton = { TextButton(onClick = { closeWith { onSubmit(surface.trim(), meaning.trim()) } },
             enabled = surface.isNotBlank() && meaning.isNotBlank()) { Text("加入所选词书") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } })
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
 }

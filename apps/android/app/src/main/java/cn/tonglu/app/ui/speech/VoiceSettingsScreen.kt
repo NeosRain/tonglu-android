@@ -51,6 +51,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.isActive
 import cn.tonglu.app.data.speechHint
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
@@ -437,27 +438,29 @@ internal fun VoiceSettingsScreen(
     }
 
     notice?.let { message ->
-        AlertDialog(
+        OriginAlertDialog(
             containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { notice = null },
             title = { Text("提示") }, text = { Text(message) },
-            confirmButton = { TextButton(onClick = { notice = null }) { Text("知道了") } },
+            confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } },
         )
     }
 
     problem?.let { issue ->
         val (hint, openable) = speechHint(issue)
-        AlertDialog(
+        OriginAlertDialog(
             containerColor = MaterialTheme.colorScheme.surface,
             onDismissRequest = { problem = null },
             title = { Text("发不出声音") }, text = { Text(hint) },
-            confirmButton = { TextButton(onClick = { problem = null }) { Text("知道了") } },
+            confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } },
             dismissButton = {
                 if (openable) TextButton(onClick = {
-                    if (!service.installVoiceData() && !service.openSystemSettings()) {
-                        notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
+                    closeWith {
+                        if (!service.installVoiceData() && !service.openSystemSettings()) {
+                            notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
+                        }
+                        problem = null
                     }
-                    problem = null
                 }) { Text("去系统设置") }
             },
         )

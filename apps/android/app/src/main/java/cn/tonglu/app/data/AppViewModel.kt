@@ -618,7 +618,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /** 提交改名。成功后就地关掉引导，并把本地会话里的 username 一起换掉。 */
-    fun submitUsername(raw: String) {
+    fun submitUsername(raw: String, closeAfterSave: ((() -> Unit) -> Unit)? = null) {
         val session = mutableState.value.session ?: return
         val prompt = mutableState.value.usernamePrompt ?: return
         if (prompt.busy) return
@@ -642,9 +642,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     mutableState.update {
                         it.copy(
                             session = updated ?: it.session,
-                            usernamePrompt = null,
+                            usernamePrompt = if (closeAfterSave == null) null else it.usernamePrompt,
                             notice = "用户名已改为 @${user.username}",
                         )
+                    }
+                    if (closeAfterSave != null && mutableState.value.usernamePrompt?.busy == true) {
+                        closeAfterSave {
+                            mutableState.update {
+                                if (it.session?.sessionId == session.sessionId) it.copy(usernamePrompt = null) else it
+                            }
+                        }
                     }
                 }
                 .onFailure { e ->

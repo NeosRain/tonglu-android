@@ -38,6 +38,7 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.diary.*
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -411,7 +412,7 @@ private fun DiaryEditDialog(
         OverlayDismissGuard.arm()
         close()
     }
-    AlertDialog(
+    OriginAlertDialog(
         onDismissRequest = dismiss,
         title = { Text(mode.label) },
         text = {
@@ -440,12 +441,12 @@ private fun DiaryEditDialog(
                             DiaryEntryEdit.TAGS -> DiaryEntries.edit(data, entry, tags = labels)
                             DiaryEntryEdit.GOAL -> DiaryEntries.edit(data, entry, goalId = selectedGoal)
                         }
-                    }, done = dismiss)
+                    }, done = this::dismiss)
                 },
                 enabled = !state.saving && (mode != DiaryEntryEdit.TEXT || body.isNotBlank()),
             ) { Text(state.saveLabel("保存")) }
         },
-        dismissButton = { TextButton(onClick = dismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         containerColor = AppColors.SurfaceOpaque,
         titleContentColor = AppColors.TextPrimary,
         textContentColor = AppColors.TextSecondary,

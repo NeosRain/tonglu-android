@@ -60,7 +60,6 @@ import androidx.compose.material.icons.outlined.UnfoldMore
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -1088,7 +1087,7 @@ internal fun PeriodEditorDialog(
     }
     var error by remember { mutableStateOf<String?>(null) }
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    OriginDialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(
             color = AppColors.SurfaceOpaque,
             shape = RoundedCornerShape(22.dp),
@@ -1135,9 +1134,9 @@ internal fun PeriodEditorDialog(
                     MiuixText(it, color = themeColor(Color(0xFFC92A2A), AppColors.Danger), fontSize = 12.sp, modifier = Modifier.padding(top = 2.dp))
                 }
                 Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(onClick = { onSave(null) }) { MiuixText("恢复默认", color = SvMuted) }
+                    TextButton(onClick = { closeWith { onSave(null) } }) { MiuixText("恢复默认", color = SvMuted) }
                     Spacer(Modifier.weight(1f))
-                    TextButton(onClick = onDismiss) { MiuixText("取消") }
+                    TextButton(onClick = this@OriginDialog::dismiss) { MiuixText("取消") }
                     Button(
                         onClick = {
                             val normalized = rows.mapIndexed { index, row ->
@@ -1156,7 +1155,7 @@ internal fun PeriodEditorDialog(
                                 error = "第 ${badOrder.period} 节的下课时间要晚于上课时间"
                                 return@Button
                             }
-                            onSave(parsed)
+                            closeWith { onSave(parsed) }
                         },
                     ) { MiuixText("保存") }
                 }

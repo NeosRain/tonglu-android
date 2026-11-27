@@ -48,8 +48,8 @@ import androidx.compose.ui.graphics.GraphicsLayerScope
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
-import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -539,12 +539,11 @@ fun SystemBackProgress(state: EdgeBackState, enabled: Boolean, preview: Boolean 
 @Composable
 fun DialogBackProgress(state: EdgeBackState, enabled: Boolean, animate: Boolean = true, onCommit: () -> Unit) {
     cn.tonglu.app.ui.focus.RegisterPomodoroWindow()
-    if (Build.VERSION.SDK_INT < 34) return
     val view = LocalView.current
-    val dispatcher = remember(view) {
-        generateSequence(view as android.view.View?) { it.parent as? android.view.View }
-            .filterIsInstance<DialogWindowProvider>().firstOrNull()?.window?.onBackInvokedDispatcher
-    } ?: return
+    val window = remember(view) { view.dialogWindow() } ?: return
+    RecordDialogLaunchTouches(window)
+    if (Build.VERSION.SDK_INT < 34) return
+    val dispatcher = window.onBackInvokedDispatcher
     val latestEnabled = rememberUpdatedState(enabled)
     val latestAnimate = rememberUpdatedState(animate)
     val latestCommit by rememberUpdatedState(onCommit)
@@ -661,6 +660,10 @@ class OverlayMotionState internal constructor(
     /** 一镜到底来源（窗口坐标：进场矩形 to 收回矩形），见 [LaunchOrigin]。null = 沿用进场方向。 */
     internal var origin: Pair<Rect, Rect>? = null
     internal var containerOrigin: ContainerOrigin? = null
+    private var dialogTouchOrigin: Pair<Rect, Rect>? = null
+    private var usesDialogTouchContainer = false
+    internal var launchedFromDialog = false
+        private set
     internal var container = false
     internal var reducedMotion by mutableStateOf(false)
     internal var backPreview: State<Float>? = null
@@ -669,7 +672,8 @@ class OverlayMotionState internal constructor(
     private var closeFrom = 1f
     private var closeGesture = 0f
     private var closeFromLeft = true
-    private var exitBounds: Rect? = null
+    internal var exitBounds: Rect? = null
+        private set
     private var lastRenderedFrame: ContainerFrame? = null
     private var exitStartFrame: ContainerFrame? = null
     private var afterExit: (() -> Unit)? = null
@@ -677,16 +681,39 @@ class OverlayMotionState internal constructor(
     internal val blocksInput: Boolean
         get() = container && (closing || enter.value < 1f)
 
+    internal fun captureOrigin(
+        tracker: LaunchOriginTracker,
+        touchSize: Float,
+        useContainer: Boolean,
+        explicit: ContainerOrigin?,
+        takePending: Boolean,
+    ) {
+        val fromDialog = takePending && tracker.touchedInDialog
+        containerOrigin = explicit ?: if (takePending) tracker.takeContainer() else null
+        val legacy = if (takePending && containerOrigin == null) {
+            tracker.take(touchSize, includeTouch = !useContainer || fromDialog)
+        } else null
+        // 用同一套几何完成预测返回和收回。旧路径会把预测预览的横移一直叠到终点。
+        dialogTouchOrigin = legacy.takeIf { fromDialog }
+        usesDialogTouchContainer = !useContainer && dialogTouchOrigin != null
+        launchedFromDialog = fromDialog && (containerOrigin != null || dialogTouchOrigin != null)
+        container = useContainer || containerOrigin != null || usesDialogTouchContainer
+        origin = legacy.takeUnless { container }
+    }
+
     private suspend fun animateContainer(animation: Animatable<Float, *>, duration: Int) {
         val spec = tween<Float>(duration, easing = LinearEasing)
-        if (reducedMotion) withContext(FadeDurationScale) { animation.animateTo(1f, spec) }
-        else animation.animateTo(1f, spec)
+        when {
+            reducedMotion && usesDialogTouchContainer -> animation.snapTo(1f)
+            reducedMotion -> withContext(FadeDurationScale) { animation.animateTo(1f, spec) }
+            else -> animation.animateTo(1f, spec)
+        }
     }
 
     internal suspend fun runEnter() {
         if (closing) return
         if (container) {
-            animateContainer(enter, if (reducedMotion || containerOrigin == null) OverlayMotion.FADE_MS
+            animateContainer(enter, if (reducedMotion || (containerOrigin == null && dialogTouchOrigin == null)) OverlayMotion.FADE_MS
                 else OverlayMotion.CONTAINER_ENTER_MS)
             return
         }
@@ -714,7 +741,7 @@ class OverlayMotionState internal constructor(
                 else -> backPreview?.value ?: 0f
             }
             closeFromLeft = edge.fromLeft
-            exitBounds = containerOrigin?.target?.bounds()
+            exitBounds = containerOrigin?.target?.bounds() ?: dialogTouchOrigin?.second
             exitStartFrame = lastRenderedFrame
         }
         closing = true
@@ -755,7 +782,7 @@ class OverlayMotionState internal constructor(
         val time = if (closing) closeFrom else enter.value
         val full = Rect(Offset.Zero, size)
         val source = containerOrigin
-        val initial = source?.initial?.translate(-at)
+        val initial = (source?.initial ?: dialogTouchOrigin?.first)?.translate(-at)
         val rendered = if (closing) exitStartFrame else null
         val frame = if (rendered != null) rendered.copy(bounds = rendered.bounds.translate(-at)) else {
             val start = containerEnter(initial, full, source?.cornerPx ?: 0f, destinationCorner,
@@ -825,12 +852,8 @@ internal fun rememberOverlayMotionImpl(
     // OverlayMotionState 里各自的注释），进 key 会让 state 反复重建、
     // 表现为这一层不停重播进场动画。
     val state = remember(selfDrag) {
-        val captured = origin ?: if (takePending) LaunchOrigin.takeContainer() else null
-        val legacy = if (takePending && captured == null) LaunchOrigin.take(touchSize, includeTouch = !container) else null
         OverlayMotionState(predictive, onClose, selfDrag, scope).apply {
-            this.container = container || captured != null
-            containerOrigin = captured
-            this.origin = legacy.takeUnless { this.container }
+            captureOrigin(LaunchOrigin, touchSize, container, origin, takePending)
             reducedMotion = reduced
         }
     }
@@ -981,24 +1004,27 @@ fun Modifier.overlayMotion(
     val origin = state.origin
     if ((enter == OverlayEnter.Right && !fade) || origin != null || state.container) {
         val view = LocalView.current
+        val originDialogWindow = LocalOriginDialogWindow.current
         // These are full-page navigation windows. Compose already animates the opaque page;
         // a platform dim/exit animation otherwise leaves the revealed parent dark afterwards.
-        DisposableEffect(view, state.container) {
-            val window = generateSequence(view as android.view.View?) { it.parent as? android.view.View }
-                .filterIsInstance<DialogWindowProvider>().firstOrNull()?.window
-            if (state.container && window != null) {
-                window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
-                window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        DisposableEffect(view, state.container, originDialogWindow) {
+            val window = view.dialogWindow()
+            if (window != null && window !== originDialogWindow) {
+                if (state.container) {
+                    window.setBackgroundDrawable(ColorDrawable(android.graphics.Color.TRANSPARENT))
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+                }
+                window.setDimAmount(0f)
+                window.setWindowAnimations(0)
             }
-            window?.setDimAmount(0f)
-            window?.setWindowAnimations(0)
             onDispose { }
         }
     }
     if (state.container) {
         val edgeProgress = back ?: rememberEdgeBackProgressState(state.edge, holdOnCommit = true)
         SideEffect { state.backPreview = edgeProgress }
-        var at by remember(state) { mutableStateOf(Offset.Zero) }
+        val fromDialog = state.launchedFromDialog
+        var at by remember(state) { mutableStateOf(if (fromDialog) Offset.Unspecified else Offset.Zero) }
         val preview = state.predictive && !state.reducedMotion && onBack == null
         val allowBack = backEnabled && !state.isClosing
         val sourceColor = state.containerOrigin?.target?.surfaceColor ?: containerColor
@@ -1006,13 +1032,26 @@ fun Modifier.overlayMotion(
             state.edge, enabled = (state.predictive || gestureWithoutPreview) && allowBack,
             backEnabled = allowBack, onBack = onBack, preview = preview && allowBack,
         ) else Modifier
-        return this
-            .onGloballyPositioned { coordinates ->
-                val position = coordinates.localToScreen(Offset.Zero)
-                if (position.isSpecified) at = position
+        val trackPosition = if (fromDialog) {
+            // 在变换层外读取布局坐标，避免把当前帧的缩放或偏移算进下一帧的来源。
+            Modifier.layout { measurable, constraints ->
+                val page = measurable.measure(constraints)
+                layout(page.width, page.height) {
+                    val screenPosition = coordinates?.localToScreen(Offset.Zero)
+                    if (screenPosition != null && screenPosition.isSpecified) at = screenPosition
+                    page.place(0, 0)
+                }
             }
+        } else Modifier.onGloballyPositioned {
+            val position = it.localToScreen(Offset.Zero)
+            if (position.isSpecified) at = position
+        }
+        return this.then(trackPosition)
             .drawBehind {
-                if (dimBehind) drawRect(Color.Black, alpha = .12f * state.shadeOpacity())
+                if (!at.isSpecified) return@drawBehind
+                if (dimBehind && !fromDialog) {
+                    drawRect(Color.Black, alpha = .12f * state.shadeOpacity())
+                }
                 val corner = destinationCorner.toPx()
                 val frame = state.containerFrame(size, at, corner, max(corner, 24.dp.toPx()))
                 state.recordRenderedContainer(frame, at)
@@ -1039,6 +1078,10 @@ fun Modifier.overlayMotion(
             }
             .then(gestures)
             .graphicsLayer {
+                if (!at.isSpecified) {
+                    alpha = 0f
+                    return@graphicsLayer
+                }
                 if (size.width <= 0f || size.height <= 0f) return@graphicsLayer
                 val corner = destinationCorner.toPx()
                 val frame = state.containerFrame(size, at, corner, max(corner, 24.dp.toPx()))
@@ -1052,8 +1095,12 @@ fun Modifier.overlayMotion(
                 if (clip) shape = OriginClipShape(transform.clip, transform.radius)
                 alpha = frame.containerAlpha
             }
-            .graphicsLayer { alpha = state.containerFrame(size, at, destinationCorner.toPx(),
-                max(destinationCorner.toPx(), 24.dp.toPx())).detailAlpha }
+            .graphicsLayer {
+                if (at.isSpecified) {
+                    alpha = state.containerFrame(size, at, destinationCorner.toPx(),
+                        max(destinationCorner.toPx(), 24.dp.toPx())).detailAlpha
+                }
+            }
     }
     val edgeProgress = back ?: rememberEdgeBackProgressState(state.edge)
     // 🔴 圆角形状必须在**这里**（@Composable 函数体）remember，不能在 `graphicsLayer {}` 里读。
@@ -1072,7 +1119,8 @@ fun Modifier.overlayMotion(
     val originCorner = with(LocalDensity.current) { 20.dp.toPx() }
     return this
         .then(if (origin != null) Modifier.onGloballyPositioned { c ->
-            val at = c.positionInWindow(); layerAt[0] = at.x; layerAt[1] = at.y
+            val at = c.localToScreen(Offset.Zero)
+            if (at.isSpecified) { layerAt[0] = at.x; layerAt[1] = at.y }
         } else Modifier)
         // 自识别拖动**所有层都开着**（不再只看 selfDrag）。
         //
@@ -1130,6 +1178,6 @@ fun Modifier.overlayMotion(
 }
 
 /** 强调型减速曲线：起步快、落点柔和，展开到全屏时不显得「砸」下来。 */
-private val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+internal val EmphasizedDecelerate = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
 private val ContainerExpand = CubicBezierEasing(0.2f, 0f, 0f, 1f)
 private val ContainerContract = CubicBezierEasing(0.3f, 0f, 0.7f, 0.75f)

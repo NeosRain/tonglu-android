@@ -45,7 +45,6 @@ import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Publish
 import androidx.compose.material.icons.outlined.Title
 import androidx.compose.material.icons.outlined.Visibility
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -228,14 +227,14 @@ internal fun NoteEditorDialog(
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
     if (confirmDelete) {
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { confirmDelete = false },
             title = { Text("删除这条笔记？", fontSize = 17.sp) },
             text = { Text("删掉之后其他设备也会同步消失。", fontSize = 13.sp) },
             confirmButton = {
-                TextButton(onClick = { confirmDelete = false; onDelete?.let { motion.requestCloseWith(it) } }) { Text("删除") }
+                TextButton(onClick = { closeWith { confirmDelete = false; onDelete?.let { motion.requestCloseWith(it) } } }) { Text("删除") }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 }

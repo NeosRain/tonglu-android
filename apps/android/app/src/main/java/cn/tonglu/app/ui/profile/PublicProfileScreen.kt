@@ -191,7 +191,7 @@ private fun PublicProfileRoute(destination: ProfileDestination, sessionId: Strin
             scope.launch {
                 communityResult {
                     viewModel.communityAuthorized(sessionId) { reportProfile(it, profile.id, CreateReportRequest(category.label, details, category.name)) }
-                }.onSuccess { reporting = false; posted = true; done(null) }
+                }.onSuccess { posted = true; done(null) }
                     .onFailure { done(communityErrorMessage(it, "举报提交失败")) }
             }
         }

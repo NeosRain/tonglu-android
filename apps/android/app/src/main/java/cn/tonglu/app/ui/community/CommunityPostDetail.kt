@@ -19,6 +19,7 @@ import cn.tonglu.app.data.community.CommunityRead
 import cn.tonglu.app.data.community.PostReportCategory
 import cn.tonglu.app.ui.AppColors
 import kotlinx.coroutines.delay
+import cn.tonglu.app.ui.OriginAlertDialog
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -87,8 +88,8 @@ internal fun CommunityReportDialog(
     var details by remember(targetId) { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
+    OriginAlertDialog(
+        onDismissRequest = { onDismiss() }, dismissEnabled = !busy,
         containerColor = AppColors.SurfaceOpaque,
         title = { Text(title) },
         text = {
@@ -117,10 +118,11 @@ internal fun CommunityReportDialog(
                     onSubmit(selected, details.trim().ifBlank { null }) {
                         error = it
                         busy = false
+                        if (it == null) closeWith(onDismiss)
                     }
                 }
             }) { Text(if (busy) "提交中…" else "提交") }
         },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(enabled = !busy, onClick = this::dismiss) { Text("取消") } },
     )
 }

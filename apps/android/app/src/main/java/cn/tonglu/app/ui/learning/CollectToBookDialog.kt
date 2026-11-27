@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -28,6 +27,8 @@ import cn.tonglu.app.data.english.books.PersonalBookWord
 import cn.tonglu.app.data.english.books.PersonalBooksSnapshot
 import cn.tonglu.app.data.english.books.PersonalWordBookStore
 import kotlinx.coroutines.launch
+import cn.tonglu.app.ui.OriginAlertDialog
+import cn.tonglu.app.ui.OriginDialogScope
 
 /**
  * 一次「收藏到个人词书」要落库的全部字段。
@@ -89,21 +90,21 @@ internal fun CollectToBookDialog(
     }
     LaunchedEffect(owner) { reload() }
 
-    fun addTo(bookId: String, bookName: String) {
+    fun OriginDialogScope.addTo(bookId: String, bookName: String) {
         if (saving) return
         saving = true; error = null
         scope.launch {
             try {
                 val fresh = store.add(bookId, word.toBookWord())
                 saving = false
-                onCollected(bookName, !fresh)
+                closeWith { onCollected(bookName, !fresh) }
             } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
             catch (cause: Exception) { saving = false; error = cause.message ?: "收藏失败，请重试" }
         }
     }
 
-    AlertDialog(
-        onDismissRequest = { if (!saving) onDismiss() },
+    OriginAlertDialog(
+        onDismissRequest = { onDismiss() }, dismissEnabled = !saving,
         title = { Text("收藏到个人词书") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -131,7 +132,7 @@ internal fun CollectToBookDialog(
                                     val book = store.create(newName)
                                     store.add(book.id, word.toBookWord())
                                     saving = false
-                                    onCollected(book.name, false)
+                                    closeWith { onCollected(book.name, false) }
                                 } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
                                 catch (cause: Exception) { saving = false; error = cause.message ?: "新建失败，请重试" }
                             }
@@ -168,6 +169,6 @@ internal fun CollectToBookDialog(
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(enabled = !saving, onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(enabled = !saving, onClick = this::dismiss) { Text("取消") } },
     )
 }

@@ -17,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Refresh
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import cn.tonglu.app.data.MyPostDto
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.noticeForeground
 import top.yukonga.miuix.kmp.basic.Text
 
@@ -171,8 +171,8 @@ private fun MyPostCard(post: MyPostDto, onAppeal: () -> Unit) {
 private fun AppealDialog(post: MyPostDto, onDismiss: () -> Unit, onSubmit: (String, (Boolean, String) -> Unit) -> Unit) {
     var reason by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
+    OriginAlertDialog(
+        onDismissRequest = { onDismiss() }, dismissEnabled = !busy,
         title = { Text("提交申诉") },
         text = {
             Column {
@@ -187,9 +187,9 @@ private fun AppealDialog(post: MyPostDto, onDismiss: () -> Unit, onSubmit: (Stri
         confirmButton = {
             TextButton(enabled = reason.trim().length in 5..300 && !busy, onClick = {
                 busy = true
-                onSubmit(reason.trim()) { ok, _ -> busy = false; if (ok) onDismiss() }
+                onSubmit(reason.trim()) { ok, _ -> busy = false; if (ok) closeWith(onDismiss) }
             }) { Text(if (busy) "提交中…" else "提交申诉") }
         },
-        dismissButton = { TextButton(onClick = { if (!busy) onDismiss() }) { Text("取消") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
     )
 }

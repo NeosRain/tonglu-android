@@ -20,6 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.books.*
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.launchOrigin
 import cn.tonglu.app.ui.rememberLaunchSource
 import kotlinx.coroutines.delay
@@ -150,8 +151,8 @@ internal fun BookDetail(
             BookAction.OFF -> "确认下架"
             else -> "取消预订"
         }
-        AlertDialog(
-            onDismissRequest = { if (!operation.busy) confirmation = null },
+        OriginAlertDialog(
+            onDismissRequest = { confirmation = null }, dismissEnabled = !operation.busy,
             title = { Text(label) },
             text = { Text(when (action) {
                 BookAction.SOLD -> "确认已完成线下交易后，双方可评价本次交易。"
@@ -160,20 +161,22 @@ internal fun BookDetail(
             }) },
             confirmButton = {
                 TextButton(enabled = !operation.busy, onClick = {
-                    confirmation = null
-                    val requestId = cancellationId
-                    mutate({
-                        repository.call {
-                            when (action) {
-                                BookAction.SOLD -> markBookSold(it, id)
-                                BookAction.OFF -> takeBookOff(it, id)
-                                else -> cancelBookRequest(it, checkNotNull(requestId))
+                    closeWith {
+                        confirmation = null
+                        val requestId = cancellationId
+                        mutate({
+                            repository.call {
+                                when (action) {
+                                    BookAction.SOLD -> markBookSold(it, id)
+                                    BookAction.OFF -> takeBookOff(it, id)
+                                    else -> cancelBookRequest(it, checkNotNull(requestId))
+                                }
                             }
-                        }
-                    }, onChanged)
+                        }, onChanged)
+                    }
                 }) { Text(label) }
             },
-            dismissButton = { TextButton(onClick = { confirmation = null }) { Text("返回") } },
+            dismissButton = { TextButton(onClick = { closeWith { confirmation = null } }) { Text("返回") } },
         )
     }
 

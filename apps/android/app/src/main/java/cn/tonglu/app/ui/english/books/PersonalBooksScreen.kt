@@ -22,6 +22,7 @@ import cn.tonglu.app.data.english.books.PersonalBooksSnapshot
 import cn.tonglu.app.data.english.books.PersonalWordBook
 import cn.tonglu.app.data.english.books.PersonalWordBookStore
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
@@ -167,56 +168,66 @@ fun PersonalBooksScreen(owner: String, onClose: () -> Unit,
         }
     }
 
-    if (confirmMergeBooks) AlertDialog(onDismissRequest = { confirmMergeBooks = false },
+    if (confirmMergeBooks) OriginAlertDialog(onDismissRequest = { confirmMergeBooks = false },
         title = { Text("合并词书并去重") },
         text = { Text("将已选 ${selectedBookIds.size} 本合并到《${books.firstOrNull { it.id in selectedBookIds }?.name.orEmpty()}》。重复词保留一条，收藏次数和练习次数相加，来源记录保留。原来的多本词书将收为这一本。") },
         confirmButton = { TextButton(onClick = { scope.launch {
-            try {
+            val applyResult: () -> Unit = try {
                 val result = store.merge(selectedBookIds)
-                confirmMergeBooks = false; selectedBookIds = emptySet(); openBookId = result.id; reload()
+                val showMerged: () -> Unit = {
+                    confirmMergeBooks = false; selectedBookIds = emptySet(); openBookId = result.id; reload()
+                }
+                showMerged
             } catch (e: kotlinx.coroutines.CancellationException) { throw e }
-            catch (e: Exception) { confirmMergeBooks = false; notice = e.message ?: "合并失败，原词书已保留" }
+            catch (e: Exception) {
+                { confirmMergeBooks = false; notice = e.message ?: "合并失败，原词书已保留" }
+            }
+            if (isClosing) applyResult() else closeWith(applyResult)
         } }) { Text("合并") } },
-        dismissButton = { TextButton(onClick = { confirmMergeBooks = false }) { Text("取消") } })
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
 
     if (confirmDeleteBooks) {
-        AlertDialog(onDismissRequest = { confirmDeleteBooks = false }, title = { Text("删除词书") },
+        OriginAlertDialog(onDismissRequest = { confirmDeleteBooks = false }, title = { Text("删除词书") },
             text = { Text("删除已选的 ${selectedBookIds.size} 本词书及其全部词条，本机立即生效且无法恢复。其他词书中的同词不受影响。") },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmDeleteBooks = false
-                    scope.launch {
-                        try {
-                            val result = store.deleteBooks(selectedBookIds)
-                            selectedBookIds = emptySet(); reload()
-                            notice = if (result.failed.isEmpty()) null
-                            else "部分删除失败：${result.failed.values.distinct().joinToString()}"
-                        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                        catch (cause: Exception) { notice = cause.message ?: "删除失败" }
+                    closeWith {
+                        confirmDeleteBooks = false
+                        scope.launch {
+                            try {
+                                val result = store.deleteBooks(selectedBookIds)
+                                selectedBookIds = emptySet(); reload()
+                                notice = if (result.failed.isEmpty()) null
+                                else "部分删除失败：${result.failed.values.distinct().joinToString()}"
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (cause: Exception) { notice = cause.message ?: "删除失败" }
+                        }
                     }
                 }) { Text("删除") }
             },
-            dismissButton = { TextButton(onClick = { confirmDeleteBooks = false }) { Text("取消") } })
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
     }
     if (confirmRemoveWords && openBook != null) {
-        AlertDialog(onDismissRequest = { confirmRemoveWords = false }, title = { Text("移除词条") },
+        OriginAlertDialog(onDismissRequest = { confirmRemoveWords = false }, title = { Text("移除词条") },
             text = { Text("从《${openBook.name}》移除已选 ${selectedKeys.size} 个词条。这些词若在其他词书或词典中，不会受影响。") },
             confirmButton = {
                 TextButton(onClick = {
-                    confirmRemoveWords = false
-                    val bookId = openBook.id
-                    scope.launch {
-                        try {
-                            val result = store.removeWords(bookId, selectedKeys)
-                            selectedKeys = emptySet(); reload()
-                            notice = if (result.failed.isEmpty()) null
-                            else "部分移除失败：${result.failed.values.distinct().joinToString()}"
-                        } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                        catch (cause: Exception) { notice = cause.message ?: "移除失败" }
+                    closeWith {
+                        confirmRemoveWords = false
+                        val bookId = openBook.id
+                        scope.launch {
+                            try {
+                                val result = store.removeWords(bookId, selectedKeys)
+                                selectedKeys = emptySet(); reload()
+                                notice = if (result.failed.isEmpty()) null
+                                else "部分移除失败：${result.failed.values.distinct().joinToString()}"
+                            } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                            catch (cause: Exception) { notice = cause.message ?: "移除失败" }
+                        }
                     }
                 }) { Text("移除") }
             },
-            dismissButton = { TextButton(onClick = { confirmRemoveWords = false }) { Text("取消") } })
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
     }
 }
 

@@ -36,6 +36,7 @@ import cn.tonglu.app.data.focus.*
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import cn.tonglu.app.ui.OriginAlertDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -243,10 +244,10 @@ internal fun PomodoroPanel(controller: PomodoroController,onClose:()->Unit,onHid
             }
         }
     }
-    if(confirmStop) AlertDialog(onDismissRequest={confirmStop=false},title={Text("结束这次番茄钟？")},
+    if(confirmStop) OriginAlertDialog(onDismissRequest={confirmStop=false},title={Text("结束这次番茄钟？")},
         text={Text("保留已完成的专注轮次，停止接下来的计时和提醒。")},
-        confirmButton={TextButton(onClick={confirmStop=false;action { controller.stop();onClose() }}) { Text("结束") }},
-        dismissButton={TextButton(onClick={confirmStop=false}) { Text("继续这次计时") }})
+        confirmButton={TextButton(onClick={ closeWith { confirmStop=false;action { controller.stop();onClose() } } }) { Text("结束") }},
+        dismissButton={TextButton(onClick=this::dismiss) { Text("继续这次计时") }})
 }
 
 @Composable

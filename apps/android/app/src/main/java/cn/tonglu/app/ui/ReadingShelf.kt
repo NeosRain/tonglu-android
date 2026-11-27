@@ -310,7 +310,7 @@ internal fun ReadingShelfScreen(
     }
 
     pending?.let { request ->
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { onCloseChild() },
             title = { Text("删除这条${if (request.kind == "progress") "阅读记录" else if (request.kind == "bookmark") "书签" else "笔记"}？") },
             text = {
@@ -333,7 +333,7 @@ internal fun ReadingShelfScreen(
                     bump()
                 }) { Text("删除") }
             },
-            dismissButton = { TextButton(onClick = { onCloseChild() }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 }

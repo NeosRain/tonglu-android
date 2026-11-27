@@ -26,6 +26,7 @@ import cn.tonglu.app.data.update.UpdateRelease
 import cn.tonglu.app.data.update.UpdateTransfer
 import cn.tonglu.app.data.update.UpdateUiState
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 
 /** 自动提示按版本去重；下载和安装均由用户点选。 */
@@ -38,7 +39,7 @@ internal fun AppUpdateHost() {
     val release = state.release ?: return
     if (hidden == release.versionCode || AppUpdates.dismissed(c, release.versionCode)) return
     fun close() { OverlayDismissGuard.arm(); hidden = release.versionCode; AppUpdates.dismiss(c, release.versionCode) }
-    AlertDialog(containerColor = AppColors.SurfaceOpaque, onDismissRequest = { close() },
+    OriginAlertDialog(containerColor = AppColors.SurfaceOpaque, onDismissRequest = { close() },
         title = { Text("苔米林 ${release.versionName} 可以更新", color = AppColors.TextPrimary) },
         text = { Column(Modifier.heightIn(max = 320.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(release.notes, color = AppColors.TextSecondary)
@@ -52,7 +53,7 @@ internal fun AppUpdateHost() {
         confirmButton = { TextButton(enabled = !state.downloading && !state.checking, onClick = {
             if (state.ready) AppUpdates.install(c) else AppUpdates.download(c, release)
         }) { Text(if (state.ready) "安装更新" else if (state.downloading) "正在下载" else "下载更新") } },
-        dismissButton = { TextButton(onClick = { close() }) { Text("稍后") } })
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("稍后") } })
 }
 
 @Composable

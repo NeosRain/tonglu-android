@@ -83,17 +83,17 @@ fun ScheduleImportScreen(
             readAttempt++
         }
     }
-    if (showSchools) AlertDialog(onDismissRequest = { showSchools = false }, title = { Text("辽宁高校") },
+    if (showSchools) OriginAlertDialog(onDismissRequest = { showSchools = false }, title = { Text("辽宁高校") },
         text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(schoolQuery, { schoolQuery = it.take(80) }, label = { Text("搜索学校") }, singleLine = true)
             Text("首批 6 所官方入口，课表读取待各校实测。未列出的学校可填写官方地址或导入文件。", style = MaterialTheme.typography.bodySmall)
             LazyColumn(Modifier.heightIn(max = 360.dp)) {
                 items(SchoolDirectory.search(schoolQuery)) { entry ->
-                    TextButton(onClick = { school = entry.name; address = entry.url; showSchools = false; message = null }, modifier = Modifier.fillMaxWidth()) { Text(entry.name) }
+                    TextButton(onClick = { closeWith { school = entry.name; address = entry.url; showSchools = false; message = null } }, modifier = Modifier.fillMaxWidth()) { Text(entry.name) }
                 }
                 if (SchoolDirectory.search(schoolQuery).isEmpty()) item { Text("未找到，可在下方填写学校官方地址") }
             }
-        } }, confirmButton = { TextButton(onClick = { showSchools = false }) { Text("关闭") } })
+        } }, confirmButton = { TextButton(onClick = this::dismiss) { Text("关闭") } })
     Box(Modifier.fillMaxSize()) {
         Surface(Modifier.fillMaxSize(), color = AppColors.CanvasOpaque) {
             Column(Modifier.fillMaxSize().safeDrawingPadding()) {

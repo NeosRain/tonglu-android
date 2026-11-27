@@ -35,6 +35,7 @@ import cn.tonglu.app.data.speech.SpeechPurpose
 import cn.tonglu.app.data.speech.SpeechRequest
 import cn.tonglu.app.data.speech.SpeechResult
 import cn.tonglu.app.data.speech.SpeechService
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.OverlayEnter
@@ -197,19 +198,29 @@ internal fun DailySentencePane(owner: String, onClose: () -> Unit, onLookupWord:
     }
     speechProblem?.let { problem ->
         val (hint, openable) = cn.tonglu.app.data.speechHint(problem)
-        AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { speechProblem = null },
+        OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { speechProblem = null },
             title = { Text("发不出声音") }, text = { Text(hint) },
-            confirmButton = { TextButton(onClick = { speechProblem = null }) { Text("知道了") } },
+            confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } },
             dismissButton = { if (openable) Row {
-                TextButton(onClick = { if (!speech.installVoiceData() && !speech.openSystemSettings())
-                    notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"; speechProblem = null }) { Text("语音数据") }
-                TextButton(onClick = { if (!speech.openSystemSettings())
-                    notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"; speechProblem = null }) { Text("系统设置") }
+                TextButton(onClick = {
+                    closeWith {
+                        if (!speech.installVoiceData() && !speech.openSystemSettings())
+                            notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
+                        speechProblem = null
+                    }
+                }) { Text("语音数据") }
+                TextButton(onClick = {
+                    closeWith {
+                        if (!speech.openSystemSettings())
+                            notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
+                        speechProblem = null
+                    }
+                }) { Text("系统设置") }
             } })
     }
-    notice?.let { text -> AlertDialog(containerColor = MaterialTheme.colorScheme.surface,
+    notice?.let { text -> OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = { notice = null }, text = { Text(text) },
-        confirmButton = { TextButton(onClick = { notice = null }) { Text("知道了") } }) }
+        confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } }) }
 }
 
 @Composable

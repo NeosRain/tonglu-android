@@ -14,6 +14,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import cn.tonglu.app.data.books.*
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.launchOrigin
 import cn.tonglu.app.ui.rememberLaunchSource
 
@@ -102,19 +103,21 @@ internal fun BooksMine(
         }
     }
     if (remove != null) {
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { remove = null },
             title = { Text("删除求购？") },
             text = { Text("删除后，这条求购将不再发送匹配通知。") },
             confirmButton = {
                 TextButton(onClick = {
-                    val row = checkNotNull(remove) { "删除求购需要选中一条记录" }
-                    val repo = checkNotNull(repository) { "删除求购需要登录" }
-                    remove = null
-                    mutate({ repo.call { deleteBookWanted(it, row.id) } }, onChanged)
+                    closeWith {
+                        val row = checkNotNull(remove) { "删除求购需要选中一条记录" }
+                        val repo = checkNotNull(repository) { "删除求购需要登录" }
+                        remove = null
+                        mutate({ repo.call { deleteBookWanted(it, row.id) } }, onChanged)
+                    }
                 }) { Text("删除", color = AppColors.Danger) }
             },
-            dismissButton = { TextButton(onClick = { remove = null }) { Text("保留") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("保留") } },
         )
     }
 }

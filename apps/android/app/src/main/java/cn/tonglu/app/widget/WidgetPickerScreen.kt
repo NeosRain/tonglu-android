@@ -38,6 +38,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import cn.tonglu.app.ui.OriginAlertDialog
 
 internal enum class WidgetKind(
     val title: String,
@@ -167,11 +168,11 @@ internal fun WidgetPickerScreen(
             }
         }
     }
-    if (showHelp) AlertDialog(onDismissRequest = { showHelp = false },
+    if (showHelp) OriginAlertDialog(onDismissRequest = { showHelp = false },
         title = { Text("从桌面添加") },
         text = { Text("返回桌面，长按空白处 → 小组件 → 苔米林，选择样式并拖到桌面。\n\n如果列表区分系统和 Android 小组件，请在 Android 小组件里查找。") },
-        confirmButton = { TextButton(onClick = { showHelp = false; onHome() }) { Text("去桌面") } },
-        dismissButton = { TextButton(onClick = { showHelp = false }) { Text("关闭") } })
+        confirmButton = { TextButton(onClick = { closeWith { showHelp = false; onHome() } }) { Text("去桌面") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("关闭") } })
 }
 
 @Composable

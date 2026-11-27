@@ -575,7 +575,7 @@ internal fun EnglishStudyScreen(
             }
         }
     }
-    if (booksOpen) AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { booksOpen = false }, title = { Text("选择词书") }, text = {
+    if (booksOpen) OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { booksOpen = false }, title = { Text("选择词书") }, text = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (catalog.isEmpty()) item { Text("云端词库还没读到，请检查网络后重试。", color = MaterialTheme.colorScheme.onSurfaceVariant) }
             items(catalog, key = { it.id }) { candidate ->
@@ -595,13 +595,15 @@ internal fun EnglishStudyScreen(
                     trailingContent = { if (candidate.id == effective.bookId) Icon(Icons.Outlined.Check, "已选择", tint = MaterialTheme.colorScheme.primary)
                         else if (!ready) Icon(Icons.Outlined.Download, "未下载", tint = MaterialTheme.colorScheme.onSurfaceVariant) },
                     modifier = Modifier.clickable(enabled = !busy) {
-                        booksOpen = false; rows = emptyList(); session = emptyList(); limit = 100; query = ""
-                        checkpoint.clear()   // 主动换书 = 明确放弃上一组（EF05）：断点一并清，不留幽灵恢复
-                        scope.launch {
-                            try { repository.dao.settings(effective.copy(bookId = candidate.id, updatedAt = System.currentTimeMillis())) }
-                            catch (_: Exception) { notice = "词书选择未保存，请重试。" }
-                            // 没下过的当场下载：用户点这一下的意思就是「我要背这本」
-                            if (!repository.isDownloaded(candidate)) importBook(candidate)
+                        closeWith {
+                            booksOpen = false; rows = emptyList(); session = emptyList(); limit = 100; query = ""
+                            checkpoint.clear()   // 主动换书 = 明确放弃上一组（EF05）：断点一并清，不留幽灵恢复
+                            scope.launch {
+                                try { repository.dao.settings(effective.copy(bookId = candidate.id, updatedAt = System.currentTimeMillis())) }
+                                catch (_: Exception) { notice = "词书选择未保存，请重试。" }
+                                // 没下过的当场下载：用户点这一下的意思就是「我要背这本」
+                                if (!repository.isDownloaded(candidate)) importBook(candidate)
+                            }
                         }
                     })
             }
@@ -617,10 +619,10 @@ internal fun EnglishStudyScreen(
                 )
             }
         }
-    }, confirmButton = { TextButton(onClick = { booksOpen = false }) { Text("关闭") } })
+    }, confirmButton = { TextButton(onClick = this::dismiss) { Text("关闭") } })
     detail?.let { word ->
         val progress by remember(owner, word.id) { repository.dao.observeWord(owner, word.id) }.collectAsStateWithLifecycle(initialValue = null)
-        AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { detail = null }, title = { Text(word.english) }, text = {
+        OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { detail = null }, title = { Text(word.english) }, text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { Text(word.chinese) }
                 word.pronunciation?.let { item { Text("美 /$it/") } }
@@ -629,7 +631,7 @@ internal fun EnglishStudyScreen(
                 word.exampleTranslation?.let { item { Text(it, color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 word.phrases?.let { item { Text(it) } }
             }
-        }, confirmButton = { TextButton(onClick = { detail = null }) { Text("关闭") } }, dismissButton = {
+        }, confirmButton = { TextButton(onClick = this::dismiss) { Text("关闭") } }, dismissButton = {
             Row { TextButton(onClick = { aiWord = word; aiSettingsOpen = false }) { Text("问 AI") }
                 TextButton(onClick = { favorite(word) }) { Text(if (progress?.favorite == true) "取消收藏" else "收藏") }
                 TextButton(onClick = { speak(word) }) { Text("发音") } }
@@ -637,35 +639,39 @@ internal fun EnglishStudyScreen(
     }
     speechProblem?.let { problem ->
         val (hint, openable) = speechHint(problem)
-        AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { speechProblem = null },
+        OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { speechProblem = null },
             title = { Text("发不出声音") }, text = { Text(hint) },
-            confirmButton = { TextButton(onClick = { speechProblem = null }) { Text("知道了") } },
+            confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } },
             dismissButton = {
                 if (openable) Row {
                     TextButton(onClick = {
-                        if (!speech.installVoiceData() && !speech.openSystemSettings()) notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
-                        speechProblem = null
+                        closeWith {
+                            if (!speech.installVoiceData() && !speech.openSystemSettings()) notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
+                            speechProblem = null
+                        }
                     }) { Text("语音数据") }
                     TextButton(onClick = {
-                        if (!speech.openSystemSettings()) notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
-                        speechProblem = null
+                        closeWith {
+                            if (!speech.openSystemSettings()) notice = "这台设备没有可跳转的语音设置页，请到系统设置里搜索「文字转语音」。"
+                            speechProblem = null
+                        }
                     }) { Text("系统设置") }
                 }
             })
     }
-    notice?.let { text -> AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { notice = null }, text = { Text(text) }, confirmButton = { TextButton(onClick = { notice = null }) { Text("知道了") } }) }
+    notice?.let { text -> OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { notice = null }, text = { Text(text) }, confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } }) }
     aiWord?.let { word -> EnglishAiDialog(owner = owner, word = word, config = aiConfig,
         onOpenSettings = { aiSettingsOpen = true }, onDismiss = { aiWord = null }) }
     if (aiSettingsOpen) EnglishAiSettingsDialog(store = aiStore, initial = aiConfig,
         onSaved = { aiConfig = it }, onDismiss = { aiSettingsOpen = false })
-    if (aboutOpen) AlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { aboutOpen = false }, title = { Text("来源与许可") }, text = {
+    if (aboutOpen) OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface, onDismissRequest = { aboutOpen = false }, title = { Text("来源与许可") }, text = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("流程参考 JustByHeart（MIT），界面改为 Compose；词库来自 KyleBing/english-vocabulary（BSD-3-Clause），并非 Qwerty 原版。发音使用系统 TTS。") }
             listOf("JustByHeart.txt", "EnglishVocabulary.txt").forEach { file -> item {
                 Text(remember(file) { context.assets.open("licenses/$file").bufferedReader().use { it.readText() } }, style = MaterialTheme.typography.bodySmall)
             } }
         }
-    }, confirmButton = { TextButton(onClick = { aboutOpen = false }) { Text("关闭") } }, dismissButton = {
+    }, confirmButton = { TextButton(onClick = this::dismiss) { Text("关闭") } }, dismissButton = {
         TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/cdz-hy/JustByHeart"))) }.onFailure { notice = "无法打开浏览器" } }) { Text("上游项目") }
     })
 }

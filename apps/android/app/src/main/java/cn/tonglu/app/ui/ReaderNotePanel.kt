@@ -95,15 +95,17 @@ internal fun ReaderNotePanel(
             }
         }
     }
-    if (confirmDelete) AlertDialog(onDismissRequest = { confirmDelete = false },
+    if (confirmDelete) OriginAlertDialog(onDismissRequest = { confirmDelete = false },
         title = { Text("删除这条笔记？") }, text = { Text("删除正式笔记，并清除此处草稿。") },
         confirmButton = { TextButton(onClick = {
-            try {
-                completed[0] = true
-                onDelete?.invoke()
-                prefs.edit().remove(key).apply()
-            } catch (e: Exception) { completed[0] = false; error = "删除失败，内容已保留" }
-            confirmDelete = false
+            closeWith {
+                try {
+                    completed[0] = true
+                    onDelete?.invoke()
+                    prefs.edit().remove(key).apply()
+                } catch (e: Exception) { completed[0] = false; error = "删除失败，内容已保留" }
+                confirmDelete = false
+            }
         }) { Text("删除") } },
-        dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } })
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
 }

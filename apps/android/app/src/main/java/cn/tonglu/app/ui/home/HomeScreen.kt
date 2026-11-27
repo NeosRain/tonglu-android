@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.home
 
+import cn.tonglu.app.ui.OriginAlertDialog
+
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
 
 import androidx.compose.foundation.layout.*
@@ -134,7 +136,7 @@ internal fun HomeScreen(
     }
 
     pendingDelete?.let { course ->
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { OverlayDismissGuard.arm(); pendingDelete = null },
             title = { Text("删除课程") },
             text = {
@@ -146,11 +148,11 @@ internal fun HomeScreen(
                 )
             },
             confirmButton = {
-                TextButton(onClick = { OverlayDismissGuard.arm(); onDeleteCourse(course.id); pendingDelete = null }) {
+                TextButton(onClick = { closeWith { OverlayDismissGuard.arm(); onDeleteCourse(course.id); pendingDelete = null } }) {
                     Text("删除", color = cn.tonglu.app.ui.themeColor(Color(0xFFD9480F), cn.tonglu.app.ui.AppColors.Danger))
                 }
             },
-            dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); pendingDelete = null }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 
@@ -263,7 +265,7 @@ internal fun HomeScreen(
 @Composable
 private fun TermStartDialog(initial: String?, onDismiss: () -> Unit, onConfirm: (String?) -> Unit) {
     var value by remember { mutableStateOf(initial.orEmpty()) }
-    AlertDialog(
+    OriginAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("设置开学日期") },
         text = {
@@ -279,8 +281,8 @@ private fun TermStartDialog(initial: String?, onDismiss: () -> Unit, onConfirm: 
                 )
             }
         },
-        confirmButton = { TextButton(onClick = { onConfirm(value.trim().ifBlank { null }) }) { Text("保存") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = { closeWith { onConfirm(value.trim().ifBlank { null }) } }) { Text("保存") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
     )
 }
 

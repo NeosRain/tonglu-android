@@ -14,6 +14,7 @@ import cn.tonglu.app.data.AppViewModel
 import cn.tonglu.app.data.LinkedPackDto
 import cn.tonglu.app.data.community.*
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.PostComposerDialog
 import cn.tonglu.app.ui.PostPackPickerScreen
@@ -126,19 +127,19 @@ private fun BoardPicker(viewModel: AppViewModel, onDismiss: () -> Unit, onPick: 
     val boards = rememberCommunityList(DIRECTORY_PAGE_SIZE, BoardDto::id, "圈子列表加载失败") { cursor, _ ->
         viewModel.apiOrNull().communityBoards(cursor)
     }
-    AlertDialog(
+    OriginAlertDialog(
         onDismissRequest = onDismiss,
         containerColor = AppColors.SurfaceOpaque,
         title = { Text("选择圈子") },
         text = {
             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 400.dp)) {
                 items(boards.items.filter { it.status == "ACTIVE" && it.clubId == null && it.type != "CLUB" }, key = BoardDto::id) {
-                    TextButton(onClick = { onPick(it) }) { Text(it.name) }
+                    TextButton(onClick = { closeWith { onPick(it) } }) { Text(it.name) }
                 }
                 item { CommunityListStatus(boards, "暂无可发帖的圈子") }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
     )
 }
 
@@ -153,8 +154,8 @@ private fun TopicPicker(
     var name by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(
-        onDismissRequest = { if (!busy) onDismiss() },
+    OriginAlertDialog(
+        onDismissRequest = { onDismiss() }, dismissEnabled = !busy,
         containerColor = AppColors.SurfaceOpaque,
         title = { Text("选择或创建话题") },
         text = {
@@ -162,7 +163,7 @@ private fun TopicPicker(
                 item { CommunityField(name, { name = it }, "话题名称（最多 40 字）", 40, !busy) }
                 error?.let { item { Text(it, color = AppColors.Danger) } }
                 items(topics.items.filter { it.name.contains(name.trim(), true) }, key = TopicDto::id) { topic ->
-                    TextButton(enabled = !busy && selected.none { it.id == topic.id }, onClick = { onPick(topic) }) {
+                    TextButton(enabled = !busy && selected.none { it.id == topic.id }, onClick = { closeWith { onPick(topic) } }) {
                         Text("#" + topic.name)
                     }
                 }
@@ -176,11 +177,11 @@ private fun TopicPicker(
                 scope.launch {
                     communityResult {
                         viewModel.communityAuthorized(sessionId) { createCommunityTopic(it, CreateTopicRequest(name.trim())) }
-                    }.onSuccess(onPick).onFailure { error = communityErrorMessage(it, "话题创建失败") }
+                    }.onSuccess { closeWith { onPick(it) } }.onFailure { error = communityErrorMessage(it, "话题创建失败") }
                     busy = false
                 }
             }) { Text(if (busy) "创建中…" else "创建并添加") }
         },
-        dismissButton = { TextButton(enabled = !busy, onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(enabled = !busy, onClick = this::dismiss) { Text("取消") } },
     )
 }

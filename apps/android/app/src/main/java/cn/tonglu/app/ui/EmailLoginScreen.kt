@@ -448,12 +448,12 @@ internal fun EmailLoginScreen(
 internal fun UsernamePromptDialog(
     state: UsernamePromptState,
     onCheck: (String) -> Unit,
-    onSubmit: (String) -> Unit,
+    onSubmit: (String, (() -> Unit) -> Unit) -> Unit,
     onKeep: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     var input by rememberSaveable { mutableStateOf(state.suggested) }
-    AlertDialog(
+    OriginAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("给自己起个用户名") },
         text = {
@@ -491,11 +491,11 @@ internal fun UsernamePromptDialog(
         confirmButton = {
             TextButton(
                 enabled = !state.busy && state.available == true,
-                onClick = { onSubmit(input) },
+                onClick = { onSubmit(input, this::closeWith) },
             ) { Text(if (state.busy) "保存中…" else "就用这个") }
         },
         dismissButton = {
-            TextButton(onClick = onKeep) { Text("保留当前用户名") }
+            TextButton(onClick = { closeWith(onKeep) }) { Text("保留当前用户名") }
         },
     )
 }

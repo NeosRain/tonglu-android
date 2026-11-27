@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.*
-import androidx.compose.ui.window.Dialog
 import cn.tonglu.app.data.decodeAvatar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -45,7 +44,7 @@ internal fun AvatarCropDialog(uri: Uri, onClose: () -> Unit, onConfirm: (Uri) ->
         val halfHeight = cropHeight() / 2f
         center = Offset(center.x.coerceIn(halfWidth, b.width - halfWidth), center.y.coerceIn(halfHeight, b.height - halfHeight))
     }
-    Dialog(onDismissRequest = { if (!saving) onClose() }) {
+    OriginDialog(onDismissRequest = onClose, dismissEnabled = !saving) {
         Surface(shape = MaterialTheme.shapes.extraLarge) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(if (cover) "裁剪背景图（3:1）" else "裁剪头像", style = MaterialTheme.typography.titleLarge)
@@ -69,7 +68,7 @@ internal fun AvatarCropDialog(uri: Uri, onClose: () -> Unit, onConfirm: (Uri) ->
                 } else if (error == null) CircularProgressIndicator()
                 error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                    TextButton(onClick = onClose, enabled = !saving) { Text("取消") }
+                    TextButton(onClick = this@OriginDialog::dismiss, enabled = !saving) { Text("取消") }
                     Button(enabled = b != null && !saving, onClick = {
                         saving = true
                         val width = cropWidth()
@@ -88,7 +87,7 @@ internal fun AvatarCropDialog(uri: Uri, onClose: () -> Unit, onConfirm: (Uri) ->
                                         target.also { f -> f.outputStream().use { scaled.compress(android.graphics.Bitmap.CompressFormat.JPEG, 85, it) } }
                                     } finally { if (scaled !== b) scaled.recycle(); if (crop !== scaled && crop !== b) crop.recycle() }
                                 }
-                                onConfirm(Uri.fromFile(file))
+                                closeWith { onConfirm(Uri.fromFile(file)) }
                             } catch (e: Exception) { if (e is kotlinx.coroutines.CancellationException) throw e; error = e.message }
                             finally { saving = false }
                         }

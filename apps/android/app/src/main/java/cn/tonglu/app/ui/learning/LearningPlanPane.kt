@@ -13,6 +13,7 @@ import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.TaskAlt
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.ui.draw.rotate
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.glass.GlassTokens
 import cn.tonglu.app.ui.glass.GlassTopBar
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -354,9 +355,9 @@ internal fun LearningPlanPane(
             }
         }
     }
-    if (openBankId == null && !catalogOpen) notice?.let { text -> AlertDialog(containerColor = MaterialTheme.colorScheme.surface,
+    if (openBankId == null && !catalogOpen) notice?.let { text -> OriginAlertDialog(containerColor = MaterialTheme.colorScheme.surface,
         onDismissRequest = { notice = null }, text = { Text(text) },
-        confirmButton = { TextButton(onClick = { notice = null }) { Text("知道了") } }) }
+        confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } }) }
 
     // EF06：从任务直接进真实做题页（整屏子层，关闭回到计划）。
     // 题组可能在停留期间被删 —— 找不到就收掉这个子层，不能画一个空壳。

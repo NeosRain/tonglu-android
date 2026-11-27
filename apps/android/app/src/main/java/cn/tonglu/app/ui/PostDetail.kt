@@ -48,7 +48,6 @@ import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.EmojiEmotions
 import androidx.compose.material.icons.outlined.Edit
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.CircularProgressIndicator
@@ -194,12 +193,12 @@ internal fun PostDetailScreen(
         else if (action == "edit") editCommentTarget = comment
         else onCommentAction(comment, action)
     }
-    confirmDelete?.let { comment -> AlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text("删除自己的回复？") }, text = { Text(if (comment.parentId == null) "删除这一层后，其下回复也会隐藏。" else "删除后将不再公开显示。") }, confirmButton = { TextButton(onClick = { onCommentAction(comment, "delete"); confirmDelete = null }) { Text("删除") } }, dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("取消") } }) }
+    confirmDelete?.let { comment -> OriginAlertDialog(onDismissRequest = { confirmDelete = null }, title = { Text("删除自己的回复？") }, text = { Text(if (comment.parentId == null) "删除这一层后，其下回复也会隐藏。" else "删除后将不再公开显示。") }, confirmButton = { TextButton(onClick = { closeWith { onCommentAction(comment, "delete"); confirmDelete = null } }) { Text("删除") } }, dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } }) }
 
     // 编辑自己的帖子：预填现标题/正文；失败保留内容（与发帖同一口径）。
-    if (editPostOpen && post != null) EditPostDialog(post = post, onDismiss = { editPostOpen = false }, onSave = { title, body, done -> onEditPost(title, body) { ok -> if (ok) editPostOpen = false; done(ok) } })
+    if (editPostOpen && post != null) EditPostDialog(post = post, onDismiss = { editPostOpen = false }, onSave = onEditPost)
     // 编辑自己的回复：同样预填、失败保留。
-    editCommentTarget?.let { target -> EditCommentDialog(comment = target, onDismiss = { editCommentTarget = null }, onSave = { body, done -> onEditComment(target.id, body) { ok -> if (ok) editCommentTarget = null; done(ok) } }) }
+    editCommentTarget?.let { target -> EditCommentDialog(comment = target, onDismiss = { editCommentTarget = null }, onSave = { body, done -> onEditComment(target.id, body, done) }) }
 
     // 详情页是**内联**在 TongluApp 里的全屏层（不是 Dialog），能吃到系统返回的**进度**，
     // 所以走 selfDrag = false —— 真正的「左边缘往右拖跟手」。
@@ -1288,8 +1287,8 @@ private fun EditPostDialog(post: PostDetailDto, onDismiss: () -> Unit, onSave: (
     var body by remember { mutableStateOf(post.body) }
     var saving by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = { if (!saving) onDismiss() },
+    OriginAlertDialog(
+        onDismissRequest = { onDismiss() }, dismissEnabled = !saving,
         title = { Text("编辑帖子") },
         text = {
             Column {
@@ -1298,8 +1297,11 @@ private fun EditPostDialog(post: PostDetailDto, onDismiss: () -> Unit, onSave: (
                 if (failed) Text("保存失败，内容已保留，可以再试一次", color = AppColors.Danger, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
         },
-        confirmButton = { TextButton(onClick = { saving = true; onSave(title.trim(), body) { ok -> saving = false; if (!ok) failed = true } }, enabled = !saving && body.isNotBlank()) { Text(if (saving) "保存中…" else "保存") } },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("取消") } },
+        confirmButton = { TextButton(onClick = { saving = true; onSave(title.trim(), body) { ok ->
+            saving = false
+            if (ok) closeWith(onDismiss) else failed = true
+        } }, enabled = !saving && body.isNotBlank()) { Text(if (saving) "保存中…" else "保存") } },
+        dismissButton = { TextButton(onClick = this::dismiss, enabled = !saving) { Text("取消") } },
     )
 }
 
@@ -1309,8 +1311,8 @@ private fun EditCommentDialog(comment: PostCommentDto, onDismiss: () -> Unit, on
     var body by remember { mutableStateOf(comment.body) }
     var saving by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = { if (!saving) onDismiss() },
+    OriginAlertDialog(
+        onDismissRequest = { onDismiss() }, dismissEnabled = !saving,
         title = { Text("编辑回复") },
         text = {
             Column {
@@ -1318,8 +1320,11 @@ private fun EditCommentDialog(comment: PostCommentDto, onDismiss: () -> Unit, on
                 if (failed) Text("保存失败，内容已保留，可以再试一次", color = AppColors.Danger, fontSize = 11.sp, modifier = Modifier.padding(top = 6.dp))
             }
         },
-        confirmButton = { TextButton(onClick = { saving = true; onSave(body) { ok -> saving = false; if (!ok) failed = true } }, enabled = !saving && body.isNotBlank()) { Text(if (saving) "保存中…" else "保存") } },
-        dismissButton = { TextButton(onClick = onDismiss, enabled = !saving) { Text("取消") } },
+        confirmButton = { TextButton(onClick = { saving = true; onSave(body) { ok ->
+            saving = false
+            if (ok) closeWith(onDismiss) else failed = true
+        } }, enabled = !saving && body.isNotBlank()) { Text(if (saving) "保存中…" else "保存") } },
+        dismissButton = { TextButton(onClick = this::dismiss, enabled = !saving) { Text("取消") } },
     )
 }
 

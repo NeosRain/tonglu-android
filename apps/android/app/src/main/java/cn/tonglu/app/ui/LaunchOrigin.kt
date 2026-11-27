@@ -1,12 +1,19 @@
 package cn.tonglu.app.ui
 
+import android.app.Activity
+import android.content.Context
+import android.content.ContextWrapper
 import android.os.SystemClock
+import android.view.MotionEvent
+import android.view.View
+import android.view.Window
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,6 +38,7 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.positionInWindow
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.LayoutDirection
@@ -41,14 +49,16 @@ import androidx.compose.ui.util.lerp
  * 一镜到底：记录「这一层是从哪里打开的」。
  *
  * 覆盖层（[overlayMotion]）创建时取走一次：有来源就从来源矩形展开成全屏，关闭时收回来源；
- * 没有来源（程序触发、超时）就沿用原来的进场方向。坐标统一用窗口坐标——全屏弹窗与主窗口重合。
+ * 没有来源（程序触发、超时）就沿用原来的进场方向。普通弹窗以主窗口中心兜底。
  *
- * 来源有两级：元素用 [launchOrigin] 标记时记录它的整块边界；否则退回主窗口最近一次按下的位置
- * （[MainActivity] 转发），页面从手指处长出来。
+ * 元素用 [launchOrigin] 标记时记录它的整块边界，否则使用最近一次按下的位置。
+ * 主窗口与弹窗的触点统一存主窗口坐标，取用时转成屏幕坐标。
  */
-internal object LaunchOrigin {
+internal val LaunchOrigin = LaunchOriginTracker { SystemClock.uptimeMillis() }
+
+internal class LaunchOriginTracker(private val now: () -> Long) {
     /** 按下到弹层创建之间允许的最长间隔，超过就当作不是这次点击打开的。 */
-    private const val TTL_MS = 900L
+    private val timeoutMs = 900L
 
     private var enter: Rect? = null
     private var exit: Rect? = null
@@ -56,10 +66,13 @@ internal object LaunchOrigin {
     private var touch: Offset? = null
     private var touchedAt = 0L
     private var container: ContainerOrigin? = null
+    private var mainWindowOnScreen = Offset.Zero
+    internal var touchedInDialog = false
+        private set
 
     fun arm(source: ContainerOrigin) {
         container = source
-        armedAt = SystemClock.uptimeMillis()
+        armedAt = now()
     }
 
     /** 记录元素来源。[exit] 用于「从 A 打开、关闭时回到 B」，例如弹窗卡片展开成笔记、关闭回到课表格子。 */
@@ -68,40 +81,51 @@ internal object LaunchOrigin {
         container = null
         this.enter = enter
         this.exit = exit.takeIf { it.width > 0f && it.height > 0f } ?: enter
-        armedAt = SystemClock.uptimeMillis()
+        armedAt = now()
     }
 
-    fun touch(x: Float, y: Float) {
+    fun armFromScreen(bounds: Rect) = arm(bounds.translate(-mainWindowOnScreen))
+
+    fun touch(point: Offset, mainWindowOnScreen: Offset, inDialog: Boolean = false) {
+        this.mainWindowOnScreen = mainWindowOnScreen
+        touchedInDialog = inDialog
         container = null
         enter = null
         exit = null
-        touch = Offset(x, y)
-        touchedAt = SystemClock.uptimeMillis()
+        touch = point - mainWindowOnScreen
+        touchedAt = now()
     }
 
     fun takeContainer(): ContainerOrigin? {
-        val source = container?.takeIf { SystemClock.uptimeMillis() - armedAt <= TTL_MS }
+        val source = container?.takeIf { now() - armedAt <= timeoutMs }
         container = null
         if (source != null) {
             enter = null
             exit = null
             touch = null
+            touchedInDialog = false
         }
         return source
     }
 
-    /** 取走来源（进场矩形, 收回矩形）；只能取一次。 */
+    /** 取走来源（进场矩形, 收回矩形）并转成屏幕坐标。 */
     fun take(touchSizePx: Float, includeTouch: Boolean = true): Pair<Rect, Rect>? {
-        val now = SystemClock.uptimeMillis()
-        val element = enter?.takeIf { now - armedAt <= TTL_MS }?.let { it to (exit ?: it) }
-        val finger = touch?.takeIf { includeTouch && now - touchedAt <= TTL_MS }
-        enter = null; exit = null; touch = null
+        val time = now()
+        val element = enter?.takeIf { time - armedAt <= timeoutMs }?.let {
+            it.translate(mainWindowOnScreen) to (exit ?: it).translate(mainWindowOnScreen)
+        }
+        val finger = touch?.takeIf { includeTouch && time - touchedAt <= timeoutMs }
+            ?.plus(mainWindowOnScreen)
+        enter = null; exit = null; touch = null; touchedInDialog = false
         if (element != null) return element
         if (finger == null) return null
         val half = touchSizePx / 2f
         val r = Rect(finger.x - half, finger.y - half, finger.x + half, finger.y + half)
         return r to r
     }
+
+    fun takeDialogOrigin(screenCenter: Offset): Offset =
+        takeContainer()?.initial?.center ?: take(0f)?.first?.center ?: screenCenter
 }
 
 /** 一次导航的起点和实时返回目标。源与目标可能位于不同的 Dialog 窗口。 */
@@ -120,10 +144,7 @@ internal class LaunchSource(internal val cornerPx: Float, initialSurfaceColor: C
 
     fun bounds(): Rect? {
         val layout = coordinates?.takeIf { it.isAttached } ?: return null
-        val bounds = layout.boundsInWindow()
-        val screen = layout.localToScreen(Offset.Zero)
-        if (!screen.isSpecified) return null
-        return bounds.translate(screen - layout.positionInWindow()).takeIf { it.width > 0f && it.height > 0f }
+        return layout.launchBoundsOnScreen()?.takeIf { it.width > 0f && it.height > 0f }
     }
 
     fun capture(): ContainerOrigin? = bounds()?.let { ContainerOrigin(it, cornerPx, this) }
@@ -163,14 +184,74 @@ internal fun Modifier.launchClickable(
 
 /** 标记一个可打开新层的元素：按下时把它的整块边界登记为来源，不消费事件。 */
 internal fun Modifier.launchOrigin(): Modifier = composed {
-    val bounds = remember { arrayOf(Rect.Zero) }
-    onGloballyPositioned { bounds[0] = it.boundsInWindow() }
+    val coordinates = remember { arrayOfNulls<LayoutCoordinates>(1) }
+    onGloballyPositioned { coordinates[0] = it }
         .pointerInput(Unit) {
             awaitEachGesture {
                 awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
-                LaunchOrigin.arm(bounds[0])
+                coordinates[0]?.launchBoundsOnScreen()?.let(LaunchOrigin::armFromScreen)
             }
         }
+}
+
+private fun LayoutCoordinates.launchBoundsOnScreen(): Rect? {
+    val screen = localToScreen(Offset.Zero)
+    if (!screen.isSpecified) return null
+    return boundsInWindow().translate(screen - positionInWindow())
+}
+
+internal fun recordMainWindowTouch(event: MotionEvent) {
+    val screen = Offset(event.rawX, event.rawY)
+    LaunchOrigin.touch(screen, screen - Offset(event.x, event.y))
+}
+
+internal fun View.dialogWindow(): Window? =
+    generateSequence(this) { it.parent as? View }
+        .filterIsInstance<DialogWindowProvider>().firstOrNull()?.window
+
+private tailrec fun Context.originActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.originActivity()
+    else -> null
+}
+
+private fun View.screenPosition(): Offset {
+    val location = IntArray(2)
+    getLocationOnScreen(location)
+    return Offset(location[0].toFloat(), location[1].toFloat())
+}
+
+internal fun View.mainWindowCenterOnScreen(): Offset {
+    val decor = context.originActivity()?.window?.decorView ?: rootView
+    return if (decor.width > 0 && decor.height > 0) {
+        decor.screenPosition() + Offset(decor.width / 2f, decor.height / 2f)
+    } else Offset.Unspecified
+}
+
+/** 在窗口根部先于 Compose 手势记录 DOWN，子节点仍可用标记元素覆盖来源。 */
+@Composable
+internal fun RecordDialogLaunchTouches(window: Window) {
+    DisposableEffect(window) {
+        val callback = window.callback
+        val tracker = callback as? DialogTouchCallback ?: DialogTouchCallback(callback, window)
+        window.callback = tracker
+        tracker.registrations++
+        onDispose {
+            if (--tracker.registrations == 0 && window.callback === tracker) window.callback = tracker.delegate
+        }
+    }
+}
+
+private class DialogTouchCallback(val delegate: Window.Callback, window: Window) : Window.Callback by delegate {
+    private val mainDecor = window.context.originActivity()?.window?.decorView
+    var registrations = 0
+
+    override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        if (event.actionMasked == MotionEvent.ACTION_DOWN) {
+            LaunchOrigin.touch(Offset(event.rawX, event.rawY), mainDecor?.screenPosition() ?: Offset.Zero, inDialog = true)
+        }
+        return delegate.dispatchTouchEvent(event)
+    }
 }
 
 /** 展开过程中的裁剪框（层内坐标）。每帧新建，保证轮廓随进度更新。 */

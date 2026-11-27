@@ -9,6 +9,7 @@ import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.view.MotionEvent
 import android.widget.RemoteViews
 import android.provider.Settings
 import android.os.SystemClock
@@ -29,6 +30,7 @@ import cn.tonglu.app.R
 import cn.tonglu.app.ui.AppColors
 import cn.tonglu.app.ui.AppTheme
 import cn.tonglu.app.ui.ThemeSystemBars
+import cn.tonglu.app.ui.recordMainWindowTouch
 import java.util.UUID
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -45,6 +47,11 @@ class WidgetPickerActivity : ComponentActivity() {
     private var waitJob: Job? = null
     private var beforeIds: IntArray? = null
     private val resultListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> checkResult() }
+
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) recordMainWindowTouch(ev)
+        return super.dispatchTouchEvent(ev)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         AppTheme.syncFrom(this)

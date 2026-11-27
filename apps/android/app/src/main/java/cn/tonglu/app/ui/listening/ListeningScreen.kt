@@ -72,6 +72,7 @@ import cn.tonglu.app.data.listening.PackStage
 import cn.tonglu.app.data.listening.PracticeStore
 import cn.tonglu.app.data.listening.candidateWords
 import cn.tonglu.app.data.listening.splitSentences
+import cn.tonglu.app.ui.OriginDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
@@ -222,7 +223,7 @@ fun ListeningScreen(
 
     confirmDelete?.let { id ->
         val target = materials.firstOrNull { it.id == id } ?: return@let
-        Dialog(onDismissRequest = { confirmDelete = null }) {
+        OriginDialog(onDismissRequest = { confirmDelete = null }) {
             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.surface) {
                 Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("删除这份材料？", fontWeight = FontWeight.SemiBold)
@@ -230,9 +231,9 @@ fun ListeningScreen(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { confirmDelete = null }) { Text("取消") }
+                        TextButton(onClick = this@OriginDialog::dismiss) { Text("取消") }
                         TextButton(onClick = {
-                            library.delete(id); materials = library.list(); confirmDelete = null
+                            closeWith { library.delete(id); materials = library.list(); confirmDelete = null }
                         }) { Text("删除", color = MaterialTheme.colorScheme.error) }
                     }
                 }

@@ -101,6 +101,30 @@ class LaunchOriginTest {
         assertEquals(30f, end.radius, .01f)
     }
 
+    @Test fun `nested overlay returns to the original dialog press after another touch and back commit`() {
+        val tracker = LaunchOriginTracker { 0L }
+        val dialogTopLeft = Offset(175f, 950f)
+        val press = dialogTopLeft + Offset(257f, 259f)
+        tracker.touch(press, Offset(26f, 48f), inDialog = true)
+        val scope = CoroutineScope(object : CoroutineDispatcher() {
+            override fun dispatch(context: CoroutineContext, block: Runnable) = Unit
+        })
+        try {
+            val motion = OverlayMotionState(true, {}, true, scope)
+            motion.captureOrigin(tracker, touchSize = 96f, useContainer = false, explicit = null, takePending = true)
+
+            tracker.touch(Offset(755f, 1360f), Offset.Zero, inDialog = true)
+            motion.edge.drag(.5f, androidx.activity.BackEventCompat.EDGE_LEFT)
+            motion.edge.onCommit = motion::requestClose
+            motion.edge.end(commit = true)
+
+            assertTrue(motion.container)
+            assertEquals(Rect(384f, 1161f, 480f, 1257f), motion.exitBounds)
+        } finally {
+            scope.cancel()
+        }
+    }
+
     @Test fun `commit keeps the last drawn preview in screen coordinates if the window moves`() {
         val queued = ArrayDeque<Runnable>()
         val scope = CoroutineScope(object : CoroutineDispatcher() {

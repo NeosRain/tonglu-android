@@ -751,14 +751,14 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
             }
         }
     }
-    if (editorLicense) AlertDialog(onDismissRequest = { editorLicense = false }, containerColor = AppColors.SurfaceOpaque,
+    if (editorLicense) OriginAlertDialog(onDismissRequest = { editorLicense = false }, containerColor = AppColors.SurfaceOpaque,
         title = { Text("开源许可") }, text = {
             val license = remember { context.assets.open("licenses/compose-rich-editor.txt").bufferedReader().use { it.readText() } }
             Column(Modifier.verticalScroll(rememberScrollState())) {
                 Text("Compose Rich Editor 1.1.0 · Mohamed Rejeb · Apache-2.0", fontSize = 13.sp)
                 Text(license, fontSize = 11.sp)
             }
-        }, confirmButton = { TextButton(onClick = { editorLicense = false }) { Text("关闭") } })
+        }, confirmButton = { TextButton(onClick = this::dismiss) { Text("关闭") } })
     if (exportPicker) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         var choosing by remember { mutableStateOf(false) }
@@ -789,8 +789,8 @@ internal fun ClassNotesDialog(course: CourseDto, relatedCourses: List<CourseDto>
             }
         }
     }
-    exportNotice?.let { notice -> AlertDialog(containerColor = AppColors.SurfaceOpaque, onDismissRequest = { exportNotice = null },
-        title = { Text("导出结果") }, text = { Text(notice) }, confirmButton = { TextButton(onClick = { exportNotice = null }) { Text("知道了") } }) }
+    exportNotice?.let { notice -> OriginAlertDialog(containerColor = AppColors.SurfaceOpaque, onDismissRequest = { exportNotice = null },
+        title = { Text("导出结果") }, text = { Text(notice) }, confirmButton = { TextButton(onClick = this::dismiss) { Text("知道了") } }) }
     enlargedPhoto?.let { name ->
         val photoMotion = rememberOverlayMotion(
             onClose = { enlargedPhoto = null }, predictive = false, selfDrag = true,

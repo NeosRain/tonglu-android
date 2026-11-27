@@ -5,6 +5,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import cn.tonglu.app.ui.ContainerOrigin
 import cn.tonglu.app.ui.LaunchOrigin
 import cn.tonglu.app.ui.LocalReaderOrigin
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.launchOrigin
 import cn.tonglu.app.ui.rememberLaunchSource
 import androidx.compose.foundation.clickable
@@ -357,26 +358,28 @@ fun MyReadingScreen(owner: String, onClose: () -> Unit, onOpen: (LearningArticle
         PaperReaderScreen(owner = owner, documentId = doc, onClose = { paperDocumentId = null })
     }
 
-    deleting?.let { row -> AlertDialog(onDismissRequest = { deleting = null }, title = { Text("删除本机副本？") },
+    deleting?.let { row -> OriginAlertDialog(onDismissRequest = { deleting = null }, title = { Text("删除本机副本？") },
         text = { Text("删除「${row.documentTitle ?: row.title}」${if (row.documentId != null) "及全部章节" else ""}。原始文件不会改变。") },
         confirmButton = { TextButton({
-            deleting = null
-            scope.launch {
-                try {
-                    val ok = if (row.documentId != null) repository.deleteMyDocument(row.documentId, owner) else repository.deleteMyArticle(row.id, owner)
-                    notice = if (ok) "已删除本机阅读副本" else "没有找到该文件，请刷新后重试"
-                } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
-                catch (cause: Exception) { notice = cause.message ?: "删除失败，请重试" }
+            closeWith {
+                deleting = null
+                scope.launch {
+                    try {
+                        val ok = if (row.documentId != null) repository.deleteMyDocument(row.documentId, owner) else repository.deleteMyArticle(row.id, owner)
+                        notice = if (ok) "已删除本机阅读副本" else "没有找到该文件，请刷新后重试"
+                    } catch (cancelled: kotlinx.coroutines.CancellationException) { throw cancelled }
+                    catch (cause: Exception) { notice = cause.message ?: "删除失败，请重试" }
+                }
             }
-        }) { Text("删除") } }, dismissButton = { TextButton({ deleting = null }) { Text("取消") } }) }
-    if (showLicense) AlertDialog(onDismissRequest = { showLicense = false }, title = { Text("PdfBox-Android · Apache-2.0") },
+        }) { Text("删除") } }, dismissButton = { TextButton(this::dismiss) { Text("取消") } }) }
+    if (showLicense) OriginAlertDialog(onDismissRequest = { showLicense = false }, title = { Text("PdfBox-Android · Apache-2.0") },
         text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
             Text("https://github.com/TomRoush/PdfBox-Android\n版本 2.0.27.0\n")
             val licenseText = remember { listOf("PdfBox-Android.txt", "PdfBox-Android-NOTICE.txt").joinToString("\n\n") { name ->
                 context.assets.open("licenses/$name").bufferedReader().use { it.readText() }
             } }
             Text(licenseText, style = MaterialTheme.typography.bodySmall)
-        } }, confirmButton = { TextButton({ showLicense = false }) { Text("关闭") } })
+        } }, confirmButton = { TextButton(this::dismiss) { Text("关闭") } })
     // 与考试选材页相同的子阅读器入口；书架/书页窗口保持组合，关闭正文回到原书/原页码列表。
     activeReading?.let { current ->
         androidx.compose.runtime.CompositionLocalProvider(LocalReaderOrigin provides articleOrigin) {

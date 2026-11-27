@@ -36,6 +36,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -80,7 +81,14 @@ object PomodoroUi {
 private const val PANEL_WINDOW="tonglu-pomodoro-panel"
 private object KnownWindows {
     val roots=java.util.WeakHashMap<ViewGroup,Int>()
+    val dialogContentSizes=java.util.WeakHashMap<View,IntSize>()
     var changed: (() -> Unit)? = null
+}
+
+/** 普通弹窗的动画窗口铺满屏幕。陪伴层仍按实际卡片尺寸判断能否挂载。 */
+internal fun updatePomodoroDialogContentSize(root: View, size: IntSize?) {
+    if(size==null) KnownWindows.dialogContentSizes.remove(root)
+    else KnownWindows.dialogContentSizes[root]=size
 }
 
 /** Legacy Android has no WindowInspector: common dialog shells register their public root View. */
@@ -180,8 +188,11 @@ fun PomodoroHost(owner: String?) {
                     (WindowInspector.getGlobalWindowViews().filterIsInstance<ViewGroup>()+KnownWindows.roots.keys.toList()).distinct()
                     else (listOfNotNull(activity.window.decorView as? ViewGroup)+KnownWindows.roots.keys.toList()).distinct()
                 val px=context.resources.displayMetrics.density
-                val eligible=roots.filter { it.isAttachedToWindow && it.tag!=PANEL_WINDOW &&
-                    (it in KnownWindows.roots || (it.width>=220*px && it.height>=300*px)) }
+                val eligible=roots.filter {
+                    val size=KnownWindows.dialogContentSizes[it] ?: IntSize(it.width,it.height)
+                    it.isAttachedToWindow && it.tag!=PANEL_WINDOW && it !is androidx.compose.ui.platform.AbstractComposeView &&
+                        (it in KnownWindows.roots || (size.width>=220*px && size.height>=300*px))
+                }
                 listeners.keys.toList().filter { it !in eligible }.forEach { root ->
                     listeners.remove(root)?.let { if(root.viewTreeObserver.isAlive) root.viewTreeObserver.removeOnWindowFocusChangeListener(it) }
                 }

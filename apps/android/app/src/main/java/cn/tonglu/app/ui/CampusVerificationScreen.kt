@@ -185,5 +185,5 @@ fun CampusVerificationScreen(state: AppUiState, viewModel: AppViewModel, onBack:
             }
         }
     }
-    if (withdrawId != null) AlertDialog(onDismissRequest = { withdrawId = null }, title = { Text("撤回申请？") }, text = { Text("原始材料将移除。你可以重新补充材料后提交。") }, confirmButton = { TextButton(onClick = { withdrawId?.let(viewModel::withdrawCampusVerification); withdrawId = null }) { Text("撤回") } }, dismissButton = { TextButton(onClick = { withdrawId = null }) { Text("取消") } })
+    if (withdrawId != null) OriginAlertDialog(onDismissRequest = { withdrawId = null }, title = { Text("撤回申请？") }, text = { Text("原始材料将移除。你可以重新补充材料后提交。") }, confirmButton = { TextButton(onClick = { closeWith { withdrawId?.let(viewModel::withdrawCampusVerification); withdrawId = null } }) { Text("撤回") } }, dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
 }

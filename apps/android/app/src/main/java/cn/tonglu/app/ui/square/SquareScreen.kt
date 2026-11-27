@@ -1,5 +1,7 @@
 package cn.tonglu.app.ui.square
 
+import cn.tonglu.app.ui.OriginAlertDialog
+
 import cn.tonglu.app.ui.profile.publicProfileLink
 
 import cn.tonglu.app.ui.LocalMainNavigationBottomPadding
@@ -36,7 +38,6 @@ import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.Storefront
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -506,7 +507,7 @@ private fun sharePost(
 internal fun ReportDialog(post: PostDto, onDismiss: () -> Unit, onSubmit: (String, String?) -> Unit) {
     var reason by remember { mutableStateOf("不实信息") }
     var details by remember { mutableStateOf("") }
-    AlertDialog(
+    OriginAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("举报内容") },
         text = {
@@ -516,8 +517,8 @@ internal fun ReportDialog(post: PostDto, onDismiss: () -> Unit, onSubmit: (Strin
                 OutlinedTextField(details, { details = it.take(1000) }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), label = { Text("补充说明（可选）") }, maxLines = 3)
             }
         },
-        confirmButton = { TextButton(onClick = { if (reason.trim().length >= 2) onSubmit(reason.trim(), details.trim().ifBlank { null }) }) { Text("提交") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        confirmButton = { TextButton(onClick = { if (reason.trim().length >= 2) closeWith { onSubmit(reason.trim(), details.trim().ifBlank { null }) } }) { Text("提交") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
     )
 }
 

@@ -1047,7 +1047,7 @@ private fun ReaderLicenses() {
 
 @Composable
 private fun AttributionDialog(article: LearningArticle, onDismiss: () -> Unit) {
-    AlertDialog(
+    OriginAlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("完整归属") },
         text = {
@@ -1063,7 +1063,7 @@ private fun AttributionDialog(article: LearningArticle, onDismiss: () -> Unit) {
                 if (article.licenseUrl.isNotBlank()) Text("许可地址：${article.licenseUrl}", fontSize = 11.sp, color = MaterialTheme.colorScheme.primary, modifier = Modifier.padding(top = 2.dp))
             } }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        confirmButton = { TextButton(onClick = this::dismiss) { Text("关闭") } },
     )
 }
 

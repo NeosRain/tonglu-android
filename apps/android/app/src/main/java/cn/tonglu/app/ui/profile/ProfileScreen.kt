@@ -3,6 +3,7 @@ package cn.tonglu.app.ui.profile
 import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.rememberLazyListState
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.glass.BindMainTopBarScroll
 import cn.tonglu.app.ui.glass.DarkTopBarBackground
 import cn.tonglu.app.ui.glass.GlassTokens
@@ -756,17 +757,17 @@ internal fun ProfileScreen(
     if (showFeedback) FeedbackDialog(onClose = { showFeedback = false })
     avatarCropUri?.let { uri -> AvatarCropDialog(uri, onClose = { OverlayDismissGuard.arm(); avatarCropUri = null },
         onConfirm = { cropped -> OverlayDismissGuard.arm(); avatarCropUri = null; onAvatar(cropped) }) }
-    if (confirmAcademicSync) AlertDialog(onDismissRequest = { OverlayDismissGuard.arm(); confirmAcademicSync = false },
+    if (confirmAcademicSync) OriginAlertDialog(onDismissRequest = { OverlayDismissGuard.arm(); confirmAcademicSync = false },
         title = { Text("立即同步课表与成绩") },
         text = { Text("把本机与云端两份记录合并后重新上传，用于换机恢复。示例数据和学校登录 Cookie 不会上传。同一门课两边都改过时保留本机记录。") },
-        confirmButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false; onAcademicSync() }) { Text("开始同步") } },
-        dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmAcademicSync = false }) { Text("取消") } })
+        confirmButton = { TextButton(onClick = { closeWith { OverlayDismissGuard.arm(); confirmAcademicSync = false; onAcademicSync() } }) { Text("开始同步") } },
+        dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
 
     // 清空课表：不可撤销，问一次
     // 导入备份：先让用户看清「这份文件带了哪几类」，再执行（不覆盖本机）
     pendingRestore?.let { parsed ->
         val sections = parsed.presentSections()
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { OverlayDismissGuard.arm(); pendingRestore = null },
             title = { Text("导入这份备份？") },
             text = {
@@ -785,45 +786,47 @@ internal fun ProfileScreen(
                 TextButton(
                     enabled = sections.isNotEmpty(),
                     onClick = {
-                        OverlayDismissGuard.arm()
-                        pendingRestore = null
-                        scope.launch {
-                            val results = withContext(Dispatchers.IO) {
-                                // 备份声明了几类就恢复几类 —— 以前只做作答与计划，
-                                // 界面却写着「文件里带有：课表、成绩…」，点了等于什么都没导入。
-                                PersonalBackup.restoreAll(context, ownerKey, parsed)
+                        closeWith {
+                            OverlayDismissGuard.arm()
+                            pendingRestore = null
+                            scope.launch {
+                                val results = withContext(Dispatchers.IO) {
+                                    // 备份声明了几类就恢复几类 —— 以前只做作答与计划，
+                                    // 界面却写着「文件里带有：课表、成绩…」，点了等于什么都没导入。
+                                    PersonalBackup.restoreAll(context, ownerKey, parsed)
+                                }
+                                // 课表/成绩/学期写回本机后要重新读一遍，否则界面还是旧数据
+                                onLocalDataRestored()
+                                val restored = results.filter { it.outcome == PersonalBackup.RestoreOutcome.RESTORED }
+                                val skipped = results.filter { it.outcome == PersonalBackup.RestoreOutcome.SKIPPED_NON_EMPTY }
+                                // 坏段必须单独点出来：只报「已导入 X」会让用户以为整份都进来了，
+                                // 而 FINDINGS #4 要求「不得无提示丢失」。
+                                val failed = results.filter { it.outcome == PersonalBackup.RestoreOutcome.INVALID }
+                                backupNotice = listOf(
+                                    if (restored.isNotEmpty())
+                                        "已导入：" + restored.joinToString("、") { "${it.section} ${it.count} 条" }
+                                    else "",
+                                    if (skipped.isNotEmpty())
+                                        (if (restored.isNotEmpty()) "（" else "") +
+                                            skipped.joinToString("、") { it.section } +
+                                            (if (restored.isNotEmpty()) "）" else "") + "本机已有，未动"
+                                    else "",
+                                    if (failed.isNotEmpty())
+                                        failed.joinToString("、") { it.section } + "这一段读不出来，没有导入"
+                                    else "",
+                                ).filter { it.isNotBlank() }.joinToString("；")
+                                    .ifBlank { "这份文件里没有可导入的数据。" }
                             }
-                            // 课表/成绩/学期写回本机后要重新读一遍，否则界面还是旧数据
-                            onLocalDataRestored()
-                            val restored = results.filter { it.outcome == PersonalBackup.RestoreOutcome.RESTORED }
-                            val skipped = results.filter { it.outcome == PersonalBackup.RestoreOutcome.SKIPPED_NON_EMPTY }
-                            // 坏段必须单独点出来：只报「已导入 X」会让用户以为整份都进来了，
-                            // 而 FINDINGS #4 要求「不得无提示丢失」。
-                            val failed = results.filter { it.outcome == PersonalBackup.RestoreOutcome.INVALID }
-                            backupNotice = listOf(
-                                if (restored.isNotEmpty())
-                                    "已导入：" + restored.joinToString("、") { "${it.section} ${it.count} 条" }
-                                else "",
-                                if (skipped.isNotEmpty())
-                                    (if (restored.isNotEmpty()) "（" else "") +
-                                        skipped.joinToString("、") { it.section } +
-                                        (if (restored.isNotEmpty()) "）" else "") + "本机已有，未动"
-                                else "",
-                                if (failed.isNotEmpty())
-                                    failed.joinToString("、") { it.section } + "这一段读不出来，没有导入"
-                                else "",
-                            ).filter { it.isNotBlank() }.joinToString("；")
-                                .ifBlank { "这份文件里没有可导入的数据。" }
                         }
                     },
                 ) { Text("导入") }
             },
-            dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); pendingRestore = null }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 
     if (confirmClearSchedule) {
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { OverlayDismissGuard.arm(); confirmClearSchedule = false },
             title = { Text("清空本机课表？") },
             text = {
@@ -839,18 +842,20 @@ internal fun ProfileScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    OverlayDismissGuard.arm()
-                    confirmClearSchedule = false
-                    onClearSchedule()
+                    closeWith {
+                        OverlayDismissGuard.arm()
+                        confirmClearSchedule = false
+                        onClearSchedule()
+                    }
                 }) { Text("清空", color = Danger) }
             },
-            dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmClearSchedule = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 
     // 退出登录：默认**不**删课表（A30）—— 删除必须由用户明确勾选
     if (confirmLogout) {
-        AlertDialog(
+        OriginAlertDialog(
             onDismissRequest = { OverlayDismissGuard.arm(); confirmLogout = false },
             title = { Text("退出登录？") },
             text = {
@@ -888,12 +893,14 @@ internal fun ProfileScreen(
             },
             confirmButton = {
                 TextButton(onClick = {
-                    OverlayDismissGuard.arm()
-                    confirmLogout = false
-                    onLogout(clearScheduleOnLogout)
+                    closeWith {
+                        OverlayDismissGuard.arm()
+                        confirmLogout = false
+                        onLogout(clearScheduleOnLogout)
+                    }
                 }) { Text("退出登录") }
             },
-            dismissButton = { TextButton(onClick = { OverlayDismissGuard.arm(); confirmLogout = false }) { Text("取消") } },
+            dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } },
         )
     }
 }

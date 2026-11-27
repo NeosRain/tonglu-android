@@ -635,7 +635,7 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
         }
     }
 
-    fun doMkdir() {
+    fun OriginDialogScope.doMkdir() {
         val c = currentClient() ?: return
         val name = newFolderName.trim()
         if (name.isEmpty()) {
@@ -643,17 +643,20 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
             return
         }
         val dir = path
-        newFolderOpen = false
-        newFolderName = ""
-        scope.launch {
-            error = null
-            hint = null
-            try {
-                withContext(Dispatchers.IO) { c.mkdir(OpenListClient.join(dir, name)) }
-                entries = withContext(Dispatchers.IO) { c.list(dir) }.sortedForDisplay()
-                hint = "已新建 $name"
-            } catch (e: Exception) {
-                report(e, "新建失败")
+        closeWith {
+            OverlayDismissGuard.arm()
+            newFolderOpen = false
+            newFolderName = ""
+            scope.launch {
+                error = null
+                hint = null
+                try {
+                    withContext(Dispatchers.IO) { c.mkdir(OpenListClient.join(dir, name)) }
+                    entries = withContext(Dispatchers.IO) { c.list(dir) }.sortedForDisplay()
+                    hint = "已新建 $name"
+                } catch (e: Exception) {
+                    report(e, "新建失败")
+                }
             }
         }
     }
@@ -921,19 +924,21 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
         }
 
         pendingDelete?.let { item ->
-            AlertDialog(
+            OriginAlertDialog(
                 onDismissRequest = { OverlayDismissGuard.arm(); pendingDelete = null },
                 title = { Text("删除「${item.name}」？") },
                 text = { Text("删除后无法恢复（本来也会在到期时自动销毁）。") },
                 confirmButton = {
                     TextButton(onClick = {
-                        OverlayDismissGuard.arm()
-                        pendingDelete = null
-                        deleteCloud(item)
+                        closeWith {
+                            OverlayDismissGuard.arm()
+                            pendingDelete = null
+                            deleteCloud(item)
+                        }
                     }) { Text("删除") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { OverlayDismissGuard.arm(); pendingDelete = null }) { Text("取消") }
+                    TextButton(onClick = this::dismiss) { Text("取消") }
                 },
             )
         }
@@ -956,7 +961,7 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
                 }
             }
             val leftMs = (card.remainingMs - elapsedMs).coerceAtLeast(0L)
-            Dialog(
+            OriginDialog(
                 onDismissRequest = { OverlayDismissGuard.arm(); shareCard = null },
                 properties = DialogProperties(usePlatformDefaultWidth = false),
             ) {
@@ -1030,9 +1035,7 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
                                 Text(if (shareRenewing) "换码中…" else "换一把链接")
                             }
                             Spacer(Modifier.weight(1f))
-                            TextButton(onClick = {
-                                OverlayDismissGuard.arm(); shareCard = null
-                            }) { Text("完成") }
+                            TextButton(onClick = this@OriginDialog::dismiss) { Text("完成") }
                         }
                     }
                 }
@@ -1040,7 +1043,7 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
         }
 
         selfPendingDelete?.let { entry ->
-            AlertDialog(
+            OriginAlertDialog(
                 onDismissRequest = { OverlayDismissGuard.arm(); selfPendingDelete = null },
                 title = { Text("删除「${entry.name}」？") },
                 text = {
@@ -1051,19 +1054,21 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        OverlayDismissGuard.arm()
-                        selfPendingDelete = null
-                        doDelete(entry)
+                        closeWith {
+                            OverlayDismissGuard.arm()
+                            selfPendingDelete = null
+                            doDelete(entry)
+                        }
                     }) { Text("删除") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { OverlayDismissGuard.arm(); selfPendingDelete = null }) { Text("取消") }
+                    TextButton(onClick = this::dismiss) { Text("取消") }
                 },
             )
         }
 
         if (newFolderOpen) {
-            AlertDialog(
+            OriginAlertDialog(
                 onDismissRequest = { OverlayDismissGuard.arm(); newFolderOpen = false },
                 title = { Text("新建文件夹") },
                 text = {
@@ -1075,10 +1080,10 @@ internal fun NetdiskScreen(onClose: () -> Unit, viewModel: AppViewModel) {
                     )
                 },
                 confirmButton = {
-                    TextButton(onClick = { OverlayDismissGuard.arm(); doMkdir() }) { Text("创建") }
+                    TextButton(onClick = { doMkdir() }) { Text("创建") }
                 },
                 dismissButton = {
-                    TextButton(onClick = { OverlayDismissGuard.arm(); newFolderOpen = false }) { Text("取消") }
+                    TextButton(onClick = this::dismiss) { Text("取消") }
                 },
             )
         }

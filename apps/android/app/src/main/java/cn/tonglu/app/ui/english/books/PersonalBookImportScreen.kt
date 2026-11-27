@@ -20,6 +20,7 @@ import cn.tonglu.app.data.english.books.ImportRow
 import cn.tonglu.app.data.english.books.PersonalWordBookStore
 import cn.tonglu.app.data.english.books.WordListImport
 import cn.tonglu.app.ui.AppColors
+import cn.tonglu.app.ui.OriginAlertDialog
 import cn.tonglu.app.ui.OverlayDismissGuard
 import cn.tonglu.app.ui.OverlayMotion
 import cn.tonglu.app.ui.overlayMotion
@@ -162,16 +163,16 @@ fun PersonalBookImportScreen(owner: String, onClose: () -> Unit) {
                             }
                         }
                         if (pasteOpen) {
-                            AlertDialog(onDismissRequest = { pasteOpen = false }, title = { Text("粘贴词单文本") },
+                            OriginAlertDialog(onDismissRequest = { pasteOpen = false }, title = { Text("粘贴词单文本") },
                                 text = {
                                     OutlinedTextField(value = pasteText, onValueChange = { pasteText = it },
                                         minLines = 4, maxLines = 10, modifier = Modifier.fillMaxWidth())
                                 },
                                 confirmButton = {
-                                    TextButton(onClick = { pasteOpen = false; parseText(pasteText, "粘贴文本") },
+                                    TextButton(onClick = { closeWith { pasteOpen = false; parseText(pasteText, "粘贴文本") } },
                                         enabled = pasteText.isNotBlank()) { Text("解析") }
                                 },
-                                dismissButton = { TextButton(onClick = { pasteOpen = false }) { Text("取消") } })
+                                dismissButton = { TextButton(onClick = this::dismiss) { Text("取消") } })
                         }
                     }
                     "preview" -> ImportPreviewBody(rows, skipped, books, targetBookId, newBookName,
